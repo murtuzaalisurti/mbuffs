@@ -1,4 +1,5 @@
 
+import { checkDbConnection } from './db';
 import { Movie, MovieDetails, SearchResults } from './types';
 
 // Normally we'd store this in an environment variable or secure location
@@ -118,6 +119,7 @@ export const fetchMovieDetails = async (id: number): Promise<MovieDetails | null
 };
 
 export const searchMovies = async (query: string): Promise<SearchResults> => {
+  checkDbConnection();
   if (DEMO_MODE) {
     const filteredMovies = MOCK_POPULAR_MOVIES.filter(movie => 
       movie.title.toLowerCase().includes(query.toLowerCase())
