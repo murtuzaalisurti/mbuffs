@@ -23,7 +23,6 @@ export const fetchBackend = async (endpoint: string, options: RequestInit = {}) 
         ...options,
     };
 
-    try {
         const response = await fetch(url, defaultOptions);
         if (!response.ok) {
             let errorData = { message: `HTTP error ${response.status}` }; // Default error
@@ -34,7 +33,7 @@ export const fetchBackend = async (endpoint: string, options: RequestInit = {}) 
             }
             catch (e) { /* Ignore JSON parsing error */ }
             console.error(`API Error (${response.status}) on ${endpoint}:`, errorData);
-            const error = new Error(errorData.message) as any;
+            const error = new Error(errorData.message) as any; // eslint-disable-line
             error.status = response.status;
             error.data = errorData; // Attach full error data if available
             throw error;
@@ -44,11 +43,6 @@ export const fetchBackend = async (endpoint: string, options: RequestInit = {}) 
             return null; // Return null for empty responses (e.g., DELETE, successful PUT/POST with no body)
         }
         return await response.json();
-    } catch (error) {
-        // Don't re-log here, just re-throw
-        // console.error(`Network or fetch error on ${endpoint}:`, error);
-        throw error;
-    }
 };
 
 // --- Auth API Functions ---
@@ -142,7 +136,6 @@ const fetchTmdb = async (endpoint: string, params: Record<string, string> = {}) 
     url.searchParams.append('language', 'en-US');
     Object.entries(params).forEach(([key, value]) => url.searchParams.append(key, value));
 
-    try {
         const response = await fetch(url.toString());
         if (!response.ok) {
             let errorData = { status_message: `HTTP error ${response.status}` }; // Default error
@@ -154,10 +147,6 @@ const fetchTmdb = async (endpoint: string, params: Record<string, string> = {}) 
             throw new Error(errorData.status_message);
         }
         return await response.json();
-    } catch (error) {
-        // console.error(`TMDB fetch error on ${endpoint}:`, error);
-        throw error;
-    }
 }
 
 export const fetchPopularMoviesApi = async (): Promise<Movie[]> => {
