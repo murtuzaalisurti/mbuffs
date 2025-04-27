@@ -1,15 +1,19 @@
 import {
     Movie, MovieDetails, SearchResults, User,
     CollectionSummary, CollectionDetails, CollectionCollaborator, UserCollectionsResponse,
-    CreateCollectionInput, UpdateCollectionInput, AddMovieInput, AddCollaboratorInput, UpdateCollaboratorInput
+    CreateCollectionInput, UpdateCollectionInput, AddMovieInput, AddCollaboratorInput, 
+    UpdateCollaboratorInput, // Added missing import
+    AddMovieResponse // Added missing import
 } from './types';
 
 // --- Backend API Configuration ---
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000/api';
+// Ensure VITE_BACKEND_URL includes the /api prefix if your backend routes use it
+const BACKEND_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'; 
 
 // Helper function for backend fetch requests
 export const fetchBackend = async (endpoint: string, options: RequestInit = {}) => {
-    const url = `${BACKEND_URL}${endpoint}`;
+    // Prepend /api if necessary, or adjust VITE_BACKEND_URL
+    const url = `${BACKEND_BASE_URL}/api${endpoint}`;
     const defaultOptions: RequestInit = {
         credentials: 'include', 
         headers: {
@@ -22,28 +26,34 @@ export const fetchBackend = async (endpoint: string, options: RequestInit = {}) 
     try {
         const response = await fetch(url, defaultOptions);
         if (!response.ok) {
-            let errorData;
-            try { errorData = await response.json(); }
-            catch (e) { errorData = { message: response.statusText }; }
+            let errorData = { message: `HTTP error ${response.status}` }; // Default error
+            try { 
+                // Try to parse JSON error, but don't fail if it's not JSON
+                const jsonError = await response.json();
+                errorData = { ...errorData, ...jsonError }; 
+            }
+            catch (e) { /* Ignore JSON parsing error */ }
             console.error(`API Error (${response.status}) on ${endpoint}:`, errorData);
-            const error = new Error(errorData.message || `HTTP error ${response.status}`) as any;
+            const error = new Error(errorData.message) as any;
             error.status = response.status;
-            error.data = errorData;
+            error.data = errorData; // Attach full error data if available
             throw error;
         }
-        if (response.status === 204 || response.headers.get('content-length') === '0') {
-            return null;
+        // Handle potentially empty responses for non-GET requests
+        if (response.status === 204 || (response.headers.get('content-length') === '0' && options.method !== 'GET')) {
+            return null; // Return null for empty responses (e.g., DELETE, successful PUT/POST with no body)
         }
         return await response.json();
     } catch (error) {
-        console.error(`Network or fetch error on ${endpoint}:`, error);
+        // Don't re-log here, just re-throw
+        // console.error(`Network or fetch error on ${endpoint}:`, error);
         throw error;
     }
 };
 
 // --- Auth API Functions ---
 export const fetchCurrentUserApi = async (): Promise<{ user: User }> => {
-    return fetchBackend('/auth/me', { method: 'GET' });
+    return fetchBackend('/auth/me');
 };
 export const logoutUserApi = async (): Promise<void> => {
     await fetchBackend('/auth/logout', { method: 'POST' });
@@ -51,11 +61,11 @@ export const logoutUserApi = async (): Promise<void> => {
 
 // --- Collection API Functions ---
 export const fetchUserCollectionsApi = async (): Promise<UserCollectionsResponse> => {
-    return fetchBackend('/collections', { method: 'GET' });
+    return fetchBackend('/collections');
 };
 
 export const fetchCollectionDetailsApi = async (collectionId: string): Promise<CollectionDetails> => {
-    return fetchBackend(`/collections/${collectionId}`, { method: 'GET' });
+    return fetchBackend(`/collections/${collectionId}`);
 };
 
 export const createCollectionApi = async (data: CreateCollectionInput): Promise<{ collection: CollectionSummary }> => {
@@ -77,7 +87,8 @@ export const deleteCollectionApi = async (collectionId: string): Promise<void> =
 };
 
 // --- Collection Movies API ---
-export const addMovieToCollectionApi = async (collectionId: string, data: AddMovieInput): Promise<any> => {
+// Updated return type
+export const addMovieToCollectionApi = async (collectionId: string, data: AddMovieInput): Promise<AddMovieResponse> => {
     return fetchBackend(`/collections/${collectionId}/movies`, {
         method: 'POST',
         body: JSON.stringify(data),
@@ -96,7 +107,8 @@ export const addCollaboratorApi = async (collectionId: string, data: AddCollabor
     });
 };
 
-export const updateCollaboratorApi = async (collectionId: string, userId: string, data: UpdateCollaboratorInput): Promise<{ collaborator: Pick<CollectionCollaborator, 'id' | 'user_id' | 'permission'> }> => {
+// Updated return type (assuming backend returns the updated collaborator)
+export const updateCollaboratorApi = async (collectionId: string, userId: string, data: UpdateCollaboratorInput): Promise<{ collaborator: CollectionCollaborator }> => {
     return fetchBackend(`/collections/${collectionId}/collaborators/${userId}`, {
         method: 'PUT',
         body: JSON.stringify(data),
@@ -117,7 +129,7 @@ if (!TMDB_API_KEY) {
 }
 
 export const getImageUrl = (path: string | null | undefined, size = 'w500') => {
-    if (!path) return '/placeholder.svg';
+    if (!path) return '/placeholder.svg'; // Use a local placeholder
     return `${IMAGE_BASE_URL}/${size}${path}`;
 };
 
@@ -133,13 +145,17 @@ const fetchTmdb = async (endpoint: string, params: Record<string, string> = {}) 
     try {
         const response = await fetch(url.toString());
         if (!response.ok) {
-            const errorData = await response.json();
+            let errorData = { status_message: `HTTP error ${response.status}` }; // Default error
+             try { 
+                const jsonError = await response.json();
+                errorData = { ...errorData, ...jsonError }; 
+            } catch (e) { /* Ignore JSON parsing error */ }
             console.error(`TMDB API Error (${response.status}) on ${endpoint}:`, errorData);
-            throw new Error(errorData.status_message || `HTTP error ${response.status}`);
+            throw new Error(errorData.status_message);
         }
         return await response.json();
     } catch (error) {
-        console.error(`TMDB fetch error on ${endpoint}:`, error);
+        // console.error(`TMDB fetch error on ${endpoint}:`, error);
         throw error;
     }
 }
@@ -152,8 +168,13 @@ export const fetchPopularMoviesApi = async (): Promise<Movie[]> => {
 };
 
 export const fetchMovieDetailsApi = async (id: number): Promise<MovieDetails | null> => {
-    try { return await fetchTmdb(`/movie/${id}`); }
-    catch (error) { console.error(`Failed to fetch details for movie ${id}:`, error); return null; }
+    try { 
+        return await fetchTmdb(`/movie/${id}`); 
+    }
+    catch (error) { 
+        console.error(`Failed to fetch details for movie ${id}:`, error); 
+        return null; 
+    }
 };
 
 export const searchMoviesApi = async (query: string, page = 1): Promise<SearchResults> => {
@@ -162,5 +183,8 @@ export const searchMoviesApi = async (query: string, page = 1): Promise<SearchRe
     try {
         const data = await fetchTmdb('/search/movie', { query, page: String(page) });
         return data || defaultResult;
-    } catch (error) { console.error(`Failed to search movies for query "${query}":`, error); return defaultResult; }
+    } catch (error) { 
+        console.error(`Failed to search movies for query "${query}":`, error); 
+        return defaultResult; 
+    }
 };

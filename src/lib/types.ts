@@ -41,9 +41,8 @@ export interface CollectionSummary {
   owner_id: string;
   created_at: string; // ISO string from DB
   updated_at: string; // ISO string from DB
-  owner_username: string | null;
-  owner_avatar: string | null;
-  // Potentially add movie count or preview images here later
+  owner_username?: string | null; // Optional from join
+  owner_avatar?: string | null; // Optional from join
 }
 
 // Movie entry within a collection (as returned by backend)
@@ -51,17 +50,15 @@ export interface CollectionMovieEntry {
   movie_id: number;
   added_at: string; // ISO string from DB
   added_by_username: string | null;
-  // Note: Full Movie details (title, poster) are not stored here by default
-  // We'll need to fetch them from TMDB using the movie_id
 }
 
 // Collaborator entry within a collection
 export interface CollectionCollaborator {
   user_id: string;
   permission: 'view' | 'edit';
-  username: string | null;
-  email: string | null;
-  avatar_url: string | null;
+  username?: string | null; // Optional from join
+  email?: string | null; // Optional from join
+  avatar_url?: string | null; // Optional from join
 }
 
 // Full Collection Details (returned by GET /api/collections/:id)
@@ -75,10 +72,16 @@ export interface UserCollectionsResponse {
   collections: CollectionSummary[];
 }
 
-// Input type for adding a collaborator
-export interface AddCollaboratorInput {
-  email: string;
-  permission: 'view' | 'edit';
+// Input type for creating a collection
+export interface CreateCollectionInput {
+    name: string;
+    description?: string | null;
+}
+
+// Input type for updating collection details
+export interface UpdateCollectionInput {
+  name?: string;
+  description?: string | null;
 }
 
 // Input type for adding a movie to a collection
@@ -86,8 +89,22 @@ export interface AddMovieInput {
   movieId: number; // TMDB movie ID
 }
 
-// Input type for updating collection details
-export interface UpdateCollectionInput {
-  name?: string;
-  description?: string;
+// Response type after adding a movie
+export interface AddMovieResponse {
+    movieEntry: {
+        id: string;
+        movie_id: number;
+        added_at: string;
+    }
+}
+
+// Input type for adding a collaborator
+export interface AddCollaboratorInput {
+  email: string;
+  permission: 'view' | 'edit';
+}
+
+// Input type for updating collaborator permissions
+export interface UpdateCollaboratorInput {
+  permission: 'view' | 'edit';
 }
