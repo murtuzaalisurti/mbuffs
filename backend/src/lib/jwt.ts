@@ -1,29 +1,38 @@
-import jwt from 'jsonwebtoken';
+import jwt, { SignOptions } from 'jsonwebtoken'; 
 import dotenv from 'dotenv';
 
 dotenv.config();
 
 const JWT_SECRET = process.env.JWT_SECRET;
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1d';
+const JWT_EXPIRES_IN_STRING = process.env.JWT_EXPIRES_IN || '3600'; 
 
 if (!JWT_SECRET) {
-    throw new Error('JWT_SECRET is not defined in environment variables.');
+    throw new Error("JWT_SECRET environment variable is not set.");
 }
 
 interface JwtPayload {
     userId: string;
-    // Add other relevant user data if needed (e.g., username, role)
 }
 
 export const signToken = (payload: JwtPayload): string => {
-    return jwt.sign(payload, JWT_SECRET!, { expiresIn: JWT_EXPIRES_IN });
+    let expiresInValue: string | number = JWT_EXPIRES_IN_STRING;
+    if (/^\d+$/.test(JWT_EXPIRES_IN_STRING)) {
+        expiresInValue = parseInt(JWT_EXPIRES_IN_STRING, 10);
+    } 
+    
+    const options: SignOptions = {
+        // Cast to any as workaround if type union causes issues
+        expiresIn: expiresInValue as any 
+    };
+    return jwt.sign(payload, JWT_SECRET, options);
 };
 
 export const verifyToken = (token: string): JwtPayload | null => {
     try {
-        return jwt.verify(token, JWT_SECRET!) as JwtPayload;
+        const decoded = jwt.verify(token, JWT_SECRET);
+        return decoded as JwtPayload;
     } catch (error) {
-        console.error('JWT verification failed:', error);
+        console.error('JWT Verification Error:', error);
         return null;
     }
 };

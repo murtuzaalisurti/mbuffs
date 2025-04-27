@@ -1,24 +1,19 @@
-import express from 'express';
+import express, { RequestHandler } from 'express'; // Import RequestHandler
 import {
     googleLogin,
     googleCallback,
     logout,
     getCurrentUser
 } from '../controllers/oauthController';
-import { requireAuth } from '../middleware/authMiddleware'; // Use the correct middleware
+import { requireAuth } from '../middleware/authMiddleware';
+// Removed asyncHandler import
 
 const router = express.Router();
 
-// --- Google OAuth Routes ---
-router.get('/google', googleLogin);
-router.get('/google/callback', googleCallback);
-
-// --- General Auth Routes ---
-router.post('/logout', requireAuth, logout); // Protect logout route
-router.get('/me', requireAuth, getCurrentUser); // Protect get user route
-
-// Add routes for other providers (e.g., GitHub) here if needed
-// router.get('/github', githubLogin);
-// router.get('/github/callback', githubCallback);
+// Cast handlers to RequestHandler
+router.get('/google', googleLogin as RequestHandler);
+router.get('/google/callback', googleCallback as RequestHandler);
+router.post('/logout', requireAuth as RequestHandler, logout as RequestHandler); 
+router.get('/me', requireAuth as RequestHandler, getCurrentUser as RequestHandler);
 
 export default router;

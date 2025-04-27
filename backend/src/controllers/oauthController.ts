@@ -1,153 +1,115 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { google } from '../lib/oauth';
 import { lucia } from '../lib/lucia';
 import { sql } from '../lib/db';
-import { OAuth2RequestError } from 'arctic';
+import { OAuth2RequestError, generateCodeVerifier } from 'arctic';
 import { generateId } from 'lucia';
 import { parseCookies, serializeCookie } from 'oslo/cookie';
+import { DatabaseUserAttributes, GoogleUser } from '../lib/types';
 
 const OAUTH_STATE_COOKIE_NAME = 'oauth_state';
+const OAUTH_CODE_VERIFIER_COOKIE_NAME = 'oauth_code_verifier';
 
-// --- Google OAuth Handlers ---
+const setCookie = (res: Response, name: string, value: string, options: any) => {
+    res.appendHeader('Set-Cookie', serializeCookie(name, value, options));
+};
 
-export const googleLogin = async (req: Request, res: Response) => {
+// Remove Promise<void> annotation
+export const googleLogin = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const state = generateId(15); // Generate state for CSRF protection
-        const url = await google.createAuthorizationURL(state, {
-            scopes: ['profile', 'email'] // Request basic profile and email access
-        });
-
-        // Store state in a short-lived secure cookie
-        const stateCookie = serializeCookie(OAUTH_STATE_COOKIE_NAME, state, {
-            path: '/',
-            secure: process.env.NODE_ENV === 'production', // Use secure cookies in production
-            httpOnly: true,
-            maxAge: 60 * 10, // 10 minutes
-            sameSite: 'lax'
-        });
-        res.appendHeader('Set-Cookie', stateCookie);
-
+        const state = generateId(15);
+        const codeVerifier = generateCodeVerifier();
+        const options = { scopes: ['profile', 'email'] };
+        const url = await google.createAuthorizationURL(state, codeVerifier, options as any); 
+        const cookieOptions = { path: '/', secure: process.env.NODE_ENV === 'production', httpOnly: true, maxAge: 60 * 10, sameSite: 'lax' as const };
+        setCookie(res, OAUTH_STATE_COOKIE_NAME, state, cookieOptions);
+        setCookie(res, OAUTH_CODE_VERIFIER_COOKIE_NAME, codeVerifier, cookieOptions);
         res.redirect(url.toString());
     } catch (error) {
-        console.error('Google login initiation error:', error);
-        res.status(500).json({ message: 'Failed to initiate Google login' });
+        // Pass error to global handler
+        next(error);
     }
 };
 
-export const googleCallback = async (req: Request, res: Response) => {
+// Remove Promise<void> annotation
+export const googleCallback = async (req: Request, res: Response, next: NextFunction) => {
     const code = req.query.code?.toString() ?? null;
     const state = req.query.state?.toString() ?? null;
-    const storedState = parseCookies(req.headers.cookie ?? '').get(OAUTH_STATE_COOKIE_NAME) ?? null;
+    const cookies = parseCookies(req.headers.cookie ?? '');
+    const storedState = cookies.get(OAUTH_STATE_COOKIE_NAME) ?? null;
+    const storedCodeVerifier = cookies.get(OAUTH_CODE_VERIFIER_COOKIE_NAME) ?? null;
 
-    // Clear the state cookie immediately
-    const blankStateCookie = serializeCookie(OAUTH_STATE_COOKIE_NAME, '', {
-        path: '/',
-        maxAge: 0
-    });
-    res.appendHeader('Set-Cookie', blankStateCookie);
+    const blankCookieOptions = { path: '/', maxAge: 0 };
+    setCookie(res, OAUTH_STATE_COOKIE_NAME, '', blankCookieOptions);
+    setCookie(res, OAUTH_CODE_VERIFIER_COOKIE_NAME, '', blankCookieOptions);
 
-    if (!code || !state || !storedState || state !== storedState) {
-        return res.status(400).json({ message: 'Invalid request or state mismatch' });
+    if (!code || !state || !storedState || state !== storedState || !storedCodeVerifier) {
+        res.status(400).json({ message: 'Invalid request, state mismatch, or missing code verifier' });
+        return;
     }
 
     try {
-        const tokens = await google.validateAuthorizationCode(code);
+        const tokens = await google.validateAuthorizationCode(code, storedCodeVerifier);
         const googleUserResponse = await fetch("https://openidconnect.googleapis.com/v1/userinfo", {
-            headers: {
-                Authorization: `Bearer ${tokens.accessToken}`
-            }
+            headers: { Authorization: `Bearer ${tokens.accessToken}` }
         });
-        const googleUser: GoogleUser = await googleUserResponse.json();
 
-        // Check if user exists based on Google ID
+        if (!googleUserResponse.ok) {
+            console.error(`Failed to fetch Google user info: ${googleUserResponse.statusText}`, await googleUserResponse.text());
+            res.status(502).json({ message: 'Failed to fetch user information from provider' });
+            return;
+        }
+        const googleUser = await googleUserResponse.json() as GoogleUser;
+
         const existingOauthAccount = await sql`
-            SELECT u.* FROM oauth_account oa
-            JOIN "user" u ON u.id = oa.user_id
-            WHERE oa.provider_id = 'google' AND oa.provider_user_id = ${googleUser.sub}
+            SELECT u.* FROM oauth_account oa JOIN "user" u ON u.id = oa.user_id WHERE oa.provider_id = 'google' AND oa.provider_user_id = ${googleUser.sub}
         `;
 
         let userId: string;
         if (existingOauthAccount.length > 0) {
-            // User exists, use their ID
-            userId = existingOauthAccount[0].id;
+            userId = (existingOauthAccount[0] as DatabaseUserAttributes).id;
         } else {
-            // User does not exist, create new user and OAuth account
-            const newUserId = generateId(15); // Generate a user ID
+            const newUserId = generateId(15);
             userId = newUserId;
-
-            // Use transaction to ensure atomicity
-            await sql.begin(async (tx) => {
-                // Create user
-                await tx`
-                    INSERT INTO "user" (id, email, username, avatar_url)
-                    VALUES (${newUserId}, ${googleUser.email}, ${googleUser.name}, ${googleUser.picture})
-                `;
-                // Link OAuth account
-                await tx`
-                    INSERT INTO oauth_account (provider_id, provider_user_id, user_id)
-                    VALUES ('google', ${googleUser.sub}, ${newUserId})
-                `;
-            });
+            await sql.transaction((tx) => [
+                tx`INSERT INTO "user" (id, email, username, avatar_url) VALUES (${newUserId}, ${googleUser.email}, ${googleUser.name}, ${googleUser.picture}) ON CONFLICT (email) DO NOTHING`,
+                tx`INSERT INTO oauth_account (provider_id, provider_user_id, user_id) VALUES ('google', ${googleUser.sub}, ${newUserId})`
+            ]);
         }
 
-        // Create session for the user
         const session = await lucia.createSession(userId, {});
         const sessionCookie = lucia.createSessionCookie(session.id);
-
-        res.appendHeader('Set-Cookie', sessionCookie.serialize());
-
-        // Redirect to frontend (adjust URL as needed)
+        setCookie(res, sessionCookie.name, sessionCookie.value, sessionCookie.attributes);
         res.redirect(process.env.FRONTEND_URL || '/');
 
     } catch (error) {
-        console.error('Google callback error:', error);
-        if (error instanceof OAuth2RequestError) {
-            // Bad verification code, invalid credentials, etc.
-            return res.status(400).json({ message: 'OAuth request failed', error: error.message });
-        }
-        return res.status(500).json({ message: 'Internal server error during OAuth callback' });
+        // Pass error to global handler
+        next(error); 
     }
 };
 
-// --- Logout --- 
-export const logout = async (req: Request, res: Response) => {
+// Remove Promise<void> annotation
+export const logout = async (req: Request, res: Response, next: NextFunction) => {
     if (!req.session) {
-        return res.status(401).json({ message: "Unauthorized: Not logged in" });
+        res.status(401).json({ message: "Unauthorized: Not logged in" });
+        return;
     }
-
     try {
-        // Invalidate the session
         await lucia.invalidateSession(req.session.id);
-
-        // Create and send blank cookie to clear client-side session
         const sessionCookie = lucia.createBlankSessionCookie();
-        res.appendHeader("Set-Cookie", sessionCookie.serialize());
-
+        setCookie(res, sessionCookie.name, sessionCookie.value, sessionCookie.attributes);
         res.status(200).json({ message: "Logged out successfully" });
     } catch (error) {
-        console.error('Logout error:', error);
-        res.status(500).json({ message: 'Failed to log out' });
+        // Pass error to global handler
+        next(error);
     }
 };
 
-// --- Get Current User (Example Protected Route) ---
-export const getCurrentUser = async (req: Request, res: Response) => {
+// Remove Promise<void> annotation
+export const getCurrentUser = async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) {
-        return res.status(401).json({ message: "Unauthorized" });
+        res.status(401).json({ message: "Unauthorized" });
+        return;
     }
-    // Return user info attached by deserializeUser middleware
-    // You might want to fetch fresh data or just return stored attributes
     res.status(200).json({ user: req.user });
 };
-
-// --- Helper Interface ---
-interface GoogleUser {
-    sub: string; // Google User ID
-    name?: string;
-    given_name?: string;
-    family_name?: string;
-    picture?: string;
-    email?: string;
-    email_verified?: boolean;
-    locale?: string;
-}
