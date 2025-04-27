@@ -1,146 +1,166 @@
+import {
+    Movie, MovieDetails, SearchResults, User,
+    CollectionSummary, CollectionDetails, CollectionCollaborator, UserCollectionsResponse,
+    CreateCollectionInput, UpdateCollectionInput, AddMovieInput, AddCollaboratorInput, UpdateCollaboratorInput
+} from './types';
 
-import { checkDbConnection } from './db';
-import { Movie, MovieDetails, SearchResults } from './types';
+// --- Backend API Configuration ---
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000/api';
 
-// Normally we'd store this in an environment variable or secure location
-const API_KEY = 'YOUR_TMDB_API_KEY';
-const BASE_URL = 'https://api.themoviedb.org/3';
+// Helper function for backend fetch requests
+export const fetchBackend = async (endpoint: string, options: RequestInit = {}) => {
+    const url = `${BACKEND_URL}${endpoint}`;
+    const defaultOptions: RequestInit = {
+        credentials: 'include', 
+        headers: {
+            'Content-Type': 'application/json',
+            ...(options.headers || {}),
+        },
+        ...options,
+    };
+
+    try {
+        const response = await fetch(url, defaultOptions);
+        if (!response.ok) {
+            let errorData;
+            try { errorData = await response.json(); }
+            catch (e) { errorData = { message: response.statusText }; }
+            console.error(`API Error (${response.status}) on ${endpoint}:`, errorData);
+            const error = new Error(errorData.message || `HTTP error ${response.status}`) as any;
+            error.status = response.status;
+            error.data = errorData;
+            throw error;
+        }
+        if (response.status === 204 || response.headers.get('content-length') === '0') {
+            return null;
+        }
+        return await response.json();
+    } catch (error) {
+        console.error(`Network or fetch error on ${endpoint}:`, error);
+        throw error;
+    }
+};
+
+// --- Auth API Functions ---
+export const fetchCurrentUserApi = async (): Promise<{ user: User }> => {
+    return fetchBackend('/auth/me', { method: 'GET' });
+};
+export const logoutUserApi = async (): Promise<void> => {
+    await fetchBackend('/auth/logout', { method: 'POST' });
+};
+
+// --- Collection API Functions ---
+export const fetchUserCollectionsApi = async (): Promise<UserCollectionsResponse> => {
+    return fetchBackend('/collections', { method: 'GET' });
+};
+
+export const fetchCollectionDetailsApi = async (collectionId: string): Promise<CollectionDetails> => {
+    return fetchBackend(`/collections/${collectionId}`, { method: 'GET' });
+};
+
+export const createCollectionApi = async (data: CreateCollectionInput): Promise<{ collection: CollectionSummary }> => {
+    return fetchBackend('/collections', {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+};
+
+export const updateCollectionApi = async (collectionId: string, data: UpdateCollectionInput): Promise<{ collection: CollectionSummary }> => {
+    return fetchBackend(`/collections/${collectionId}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+    });
+};
+
+export const deleteCollectionApi = async (collectionId: string): Promise<void> => {
+    await fetchBackend(`/collections/${collectionId}`, { method: 'DELETE' });
+};
+
+// --- Collection Movies API ---
+export const addMovieToCollectionApi = async (collectionId: string, data: AddMovieInput): Promise<any> => {
+    return fetchBackend(`/collections/${collectionId}/movies`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+};
+
+export const removeMovieFromCollectionApi = async (collectionId: string, movieId: number): Promise<void> => {
+    await fetchBackend(`/collections/${collectionId}/movies/${movieId}`, { method: 'DELETE' });
+};
+
+// --- Collection Collaborators API ---
+export const addCollaboratorApi = async (collectionId: string, data: AddCollaboratorInput): Promise<{ collaborator: CollectionCollaborator }> => {
+    return fetchBackend(`/collections/${collectionId}/collaborators`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+};
+
+export const updateCollaboratorApi = async (collectionId: string, userId: string, data: UpdateCollaboratorInput): Promise<{ collaborator: Pick<CollectionCollaborator, 'id' | 'user_id' | 'permission'> }> => {
+    return fetchBackend(`/collections/${collectionId}/collaborators/${userId}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+    });
+};
+
+export const removeCollaboratorApi = async (collectionId: string, userId: string): Promise<void> => {
+    await fetchBackend(`/collections/${collectionId}/collaborators/${userId}`, { method: 'DELETE' });
+};
+
+// --- TMDB API Configuration & Functions ---
+const TMDB_API_KEY = import.meta.env.VITE_TMDB_API_KEY;
+const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
 const IMAGE_BASE_URL = 'https://image.tmdb.org/t/p';
 
-// For demo purposes, we're using a placeholder key
-// In a real app, you would use a proper API key from TMDB
-const DEMO_MODE = true;
+if (!TMDB_API_KEY) {
+    console.warn("TMDB API key (VITE_TMDB_API_KEY) is missing. Movie functionality will be limited.");
+}
 
-// Mock data for demo purposes
-const MOCK_POPULAR_MOVIES: Movie[] = [
-  {
-    id: 1,
-    title: "Inception",
-    poster_path: "/9gk7adHYeDvHkCSEqAvQNLV5Uge.jpg",
-    release_date: "2010-07-16",
-    vote_average: 8.4,
-    overview: "Cobb, a skilled thief who commits corporate espionage by infiltrating the subconscious of his targets is offered a chance to regain his old life as payment for a task considered to be impossible."
-  },
-  {
-    id: 2,
-    title: "The Shawshank Redemption",
-    poster_path: "/q6y0Go1tsGEsmtFryDOJo3dEmqu.jpg",
-    release_date: "1994-09-23",
-    vote_average: 8.7,
-    overview: "Framed in the 1940s for the double murder of his wife and her lover, upstanding banker Andy Dufresne begins a new life at the Shawshank prison, where he puts his accounting skills to work for an amoral warden."
-  },
-  {
-    id: 3,
-    title: "The Dark Knight",
-    poster_path: "/qJ2tW6WMUDux911r6m7haRef0WH.jpg",
-    release_date: "2008-07-18",
-    vote_average: 8.5,
-    overview: "Batman raises the stakes in his war on crime. With the help of Lt. Jim Gordon and District Attorney Harvey Dent, Batman sets out to dismantle the remaining criminal organizations that plague the streets."
-  },
-  {
-    id: 4,
-    title: "Pulp Fiction",
-    poster_path: "/d5iIlFn5s0ImszYzBPb8JPIfbXD.jpg",
-    release_date: "1994-09-10",
-    vote_average: 8.5,
-    overview: "A burger-loving hit man, his philosophical partner, a drug-addled gangster's moll and a washed-up boxer converge in this sprawling, comedic crime caper."
-  },
-  {
-    id: 5,
-    title: "The Lord of the Rings: The Return of the King",
-    poster_path: "/rCzpDGLbOoPwLjy3OAm5NUPOTrC.jpg",
-    release_date: "2003-12-01",
-    vote_average: 8.5,
-    overview: "Aragorn is revealed as the heir to the ancient kings as he, Gandalf and the other members of the broken fellowship struggle to save Gondor from Sauron's forces."
-  },
-  {
-    id: 6,
-    title: "Fight Club",
-    poster_path: "/pB8BM7pdSp6B6Ih7QZ4DrQ3PmJK.jpg",
-    release_date: "1999-10-15",
-    vote_average: 8.4,
-    overview: "A ticking-time-bomb insomniac and a slippery soap salesman channel primal male aggression into a shocking new form of therapy."
-  }
-];
-
-const MOCK_SEARCH_RESULTS: SearchResults = {
-  page: 1,
-  results: MOCK_POPULAR_MOVIES,
-  total_pages: 1,
-  total_results: MOCK_POPULAR_MOVIES.length
+export const getImageUrl = (path: string | null | undefined, size = 'w500') => {
+    if (!path) return '/placeholder.svg';
+    return `${IMAGE_BASE_URL}/${size}${path}`;
 };
 
-export const getImageUrl = (path: string, size = 'w500') => {
-  if (!path) return '/placeholder.svg';
-  if (DEMO_MODE) return `https://image.tmdb.org/t/p/${size}${path}`;
-  return `${IMAGE_BASE_URL}/${size}${path}`;
+const fetchTmdb = async (endpoint: string, params: Record<string, string> = {}) => {
+    if (!TMDB_API_KEY) {
+        throw new Error("TMDB API key (VITE_TMDB_API_KEY) is missing.");
+    }
+    const url = new URL(`${TMDB_BASE_URL}${endpoint}`);
+    url.searchParams.append('api_key', TMDB_API_KEY);
+    url.searchParams.append('language', 'en-US');
+    Object.entries(params).forEach(([key, value]) => url.searchParams.append(key, value));
+
+    try {
+        const response = await fetch(url.toString());
+        if (!response.ok) {
+            const errorData = await response.json();
+            console.error(`TMDB API Error (${response.status}) on ${endpoint}:`, errorData);
+            throw new Error(errorData.status_message || `HTTP error ${response.status}`);
+        }
+        return await response.json();
+    } catch (error) {
+        console.error(`TMDB fetch error on ${endpoint}:`, error);
+        throw error;
+    }
+}
+
+export const fetchPopularMoviesApi = async (): Promise<Movie[]> => {
+    try {
+        const data = await fetchTmdb('/movie/popular');
+        return data?.results || [];
+    } catch (error) { console.error("Failed to fetch popular movies:", error); return []; }
 };
 
-export const fetchPopularMovies = async (): Promise<Movie[]> => {
-  if (DEMO_MODE) {
-    return Promise.resolve(MOCK_POPULAR_MOVIES);
-  }
-
-  try {
-    const response = await fetch(
-      `${BASE_URL}/movie/popular?api_key=${API_KEY}&language=en-US&page=1`
-    );
-    const data = await response.json();
-    return data.results;
-  } catch (error) {
-    console.error('Error fetching popular movies:', error);
-    return [];
-  }
+export const fetchMovieDetailsApi = async (id: number): Promise<MovieDetails | null> => {
+    try { return await fetchTmdb(`/movie/${id}`); }
+    catch (error) { console.error(`Failed to fetch details for movie ${id}:`, error); return null; }
 };
 
-export const fetchMovieDetails = async (id: number): Promise<MovieDetails | null> => {
-  if (DEMO_MODE) {
-    const movie = MOCK_POPULAR_MOVIES.find(m => m.id === id);
-    if (!movie) return null;
-    
-    return {
-      ...movie,
-      genres: [{ id: 1, name: 'Action' }, { id: 2, name: 'Sci-Fi' }],
-      runtime: 148,
-      tagline: 'Your mind is the scene of the crime.'
-    };
-  }
-  
-  try {
-    const response = await fetch(
-      `${BASE_URL}/movie/${id}?api_key=${API_KEY}&language=en-US`
-    );
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    console.error('Error fetching movie details:', error);
-    return null;
-  }
-};
-
-export const searchMovies = async (query: string): Promise<SearchResults> => {
-  checkDbConnection();
-  if (DEMO_MODE) {
-    const filteredMovies = MOCK_POPULAR_MOVIES.filter(movie => 
-      movie.title.toLowerCase().includes(query.toLowerCase())
-    );
-    
-    return {
-      page: 1,
-      results: filteredMovies,
-      total_pages: 1,
-      total_results: filteredMovies.length
-    };
-  }
-
-  try {
-    const response = await fetch(
-      `${BASE_URL}/search/movie?api_key=${API_KEY}&language=en-US&query=${encodeURIComponent(query)}&page=1`
-    );
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    console.error('Error searching movies:', error);
-    return { page: 0, results: [], total_pages: 0, total_results: 0 };
-  }
+export const searchMoviesApi = async (query: string, page = 1): Promise<SearchResults> => {
+    const defaultResult: SearchResults = { page: 0, results: [], total_pages: 0, total_results: 0 };
+    if (!query) return defaultResult;
+    try {
+        const data = await fetchTmdb('/search/movie', { query, page: String(page) });
+        return data || defaultResult;
+    } catch (error) { console.error(`Failed to search movies for query "${query}":`, error); return defaultResult; }
 };
