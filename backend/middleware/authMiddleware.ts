@@ -41,6 +41,7 @@ export const deserializeUser = async (req: Request, res: Response, next: NextFun
 
 // Middleware to protect routes - requires a valid session
 export const requireAuth = (req: Request, res: Response, next: NextFunction) => {
+    console.log("User:", req.user, "Session:", req.session);
     if (!req.user || !req.session) {
         return res.status(401).json({ message: "Unauthorized: Authentication required" });
     }
