@@ -24,7 +24,7 @@ export function Navbar() {
 
   const handleGoogleLogin = () => {
     // Redirect the browser directly to the backend Google login route
-    const backendLoginUrl = `${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000/api'}/auth/google`;
+    const backendLoginUrl = `${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5001'}/api/auth/google`;
     window.location.href = backendLoginUrl;
   };
 
