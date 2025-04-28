@@ -8,7 +8,7 @@ import {
 
 // --- Backend API Configuration ---
 // Ensure VITE_BACKEND_URL includes the /api prefix if your backend routes use it
-const BACKEND_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'; 
+const BACKEND_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5001'; 
 
 // Helper function for backend fetch requests
 export const fetchBackend = async (endpoint: string, options: RequestInit = {}) => {

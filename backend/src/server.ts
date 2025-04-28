@@ -8,16 +8,29 @@ import oauthRoutes from './routes/oauthRoutes';
 import collectionRoutes from './routes/collectionRoutes';
 // import { testDbConnection } from './lib/db';
 
-dotenv.config();
+dotenv.config({
+    path: './.env'
+});
 
 const app: Express = express();
-const port = process.env.PORT || 5000;
+const port = process.env.PORT || 5001;
 
 const corsOptions = {
-    origin: process.env.VITE_FRONTEND_URL || 'http://localhost:5173',
-    credentials: true
+    origin: process.env.FRONTEND_URL || 'http://localhost:8080',
+    preflightContinue: true,
 };
+
 app.use(cors(corsOptions));
+
+app.options('/{*splat}', cors({
+    origin: corsOptions.origin,
+    credentials: true,
+})); // Pre-flight request for all routes
+
+app.all('/{*splat}', (req, res, next) => {
+    res.header('Access-Control-Allow-Credentials', 'true');
+    next();
+});
 
 app.use(cookieParser());
 app.use(express.json());

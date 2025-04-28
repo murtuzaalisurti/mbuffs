@@ -2,25 +2,25 @@ import { Request, Response, NextFunction } from 'express';
 import { google } from '../lib/oauth';
 import { lucia } from '../lib/lucia';
 import { sql } from '../lib/db';
-import { OAuth2RequestError, generateCodeVerifier } from 'arctic';
+import { OAuth2RequestError, generateCodeVerifier, generateState } from 'arctic';
 import { generateId } from 'lucia';
-import { parseCookies, serializeCookie } from 'oslo/cookie';
+import { CookieAttributes, parseCookies, serializeCookie } from 'oslo/cookie';
 import { DatabaseUserAttributes, GoogleUser } from '../lib/types';
 
 const OAUTH_STATE_COOKIE_NAME = 'oauth_state';
 const OAUTH_CODE_VERIFIER_COOKIE_NAME = 'oauth_code_verifier';
 
-const setCookie = (res: Response, name: string, value: string, options: any) => {
+const setCookie = (res: Response, name: string, value: string, options: CookieAttributes) => {
     res.appendHeader('Set-Cookie', serializeCookie(name, value, options));
 };
 
 // Remove Promise<void> annotation
 export const googleLogin = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const state = generateId(15);
+        const state = generateState();
         const codeVerifier = generateCodeVerifier();
-        const options = { scopes: ['profile', 'email'] };
-        const url = await google.createAuthorizationURL(state, codeVerifier, options as any); 
+        const options = ['profile', 'email'];
+        const url = google.createAuthorizationURL(state, codeVerifier, options); 
         const cookieOptions = { path: '/', secure: process.env.NODE_ENV === 'production', httpOnly: true, maxAge: 60 * 10, sameSite: 'lax' as const };
         setCookie(res, OAUTH_STATE_COOKIE_NAME, state, cookieOptions);
         setCookie(res, OAUTH_CODE_VERIFIER_COOKIE_NAME, codeVerifier, cookieOptions);
@@ -50,8 +50,11 @@ export const googleCallback = async (req: Request, res: Response, next: NextFunc
 
     try {
         const tokens = await google.validateAuthorizationCode(code, storedCodeVerifier);
+        // @ts-expect-error no types for tokens
+        console.log("Tokens:", tokens.data.access_token);
         const googleUserResponse = await fetch("https://openidconnect.googleapis.com/v1/userinfo", {
-            headers: { Authorization: `Bearer ${tokens.accessToken}` }
+            // @ts-expect-error no types for tokens
+            headers: { Authorization: `Bearer ${tokens.data.access_token}` }
         });
 
         if (!googleUserResponse.ok) {
@@ -61,8 +64,10 @@ export const googleCallback = async (req: Request, res: Response, next: NextFunc
         }
         const googleUser = await googleUserResponse.json() as GoogleUser;
 
+        // const allTables = await sql`SELECT table_name FROM information_schema.tables`;
+        // console.log("All Tables:", allTables);
         const existingOauthAccount = await sql`
-            SELECT u.* FROM oauth_account oa JOIN "user" u ON u.id = oa.user_id WHERE oa.provider_id = 'google' AND oa.provider_user_id = ${googleUser.sub}
+            SELECT u.* FROM public.oauth_account oa JOIN "user" u ON u.id = oa.user_id WHERE oa.provider_id = 'google' AND oa.provider_user_id = ${googleUser.sub}
         `;
 
         let userId: string;
