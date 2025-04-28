@@ -4,8 +4,8 @@ import {
     googleCallback,
     logout,
     getCurrentUser
-} from '../controllers/oauthController';
-import { requireAuth } from '../middleware/authMiddleware';
+} from '../controllers/oauthController.js';
+import { requireAuth } from '../middleware/authMiddleware.js';
 // Removed asyncHandler import
 
 const router = express.Router();

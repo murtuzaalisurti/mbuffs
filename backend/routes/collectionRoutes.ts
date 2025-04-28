@@ -10,9 +10,9 @@ import {
      addCollaborator,
      updateCollaboratorPermission,
     removeCollaborator
-} from '../controllers/collectionController';
-import { requireAuth } from '../middleware/authMiddleware';
-import { requireCollectionPermission } from '../middleware/collectionAuthMiddleware';
+} from '../controllers/collectionController.js';
+import { requireAuth } from '../middleware/authMiddleware.js';
+import { requireCollectionPermission } from '../middleware/collectionAuthMiddleware.js';
 // Removed asyncHandler import
 
 const router = express.Router();

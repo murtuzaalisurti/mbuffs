@@ -7,9 +7,9 @@
     "lib": ["ESNext"],
 
     /* Modules */
-    "module": "ESNext",
+    "module": "Node16",
     "rootDir": ".",
-    "moduleResolution": "node",
+    "moduleResolution": "node16",
     "resolveJsonModule": true,
 
     /* JavaScript Support */

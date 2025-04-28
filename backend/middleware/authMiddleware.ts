@@ -1,4 +1,4 @@
-import { lucia } from "../lib/lucia";
+import { lucia } from "../lib/lucia.js";
 import type { Request, Response, NextFunction } from "express";
 
 // Extend Express Request type to include user and session

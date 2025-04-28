@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { sql } from '../lib/db';
+import { sql } from '../lib/db.js';
 import { generateId } from 'lucia';
 import { z } from 'zod';
 import {
@@ -8,14 +8,14 @@ import {
     addMovieSchema,
     addCollaboratorSchema,
     updateCollaboratorSchema
-} from '../lib/validators';
+} from '../lib/validators.js';
 
 import { 
     CollectionCollaborator, 
     CollectionMovieEntry, 
     CollectionSummary, 
     CollectionRow
-} from '../lib/types'; 
+} from '../lib/types.js'; 
 
 interface CollectionDetailsResponse {
     collection: CollectionSummary;

@@ -3,9 +3,9 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
 import { z } from 'zod';
-import { deserializeUser } from '../middleware/authMiddleware';
-import oauthRoutes from '../routes/oauthRoutes';
-import collectionRoutes from '../routes/collectionRoutes';
+import { deserializeUser } from '../middleware/authMiddleware.js';
+import oauthRoutes from '../routes/oauthRoutes.js';
+import collectionRoutes from '../routes/collectionRoutes.js';
 // import { testDbConnection } from './lib/db';
 
 dotenv.config({

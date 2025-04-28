@@ -1,11 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
-import { google } from '../lib/oauth';
-import { lucia } from '../lib/lucia';
-import { sql } from '../lib/db';
+import { google } from '../lib/oauth.js';
+import { lucia } from '../lib/lucia.js';
+import { sql } from '../lib/db.js';
 import { OAuth2RequestError, generateCodeVerifier, generateState } from 'arctic';
 import { generateId } from 'lucia';
 import { CookieAttributes, parseCookies, serializeCookie } from 'oslo/cookie';
-import { DatabaseUserAttributes, GoogleUser } from '../lib/types';
+import { DatabaseUserAttributes, GoogleUser } from '../lib/types.js';
 
 const OAUTH_STATE_COOKIE_NAME = 'oauth_state';
 const OAUTH_CODE_VERIFIER_COOKIE_NAME = 'oauth_code_verifier';

@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { sql } from '../lib/db';
+import { sql } from '../lib/db.js';
 
 type PermissionLevel = 'view' | 'edit';
 

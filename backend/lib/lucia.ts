@@ -1,6 +1,6 @@
 import { Lucia } from "lucia";
 import { NeonHTTPAdapter } from "@lucia-auth/adapter-postgresql";
-import { sql } from "./db"; // Your Neon DB connection
+import { sql } from "./db.js"; // Your Neon DB connection
 
 // Initialize the adapter
 const adapter = new NeonHTTPAdapter(sql, {
