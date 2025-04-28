@@ -13,7 +13,7 @@ import { Link } from 'react-router-dom';
 import { PlusCircle, Users, Film, Calendar, Loader2 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { createCollectionSchema } from '../../backend/src/lib/validators'; // **Important: Adjust path or copy schema**
+import { createCollectionSchema } from '../../backend/lib/validators'; // **Important: Adjust path or copy schema**
 import { z } from 'zod';
 import { useState } from 'react';
 import { toast } from "sonner";
