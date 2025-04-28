@@ -8,7 +8,7 @@
 
     /* Modules */
     "module": "commonjs",
-    "rootDir": "src",
+    "rootDir": ".",
     "resolveJsonModule": true,
 
     /* JavaScript Support */
@@ -28,6 +28,6 @@
     /* Completeness */
     "skipLibCheck": true
   },
-  "include": ["src/**/*"], // Include only files in the src directory
+  "include": ["utils", "routes", "api", "lib", "middleware"], // Include only files in the src directory
   "exclude": ["node_modules", "dist"] // Exclude node_modules and the output directory
 }
