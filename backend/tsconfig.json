@@ -3,12 +3,13 @@
     /* Visit https://aka.ms/tsconfig to read more about this file */
 
     /* Language and Environment */
-    "target": "es2016",
-    "lib": ["es6"],
+    "target": "ESNext",
+    "lib": ["ESNext"],
 
     /* Modules */
-    "module": "commonjs",
+    "module": "ESNext",
     "rootDir": ".",
+    "moduleResolution": "node",
     "resolveJsonModule": true,
 
     /* JavaScript Support */
