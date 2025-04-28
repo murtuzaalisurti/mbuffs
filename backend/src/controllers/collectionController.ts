@@ -9,7 +9,6 @@ import {
     addCollaboratorSchema,
     updateCollaboratorSchema
 } from '../lib/validators';
-import { searchMovieSchema } from '../lib/validators';
 
 import { 
     CollectionCollaborator, 
@@ -24,40 +23,6 @@ interface CollectionDetailsResponse {
     collaborators: CollectionCollaborator[];
 }
 
-async function searchMoviesTMDB(query: string): Promise<any> {
-    const apiKey = process.env.TMDB_API_KEY;
-    if (!apiKey) {
-        throw new Error("TMDB API key is not defined in environment variables.");
-    }
-    const baseUrl = `https://api.themoviedb.org/3/search/movie?query=${encodeURIComponent(query)}&api_key=${apiKey}`;
-
-    const response = await fetch(baseUrl);
-    if (!response.ok) {
-        throw new Error(`TMDB API error: ${response.statusText}`);
-    }
-    const data = await response.json();
-    return data.results.map((movie: any) => ({
-        id: movie.id,
-        title: movie.title,
-        poster_path: movie.poster_path,
-    }));
-}
-
-export const searchMovies = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        const validation = searchMovieSchema.safeParse(req.query);
-        if (!validation.success) {
-            res.status(400).json({ message: 'Validation failed', errors: validation.error.errors });
-            return;
-        }
-        const { query } = validation.data;
-        const results = await searchMoviesTMDB(query);
-        res.status(200).json(results);
-    } catch (error) {
-        next(error);
-    }
-};
-
 //modify collectionSummary type
 export const getUserCollections = async (req: Request, res: Response, next: NextFunction) => {
     const userId = req.user?.id;
@@ -66,8 +31,8 @@ export const getUserCollections = async (req: Request, res: Response, next: Next
         return;
     }
     try {
-        const collections = await sql<CollectionSummary[]>`
-            SELECT DISTINCT c.id, c.name, c.description, c.owner_id, c.created_at, c.updated_at, c.shareable_id,
+        const collections = await sql`
+            SELECT DISTINCT c.id, c.name, c.description, c.owner_id, c.created_at, c.updated_at,
                    u.username as owner_username, u.avatar_url as owner_avatar
             FROM collections c
             JOIN "user" u ON c.owner_id = u.id
@@ -89,8 +54,8 @@ export const getCollectionById = async (req: Request, res: Response, next: NextF
         return;
     }
     try {
-        const collectionResult = await sql<({ shareable_id: string | null; owner_username: string | null, owner_avatar: string | null; } & CollectionRow)[]>`
-            SELECT c.*, c.shareable_id, u.username as owner_username, u.avatar_url as owner_avatar
+        const collectionResult = await sql`
+            SELECT c.*, u.username as owner_username, u.avatar_url as owner_avatar
             FROM collections c
             JOIN "user" u ON c.owner_id = u.id
             WHERE c.id = ${collectionId}
@@ -111,7 +76,6 @@ export const getCollectionById = async (req: Request, res: Response, next: NextF
              updated_at: collectionData.updated_at,
              owner_username: collectionData.owner_username,
              owner_avatar: collectionData.owner_avatar,
-             shareable_id: collectionData.shareable_id
         };
 
         const moviesResult = await sql`
@@ -140,67 +104,6 @@ export const getCollectionById = async (req: Request, res: Response, next: NextF
         next(error);
     }
 };
-
-export const getPublicCollection = async (req: Request, res: Response, next: NextFunction) => {
-    const { shareableId } = req.params;
-    try {
-        const collectionResult = await sql<({ shareable_id: string | null; owner_username: string | null, owner_avatar: string | null; } & CollectionRow)[]>`
-            SELECT c.*, c.shareable_id, u.username as owner_username, u.avatar_url as owner_avatar
-            FROM collections c
-            JOIN "user" u ON c.owner_id = u.id
-            WHERE c.shareable_id = ${shareableId}
-        `;
-
-        if (collectionResult.length === 0) {
-            res.status(404).json({ message: 'Collection not found' });
-            return;
-        }
-        const collectionData = collectionResult[0];
-
-        const collectionSummary: CollectionSummary = {
-             id: collectionData.id,
-             name: collectionData.name,
-             description: collectionData.description,
-             owner_id: collectionData.owner_id,
-             created_at: collectionData.created_at,
-             updated_at: collectionData.updated_at,
-             owner_username: collectionData.owner_username,
-             owner_avatar: collectionData.owner_avatar,
-             shareable_id: collectionData.shareable_id
-        };
-
-        const moviesResult = await sql`
-            SELECT cm.movie_id, cm.added_at, u.username as added_by_username
-            FROM collection_movies cm
-            JOIN "user" u ON cm.added_by_user_id = u.id
-            WHERE cm.collection_id = ${collectionData.id}
-            ORDER BY cm.added_at DESC
-        `;
-
-        const collaboratorsResult = await sql`
-            SELECT cc.user_id, cc.permission, u.username, u.email, u.avatar_url
-            FROM collection_collaborators cc
-            JOIN "user" u ON cc.user_id = u.id
-            WHERE cc.collection_id = ${collectionData.id}
-        `;
-
-        const responseData: CollectionDetailsResponse = {
-             collection: collectionSummary,
-             movies: (moviesResult as (CollectionMovieEntry & { added_by_username: string | null })[]).map(m => ({ movie_id: m.movie_id, added_at: m.added_at, added_by_username: m.added_by_username })),
-             collaborators: collaboratorsResult as CollectionCollaborator[]
-        };
-
-        res.status(200).json(responseData);
-    } catch (error) {
-        next(error);
-    }
-};
-
-
-// Modify collectionSummary type
-declare module '../lib/types' {
-    interface CollectionSummary {shareable_id: string | null}
-}
 
 export const createCollection = async (req: Request, res: Response, next: NextFunction) => {
     const userId = req.user?.id;

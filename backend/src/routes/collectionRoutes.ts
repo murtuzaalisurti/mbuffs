@@ -8,9 +8,7 @@ import {
     addMovieToCollection,
     removeMovieFromCollection,
      addCollaborator,
-    searchMovies,
      updateCollaboratorPermission,
-    getPublicCollection,
     removeCollaborator
 } from '../controllers/collectionController';
 import { requireAuth } from '../middleware/authMiddleware';
@@ -21,9 +19,6 @@ const router = express.Router();
 
 // Cast middleware and controller functions to RequestHandler
 router.get('/', requireAuth as RequestHandler, getUserCollections as RequestHandler);
-router.get('/share/:shareableId', getPublicCollection as RequestHandler);
-
-router.get('/movies/search', requireAuth as RequestHandler, searchMovies as RequestHandler);
 router.post('/', requireAuth as RequestHandler, createCollection as RequestHandler);
 
 router.get(
