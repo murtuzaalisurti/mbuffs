@@ -20,6 +20,8 @@ const corsOptions = {
     preflightContinue: true,
 };
 
+console.log("CORS Options:", corsOptions);
+
 app.use(cors(corsOptions));
 
 app.options('/{*splat}', cors({
