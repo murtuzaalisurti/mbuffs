@@ -195,7 +195,8 @@ const CollectionDetail = () => {
 
   // --- Derived State & Permissions ---
   const collection = collectionDetails;
-  const isOwner = collection?.owner_id === currentUser?.id;
+  // @ts-expect-error collection.collection is defined
+  const isOwner = collection?.collection.owner_id === currentUser?.id;
   const canEdit = isOwner || collection?.collaborators.some(c => c.user_id === currentUser?.id && c.permission === 'edit');
 
   // --- Render Logic ---
