@@ -5,7 +5,7 @@
   "main": "dist/api/index.js",
   "scripts": {
     "build": "tsc",
-    "start": "node api/index.ts",
+    "start": "NODE_OPTIONS='--loader ts-node/esm' node api/index.ts",
     "dev": "NODE_OPTIONS='--loader ts-node/esm' nodemon api/index.ts"
   },
   "keywords": [],
