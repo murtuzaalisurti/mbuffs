@@ -43,3 +43,10 @@ export const updateCollaboratorSchema = z.object({
 });
 
 export type UpdateCollaboratorInput = z.infer<typeof updateCollaboratorSchema>;
+
+// --- Movie Schemas ---
+
+export const searchMovieSchema = z.object({
+  query: z.string().min(1, "Search query cannot be empty"),
+});
+export type SearchMovieInput = z.infer<typeof searchMovieSchema>;
