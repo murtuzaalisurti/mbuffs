@@ -133,57 +133,33 @@ export const removeCollaboratorApi = async (collectionId: string, userId: string
     await fetchBackend(`/collections/${collectionId}/collaborators/${userId}`, { method: 'DELETE' });
 };
 
-// --- TMDB API Configuration & Functions (No changes needed) ---
-const TMDB_API_KEY = import.meta.env.VITE_TMDB_API_KEY;
-const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
 const IMAGE_BASE_URL = 'https://image.tmdb.org/t/p';
-
-if (!TMDB_API_KEY) {
-    console.warn("TMDB API key (VITE_TMDB_API_KEY) is missing. Movie functionality will be limited.");
-}
 
 export const getImageUrl = (path: string | null | undefined, size = 'w500') => {
     if (!path) return '/placeholder.svg';
     return `${IMAGE_BASE_URL}/${size}${path}`;
 };
 
-const fetchTmdb = async (endpoint: string, params: Record<string, string> = {}) => {
-    if (!TMDB_API_KEY) {
-        throw new Error("TMDB API key (VITE_TMDB_API_KEY) is missing.");
-    }
-    const url = new URL(`${TMDB_BASE_URL}${endpoint}`);
-    url.searchParams.append('api_key', TMDB_API_KEY);
-    url.searchParams.append('language', 'en-US');
-    Object.entries(params).forEach(([key, value]) => url.searchParams.append(key, value));
-
-    try {
-        const response = await fetch(url.toString());
-        if (!response.ok) {
-            let errorData = { status_message: `HTTP error ${response.status}` };
-             try {
-                const jsonError = await response.json();
-                errorData = { ...errorData, ...jsonError };
-            } catch (e) { /* Ignore JSON parsing error */ }
-            console.error(`TMDB API Error (${response.status}) on ${endpoint}:`, errorData);
-            throw new Error(errorData.status_message);
-        }
-        return await response.json();
-    } catch (error) {
-        console.error(`TMDB Network or unexpected error on ${endpoint}:`, error);
-        throw error;
-    }
-}
-
 export const fetchPopularMoviesApi = async (): Promise<Movie[]> => {
     try {
-        const data = await fetchTmdb('/movie/popular');
+        const data = await fetchBackend(`/content`, {
+            method: 'POST',
+            body: JSON.stringify({
+                endpoint: `/movie/popular`,
+            }),
+        });
         return data?.results || [];
     } catch (error) { console.error("Failed to fetch popular movies:", error); return []; }
 };
 
 export const fetchMovieDetailsApi = async (id: number): Promise<MovieDetails | null> => {
     try {
-        return await fetchTmdb(`/movie/${id}`);
+        return await fetchBackend(`/content`, {
+            method: 'POST',
+            body: JSON.stringify({
+                endpoint: `/movie/${id}`,
+            }),
+        });
     }
     catch (error) {
         console.error(`Failed to fetch details for movie ${id}:`, error);
@@ -195,7 +171,16 @@ export const searchMoviesApi = async (query: string, page = 1): Promise<SearchRe
     const defaultResult: SearchResults = { page: 0, results: [], total_pages: 0, total_results: 0 };
     if (!query) return defaultResult;
     try {
-        const data = await fetchTmdb('/search/movie', { query, page: String(page) });
+        const data = await fetchBackend(`/content`, {
+            method: 'POST',
+            body: JSON.stringify({
+                endpoint: `/search/movie`,
+                params: {
+                    query, 
+                    page: String(page)
+                },
+            }),
+        });
         return data || defaultResult;
     } catch (error) {
         console.error(`Failed to search movies for query "${query}":`, error);
