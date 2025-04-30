@@ -15,29 +15,28 @@ dotenv.config({
 const app: Express = express();
 const port = process.env.PORT || 5001;
 
+// --- CORS Setup --- 
 const corsOptions = {
     origin: process.env.FRONTEND_URL || 'http://localhost:8080',
-    preflightContinue: true,
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE', // Explicitly allow common methods
+    allowedHeaders: ['Content-Type', 'Authorization'], // Allow Authorization header
+    // credentials: true, // REMOVED - Not needed for Authorization header
+    // preflightContinue: true, // Generally not needed unless complex routing depends on it
 };
 
 console.log("CORS Options:", corsOptions);
 
+// Apply CORS globally
 app.use(cors(corsOptions));
 
-app.options('/{*splat}', cors({
-    origin: corsOptions.origin,
-    credentials: true,
-})); // Pre-flight request for all routes
+// REMOVED app.options block - handled by global cors middleware now
 
-app.all('/{*splat}', (req, res, next) => {
-    res.header('Access-Control-Allow-Credentials', 'true');
-    next();
-});
+// REMOVED app.all block that manually set Access-Control-Allow-Credentials
 
-app.use(cookieParser());
+app.use(cookieParser()); // Keep if any other cookies are used, otherwise potentially removable
 app.use(express.json());
 
-// Attach user/session info to req if available
+// Attach userId info from JWT to req if available
 app.use(deserializeUser);
 
 // Optional: Test DB connection on startup
@@ -53,27 +52,34 @@ app.get('/api', (req: Request, res: Response) => {
 
 // --- Define Global Error Handler with explicit type ---
 const globalErrorHandler: ErrorRequestHandler = (err, req, res, next) => {
-    console.error("[ERROR]", err.stack);
+    console.error("[ERROR]", err);
 
-    // Check for specific error types and send appropriate response
+    let statusCode = 500;
+    let message = 'Internal Server Error';
+
+    // Handle Zod validation errors
     if (err instanceof z.ZodError) {
-        // Send response for validation errors (no return)
-        res.status(400).json({ message: 'Validation failed', errors: err.errors });
-    } else {
-      // Send generic server error response for all other errors
-      res.status(500).json({ message: 'Something went wrong!', error: process.env.NODE_ENV === 'development' ? err.message : undefined });
+        statusCode = 400; // Bad Request
+        message = err.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
     }
+    // Add more specific error type handling here if needed
+    // else if (err instanceof SomeCustomError) { ... }
 
-    // Do not call next() unless delegating to another error handler.
-    // A response has been sent, so the request cycle is complete.
+    // Send a JSON response
+    res.status(statusCode).json({
+        status: 'error',
+        statusCode,
+        message,
+        // Optionally include stack trace in development
+        ...(process.env.NODE_ENV === 'development' ? { stack: err.stack } : {}),
+    });
 };
 
-// --- Register Global Error Handler ---
-// This MUST be the last middleware registered
 app.use(globalErrorHandler);
 
 app.listen(port, () => {
-    console.log(`[server]: Server is running at http://localhost:${port}`);
+    console.log(`Server listening on port ${port}`);
 });
 
+// Export the app instance for Vercel (or other serverless platforms)
 export default app;
