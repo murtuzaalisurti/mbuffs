@@ -36,7 +36,7 @@ export function MovieGrid({ movies, title }: MovieGridProps) {
           <MovieCard
             key={movie.id}
             movie={movie}
-            onClick={() => handleMovieClick(movie.id)}
+            // onClick={() => handleMovieClick(movie.id)}
           />
         ))}
       </div>

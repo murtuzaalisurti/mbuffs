@@ -45,7 +45,7 @@ const checkPermission = async (userId: string, collectionId: string, requiredLev
 // Middleware factory to require specific permission level
 export const requireCollectionPermission = (requiredLevel: PermissionLevel) => {
     return async (req: Request, res: Response, next: NextFunction) => {
-        const userId = req.user?.id; // User ID from Lucia's deserializeUser middleware
+        const userId = req.userId; // User ID from Lucia's deserializeUser middleware
         const collectionId = req.params.collectionId; // Assuming collection ID is in route params
 
         if (!userId) {

@@ -25,7 +25,8 @@ interface CollectionDetailsResponse {
 
 //modify collectionSummary type
 export const getUserCollections = async (req: Request, res: Response, next: NextFunction) => {
-    const userId = req.user?.id;
+    console.log("Fetching user collections", req.userId);
+    const userId = req.userId;
     if (!userId) {
         res.sendStatus(401);
         return;
@@ -47,7 +48,7 @@ export const getUserCollections = async (req: Request, res: Response, next: Next
 };
 
 export const getCollectionById = async (req: Request, res: Response, next: NextFunction) => {
-    const userId = req.user?.id;
+    const userId = req.userId;
     const { collectionId } = req.params;
     if (!userId) {
         res.sendStatus(401);
@@ -106,7 +107,7 @@ export const getCollectionById = async (req: Request, res: Response, next: NextF
 };
 
 export const createCollection = async (req: Request, res: Response, next: NextFunction) => {
-    const userId = req.user?.id;
+    const userId = req.userId;
     if (!userId) { 
         res.sendStatus(401);
         return;
@@ -134,7 +135,7 @@ export const createCollection = async (req: Request, res: Response, next: NextFu
 };
 
 export const updateCollection = async (req: Request, res: Response, next: NextFunction) => {
-    const userId = req.user?.id;
+    const userId = req.userId;
     const { collectionId } = req.params;
     if (!userId) { 
         res.sendStatus(401);
@@ -183,7 +184,7 @@ export const updateCollection = async (req: Request, res: Response, next: NextFu
 };
 
 export const deleteCollection = async (req: Request, res: Response, next: NextFunction) => {
-    const userId = req.user?.id;
+    const userId = req.userId;
     const { collectionId } = req.params;
     if (!userId) { 
         res.sendStatus(401);
@@ -213,7 +214,7 @@ export const deleteCollection = async (req: Request, res: Response, next: NextFu
 };
 
 export const addMovieToCollection = async (req: Request, res: Response, next: NextFunction) => {
-    const userId = req.user?.id;
+    const userId = req.userId;
     const { collectionId } = req.params;
     if (!userId) { 
         res.sendStatus(401);
@@ -248,7 +249,7 @@ export const addMovieToCollection = async (req: Request, res: Response, next: Ne
 };
 
 export const removeMovieFromCollection = async (req: Request, res: Response, next: NextFunction) => {
-    const userId = req.user?.id;
+    const userId = req.userId;
     const { collectionId, movieId } = req.params;
     if (!userId) { 
         res.sendStatus(401);
@@ -278,7 +279,7 @@ export const removeMovieFromCollection = async (req: Request, res: Response, nex
 };
 
 export const addCollaborator = async (req: Request, res: Response, next: NextFunction) => {
-    const inviterId = req.user?.id;
+    const inviterId = req.userId;
     const { collectionId } = req.params;
     if (!inviterId) { 
         res.sendStatus(401);
@@ -336,7 +337,7 @@ export const addCollaborator = async (req: Request, res: Response, next: NextFun
 
 export const updateCollaboratorPermission = async (req: Request, res: Response, next: NextFunction) => {
     const { collectionId, userId: collaboratorUserId } = req.params;
-    const requesterId = req.user?.id;
+    const requesterId = req.userId;
     if (!requesterId) { 
         res.sendStatus(401);
         return;
@@ -369,7 +370,7 @@ export const updateCollaboratorPermission = async (req: Request, res: Response, 
 
 export const removeCollaborator = async (req: Request, res: Response, next: NextFunction) => {
     const { collectionId, userId: collaboratorUserId } = req.params;
-     const requesterId = req.user?.id;
+     const requesterId = req.userId;
     if (!requesterId) { 
         res.sendStatus(401);
         return;
