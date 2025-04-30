@@ -22,7 +22,6 @@ export const fetchBackend = async (endpoint: string, options: RequestInit = {}) 
 
     const requestOptions: RequestInit = {
         // Remove credentials: 'include' if using Authorization header, unless CORS requires it
-        // credentials: 'include', 
         headers: headers,
         ...options,
     };
@@ -38,13 +37,13 @@ export const fetchBackend = async (endpoint: string, options: RequestInit = {}) 
             
             console.error(`API Error (${response.status}) on ${endpoint}:`, errorData);
             
-            // If unauthorized (401), potentially clear the token and trigger a reload/redirect
-            if (response.status === 401) {
-                localStorage.removeItem(JWT_TOKEN_KEY);
-                // Consider redirecting to login or refreshing the page
-                // window.location.href = '/login'; 
-                 // alert('Session expired. Please log in again.');
-            }
+            // --- Removed automatic token clearing on 401 --- 
+            // It's generally better to handle token expiry/invalidation 
+            // within the useAuth hook based on the query status, or 
+            // implement a proper token refresh strategy.
+            // if (response.status === 401) {
+            //     localStorage.removeItem(JWT_TOKEN_KEY);
+            // }
 
             const error = new Error(errorData.message) as any; // eslint-disable-line
             error.status = response.status;
@@ -65,18 +64,13 @@ export const fetchBackend = async (endpoint: string, options: RequestInit = {}) 
 
 // --- Auth API Functions ---
 export const fetchCurrentUserApi = async (): Promise<{ user: User }> => {
-    // No change needed here, fetchBackend handles the Authorization header
     return fetchBackend('/auth/me');
 };
 
 export const logoutUserApi = async (): Promise<void> => {
-    // Backend logout might not be strictly necessary for stateless JWT,
-    // but can be kept if the backend endpoint exists (e.g., for future token revokation)
-    // The primary logout action (clearing local token) is in useAuth hook.
     try {
        await fetchBackend('/auth/logout', { method: 'POST' }); 
     } catch (error) {
-        // Log error but don't block frontend logout
         console.warn("Optional backend logout call failed:", error);
     }
 };
