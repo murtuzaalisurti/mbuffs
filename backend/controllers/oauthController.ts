@@ -51,7 +51,8 @@ export const googleCallback = async (req: Request, res: Response, next: NextFunc
     try {
         const tokens = await google.validateAuthorizationCode(code, storedCodeVerifier);
         const googleUserResponse = await fetch("https://openidconnect.googleapis.com/v1/userinfo", {
-             headers: { Authorization: `Bearer ${tokens.accessToken}` }
+            // @ts-expect-error correct type
+             headers: { Authorization: `Bearer ${tokens.data.access_token}` }
         });
 
         if (!googleUserResponse.ok) {
