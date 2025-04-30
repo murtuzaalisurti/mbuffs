@@ -22,9 +22,7 @@ export const googleLogin = async (req: Request, res: Response, next: NextFunctio
         const state = generateState();
         const codeVerifier = generateCodeVerifier();
         // Fix: Pass scopes in options object
-        const url = await google.createAuthorizationURL(state, codeVerifier, {
-            scopes: ['profile', 'email']
-        });
+        const url = await google.createAuthorizationURL(state, codeVerifier, ['profile', 'email']);
         const cookieOptions = { path: '/', secure: process.env.NODE_ENV === 'production', httpOnly: true, maxAge: 60 * 10, sameSite: 'lax' as const };
         setCookie(res, OAUTH_STATE_COOKIE_NAME, state, cookieOptions);
         setCookie(res, OAUTH_CODE_VERIFIER_COOKIE_NAME, codeVerifier, cookieOptions);
@@ -64,13 +62,13 @@ export const googleCallback = async (req: Request, res: Response, next: NextFunc
         const googleUser = await googleUserResponse.json() as GoogleUser;
 
         // Fix: Correct SQL type argument
-        const existingOauthAccount = await sql<DatabaseUserAttributes>`SELECT u.* FROM public.oauth_account oa JOIN "user" u ON u.id = oa.user_id WHERE oa.provider_id = 'google' AND oa.provider_user_id = ${googleUser.sub}`;
+        const existingOauthAccount = await sql`SELECT u.* FROM public.oauth_account oa JOIN "user" u ON u.id = oa.user_id WHERE oa.provider_id = 'google' AND oa.provider_user_id = ${googleUser.sub}`;
 
         let userId: string;
         // Fix: Check rowCount instead of length for neon result
-        if (existingOauthAccount.rowCount > 0) {
+        if (existingOauthAccount.length > 0) {
             // Fix: Access data via rows array
-            userId = existingOauthAccount.rows[0].id;
+            userId = (existingOauthAccount[0] as DatabaseUserAttributes).id;
             console.log(`Found existing user: ${userId}`);
         } else {
             const newUserId = generateId(15); // Keep using Lucia's ID generator
@@ -80,12 +78,12 @@ export const googleCallback = async (req: Request, res: Response, next: NextFunc
                  // Fix: Manual transaction control with BEGIN/COMMIT/ROLLBACK
                 await sql`BEGIN`;
                 // Fix: Correct SQL type argument
-                const existingEmail = await sql<DatabaseUserAttributes>`SELECT id FROM "user" WHERE email = ${googleUser.email}`;
+                const existingEmail = await sql`SELECT id FROM "user" WHERE email = ${googleUser.email}`;
                 // Fix: Check rowCount
-                if (existingEmail.rowCount > 0) {
+                if (existingEmail.length > 0) {
                     // Email exists, link OAuth account to this existing user
                      // Fix: Access data via rows array
-                    userId = existingEmail.rows[0].id; // Update userId to the existing user's ID
+                    userId = existingEmail[0].id; // Update userId to the existing user's ID
                     console.log(`Email ${googleUser.email} exists, linking OAuth to existing user ${userId}`);
                     await sql`INSERT INTO oauth_account (provider_id, provider_user_id, user_id) VALUES ('google', ${googleUser.sub}, ${userId}) ON CONFLICT (provider_id, provider_user_id) DO NOTHING`;
                 } else {
@@ -147,16 +145,16 @@ export const getCurrentUser = async (req: Request, res: Response, next: NextFunc
     try {
         // Fetch user details based on req.userId
         // Fix: Correct SQL type argument
-        const result = await sql<DatabaseUserAttributes>`SELECT id, email, username, avatar_url FROM "user" WHERE id = ${req.userId}`;
-        
+        const result = await sql`SELECT id, email, username, avatar_url FROM "user" WHERE id = ${req.userId}`;
+        console.log(`Fetched user details for ID: ${req.userId}`, result);
          // Fix: Check rowCount
-        if (result.rowCount === 0) {
+        if (result.length === 0) {
             console.warn(`User ID ${req.userId} found in token but not in database.`);
             return res.status(404).json({ message: "User not found" });
         }
 
         // Fix: Access user data via rows array
-        const user = result.rows[0];
+        const user = result[0];
         res.status(200).json({ user });
     } catch (error) {
         console.error("Error fetching current user:", error);
