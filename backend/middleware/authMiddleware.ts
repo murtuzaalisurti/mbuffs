@@ -1,6 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
 import { verifyToken } from "../lib/jwt.js";
-import { sql } from "../lib/db.js";
 import { DatabaseUserAttributes } from "../lib/types.js";
 
 // Extend Express Request type
@@ -21,6 +20,8 @@ export const deserializeUser = async (req: Request, res: Response, next: NextFun
 
     console.log(`[deserializeUser] Path: ${req.path}`); // Log path
     console.log(`[deserializeUser] Authorization Header: ${authHeader}`); // Log header
+
+    res.locals.path = req.path; // Store path in locals for potential use in other middleware
 
     if (authHeader && authHeader.startsWith("Bearer ")) {
         const token = authHeader.split(" ")[1];
@@ -58,6 +59,11 @@ export const deserializeUser = async (req: Request, res: Response, next: NextFun
 
 // Middleware to protect routes - requires a valid JWT with userId
 export const requireAuth = (req: Request, res: Response, next: NextFunction) => {
+    if (res.locals.path === "/api/content") {
+        console.log("[requireAuth] Skipping auth check for root path.");
+        return next();
+    }
+
     console.log(`[requireAuth] Checking auth for path: ${req.path}. Found userId: ${req.userId}`); // Log entry
     if (!req.userId) {
          console.log(`[requireAuth] Access denied for request: ${req.path}. No userId found.`);
