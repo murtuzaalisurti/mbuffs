@@ -78,10 +78,11 @@ const Collections = () => {
           <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
             <DialogTrigger asChild>
               <Button>
-                <PlusCircle className="mr-2 h-4 w-4" /> Create Collection
+                <PlusCircle className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Create Collection</span>
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
+            <DialogContent className="w-[90%] sm:max-w-[425px] rounded-lg">
               <form onSubmit={handleSubmit(onSubmit)}>
                 <DialogHeader>
                   <DialogTitle>Create New Collection</DialogTitle>
@@ -90,29 +91,29 @@ const Collections = () => {
                   </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="name" className="text-right">
+                  <div className="grid w-full items-center gap-1.5">
+                    <Label htmlFor="name" className="text-sm text-muted-foreground">
                       Name
                     </Label>
                     <Input 
                       id="name"
                       {...register("name")}
-                      className="col-span-3" 
+                      className="bg-muted"
                       aria-invalid={errors.name ? "true" : "false"}
                     />
-                    {errors.name && <p className="col-span-4 text-red-500 text-sm text-right">{errors.name.message}</p>}
+                    {errors.name && <p className="text-red-500 text-sm">{errors.name.message}</p>}
                   </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="description" className="text-right">
+                  <div className="grid w-full items-center gap-1.5">
+                    <Label htmlFor="description" className="text-sm text-muted-foreground">
                       Description
                     </Label>
                     <Textarea 
                       id="description"
                       {...register("description")}
-                      className="col-span-3" 
+                      className="bg-muted" 
                       aria-invalid={errors.description ? "true" : "false"}
                     />
-                     {errors.description && <p className="col-span-4 text-red-500 text-sm text-right">{errors.description.message}</p>}
+                     {errors.description && <p className="text-red-500 text-sm">{errors.description.message}</p>}
                   </div>
                 </div>
                 <DialogFooter>

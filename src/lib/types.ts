@@ -27,6 +27,7 @@ export interface User {
   username: string | null;
   email: string | null;
   avatarUrl: string | null; // Matches Lucia attributes
+  avatar_url?: string | null;
   createdAt?: Date | string; // From Lucia attributes
   updatedAt?: Date | string; // From Lucia attributes
 }
@@ -62,9 +63,10 @@ export interface CollectionCollaborator {
 }
 
 // Full Collection Details (returned by GET /api/collections/:id)
-export interface CollectionDetails extends CollectionSummary {
+export interface CollectionDetails {
   movies: CollectionMovieEntry[];
   collaborators: CollectionCollaborator[];
+  collection: CollectionSummary;
 }
 
 // Type for the response of GET /api/collections
@@ -107,4 +109,15 @@ export interface AddCollaboratorInput {
 // Input type for updating collaborator permissions
 export interface UpdateCollaboratorInput {
   permission: 'view' | 'edit';
+}
+
+export interface Collection {
+  id: string;
+  name: string;
+  description: string;
+  isPublic: boolean;
+  userId: string;
+  createdAt: string; // Or Date if you parse it
+  updatedAt: string; // Or Date if you parse it
+  movies: Movie[];
 }

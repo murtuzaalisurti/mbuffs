@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, LogOut, UserCircle, Film, List } from 'lucide-react';
+import { Search, LogOut, UserCircle, Film, List, LogIn } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -50,7 +50,7 @@ export const Navbar = () => {
           className="flex items-center gap-2 text-lg font-semibold md:text-base"
         >
           <Film className="h-6 w-6 text-primary" />
-          <span className="sr-only">mbuffs</span>
+          <span>mbuffs</span>
         </Link>
         {/* Optional: Add other nav links here if needed */}
         {/* <Link
@@ -65,13 +65,13 @@ export const Navbar = () => {
       <div className="flex w-full items-center gap-4 md:ml-auto md:gap-2 lg:gap-4">
         <div className="flex items-center gap-4 ml-auto"> { /* Use ml-auto to push auth to the right */}
                 {/* Search Form - removed hidden md:block */}
-                <form onSubmit={handleSearch} className="">
+                <form onSubmit={handleSearch} className="flex-1 md:flex-initial">
                   <div className="relative">
-                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       type="search"
-                      placeholder="Search movies..."
-                      className="w-[200px] pl-8 md:w-[300px]" // Keep responsive width
+                      placeholder="Search..."
+                      className="pl-8 w-32 sm:w-50 md:w-64 lg:w-80 bg-muted text-muted-foreground focus-visible:ring-primary focus-visible:ring-offset-0 rounded-lg border border-border" // Keep responsive width
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                     />
@@ -109,7 +109,16 @@ export const Navbar = () => {
                 </DropdownMenu>
               ) : (
                 <Button asChild>
-                  <a href={googleLoginUrl}>Login with Google</a>
+                  <a href={googleLoginUrl}>
+                    <LogIn className="h-4 w-4 sm:hidden" />
+                    <span className="hidden sm:inline">Login</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" height="16" width="16" viewBox="0 0 48 48" className="h-4 w-4" fill="currentColor"> {/* Set fill to currentColor */}
+                      <path d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8c-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C12.955 4 4 12.955 4 24s8.955 20 20 20s20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"/>
+                      <path d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C16.318 4 9.656 8.337 6.306 14.691z"/>
+                      <path d="M24 44c5.166 0 9.86-1.977 13.412-5.192l-6.19-5.238C29.211 35.091 26.715 36 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"/>
+                      <path d="M43.611 20.083H42V20H24v8h11.303c-.792 2.237-2.231 4.166-4.087 5.571l6.19 5.238C42.012 35.846 44 30.138 44 24c0-1.341-.138-2.65-.389-3.917z"/>
+                    </svg>
+                  </a>
                 </Button>
               )}
         </div>

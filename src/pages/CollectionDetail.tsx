@@ -57,6 +57,7 @@ const CollectionDetail = () => {
   const [isAddCollabOpen, setIsAddCollabOpen] = useState(false);
   const [isEditCollabOpen, setIsEditCollabOpen] = useState(false);
   const [isAddMovieOpen, setIsAddMovieOpen] = useState(false);
+  const [isCollabListOpen, setIsCollabListOpen] = useState(false);
 
   const collectionQueryKey = ['collection', collectionId];
 
@@ -171,20 +172,20 @@ const CollectionDetail = () => {
   };
    const handleEditCollectionOpen = () => {
      if (collectionDetails) {
-        setEditValue("name", collectionDetails.name);
-        setEditValue("description", collectionDetails.description ?? ''); // Handle null description
+        setEditValue("name", collectionDetails.collection.name);
+        setEditValue("description", collectionDetails.collection.description ?? ''); // Handle null description
         setIsEditCollabOpen(true);
      }
    };
 
    // Add Movie Mutation
-   const addMovieMutation = useMutation<any, Error, { collectionId: string; data: AddMovieInput }>({
+   const addMovieMutation = useMutation<any, Error, { collectionId: string; data: AddMovieInput }>({ // eslint-disable-line @typescript-eslint/no-explicit-any
        mutationFn: ({ collectionId, data }) => addMovieToCollectionApi(collectionId, data),
        onSuccess: (data, variables) => {
            toast.success(`Movie added to collection.`);
            queryClient.invalidateQueries({ queryKey: collectionQueryKey });
        },
-       onError: (error: any) => {
+       onError: (error: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
             if (error?.data?.message?.includes('already exists')) {
                  toast.warning("Movie already exists in this collection.");
             } else {
@@ -194,10 +195,10 @@ const CollectionDetail = () => {
    });
 
   // --- Derived State & Permissions ---
-  const collection = collectionDetails;
-  // @ts-expect-error collection.collection is defined
-  const isOwner = collection?.collection.owner_id === currentUser?.id;
-  const canEdit = isOwner || collection?.collaborators.some(c => c.user_id === currentUser?.id && c.permission === 'edit');
+  const collection = collectionDetails?.collection;
+  console.log('Collection:', collection);
+  const isOwner = collection?.owner_id === currentUser?.id;
+  const canEdit = isOwner || collectionDetails?.collaborators.some(c => c.user_id === currentUser?.id && c.permission === 'edit');
 
   // --- Render Logic ---
   // Use optional chaining more carefully
@@ -260,48 +261,51 @@ const CollectionDetail = () => {
       <Navbar />
       <main className="container py-8">
         {/* Header Section */}
-        <div className="mb-8">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-2">
-                <h1 className="text-3xl font-bold flex items-center gap-2">
-                    {collection.name} 
-                    {canEdit && (
-                        <Dialog open={isEditCollabOpen} onOpenChange={setIsEditCollabOpen}>
-                            <DialogTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleEditCollectionOpen}>
-                                    <Edit className="h-4 w-4" />
-                                </Button>
-                            </DialogTrigger>
-                            <DialogContent className="sm:max-w-[425px]">
-                                <form onSubmit={handleSubmitEdit(onEditCollection)}>
-                                    <DialogHeader>
-                                        <DialogTitle>Edit Collection</DialogTitle>
-                                        <DialogDescription>Update name and description.</DialogDescription>
-                                    </DialogHeader>
-                                    <div className="grid gap-4 py-4">
-                                        {/* Name Input */}
-                                        <div className="grid grid-cols-4 items-center gap-4">
-                                            <Label htmlFor="edit-name" className="text-right">Name</Label>
-                                            <Input id="edit-name" {...registerEdit("name")} className="col-span-3" aria-invalid={editErrors.name ? "true" : "false"} />
-                                            {editErrors.name && <p className="col-span-4 text-red-500 text-sm text-right">{editErrors.name.message}</p>}
+        <div className="mb-12">
+            <div className="flex flex-row justify-between items-start gap-4 mb-2">
+                <div className="flex-grow min-w-0">
+                    <h1 className="text-3xl font-bold flex items-center gap-2">
+                        {collection.name} 
+                        {canEdit && (
+                            <Dialog open={isEditCollabOpen} onOpenChange={setIsEditCollabOpen}>
+                                <DialogTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleEditCollectionOpen}>
+                                        <Edit className="h-4 w-4" />
+                                    </Button>
+                                </DialogTrigger>
+                                <DialogContent className="w-[90%] sm:max-w-[425px] rounded-lg">
+                                    <form onSubmit={handleSubmitEdit(onEditCollection)}>
+                                        <DialogHeader>
+                                            <DialogTitle>Edit Collection</DialogTitle>
+                                            <DialogDescription>Update name and description.</DialogDescription>
+                                        </DialogHeader>
+                                        <div className="grid gap-4 py-4">
+                                            {/* Name Input */}
+                                            <div className="grid w-full items-center gap-1.5">
+                                                <Label htmlFor="edit-name" className="text-sm text-muted-foreground">Name</Label>
+                                                <Input id="edit-name" className="bg-muted" {...registerEdit("name")} aria-invalid={editErrors.name ? "true" : "false"} />
+                                                {editErrors.name && <p className="text-red-500 text-sm">{editErrors.name.message}</p>}
+                                            </div>
+                                            {/* Description Input */}
+                                            <div className="grid w-full items-center gap-1.5">
+                                                <Label htmlFor="edit-description" className="text-sm text-muted-foreground">Description</Label>
+                                                <Textarea id="edit-description" className="bg-muted" {...registerEdit("description")} aria-invalid={editErrors.description ? "true" : "false"} />
+                                                {editErrors.description && <p className="text-red-500 text-sm">{editErrors.description.message}</p>}
+                                            </div>
                                         </div>
-                                        {/* Description Input */}
-                                        <div className="grid grid-cols-4 items-center gap-4">
-                                            <Label htmlFor="edit-description" className="text-right">Description</Label>
-                                            <Textarea id="edit-description" {...registerEdit("description")} className="col-span-3" aria-invalid={editErrors.description ? "true" : "false"} />
-                                            {editErrors.description && <p className="col-span-4 text-red-500 text-sm text-right">{editErrors.description.message}</p>}
-                                        </div>
-                                    </div>
-                                    <DialogFooter>
-                                        <Button type="submit" disabled={editCollectionMutation.isPending}>
-                                            {editCollectionMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Save Changes
-                                        </Button>
-                                    </DialogFooter>
-                                </form>
-                            </DialogContent>
-                        </Dialog>
-                    )}
-                </h1>
-                 <div className="flex items-center gap-2">
+                                        <DialogFooter>
+                                            <Button type="submit" disabled={editCollectionMutation.isPending}>
+                                                {editCollectionMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Save Changes
+                                            </Button>
+                                        </DialogFooter>
+                                    </form>
+                                </DialogContent>
+                            </Dialog>
+                        )}
+                    </h1>
+                    {collection.description && (<p className="text-muted-foreground max-w-prose">{collection.description}</p>)}
+                </div>
+                 <div className="flex items-center gap-2 flex-shrink-0">
                     {isOwner && (
                         <AlertDialog>
                             <AlertDialogTrigger asChild>
@@ -310,7 +314,7 @@ const CollectionDetail = () => {
                                     <span className="ml-2 hidden sm:inline">Delete</span>
                                 </Button>
                             </AlertDialogTrigger>
-                            <AlertDialogContent>
+                            <AlertDialogContent className="w-[90%] sm:max-w-md rounded-lg">
                                 {/* ... Delete Confirmation ... */}
                                 <AlertDialogHeader>
                                     <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
@@ -329,11 +333,10 @@ const CollectionDetail = () => {
                     </Button>
                  </div>
             </div>
-            {collection.description && (<p className="text-muted-foreground mb-4 max-w-prose">{collection.description}</p>)}
-             <div className="text-sm text-muted-foreground flex items-center gap-1">
+             <div className="text-xs text-muted-foreground flex items-center gap-1">
                 Owned by
                 <Avatar className="h-5 w-5 inline-block mx-1">
-                    <AvatarImage src={getImageUrl(collection.owner_avatar)} alt={collection.owner_username ?? 'Owner'} />
+                    <AvatarImage src={collection.owner_avatar} alt={collection.owner_username ?? 'Owner'} />
                     <AvatarFallback>{getInitials(collection.owner_username)}</AvatarFallback>
                 </Avatar>
                 {collection.owner_username ?? 'Unknown User'}
@@ -343,13 +346,17 @@ const CollectionDetail = () => {
         {/* Collaborators Section */}
         <div className="mb-8">
             <div className="flex justify-between items-center mb-4">
-                <h2 className="text-2xl font-semibold flex items-center"><Users className="mr-2 h-5 w-5"/> Collaborators ({collection.collaborators.length + 1})</h2>
+                <h2 className="text-2xl font-semibold flex items-center"><Users className="mr-2 h-5 w-5"/> Collaborators ({collectionDetails.collaborators.length + 1})</h2>
                 {isOwner && (
                     <Dialog open={isAddCollabOpen} onOpenChange={setIsAddCollabOpen}>
                         <DialogTrigger asChild>
-                            <Button variant="outline" size="sm"><UserPlus className="mr-2 h-4 w-4"/> Add Collaborator</Button>
+                            <Button variant="default" size="sm"><UserPlus className="h-4 w-4 sm:mr-2"/>
+                                <span className="hidden sm:inline">
+                                    Add Collaborator
+                                </span>
+                            </Button>
                         </DialogTrigger>
-                        <DialogContent className="sm:max-w-[425px]">
+                        <DialogContent className="w-[90%] sm:max-w-[425px] rounded-lg">
                             <form onSubmit={handleSubmitCollab(onAddCollaborator)}>
                                 {/* ... Add Collaborator Form ... */}
                                 <DialogHeader>
@@ -357,10 +364,10 @@ const CollectionDetail = () => {
                                     <DialogDescription>Enter email to invite.</DialogDescription>
                                 </DialogHeader>
                                 <div className="grid gap-4 py-4">
-                                     <div className="grid grid-cols-4 items-center gap-4">
-                                        <Label htmlFor="collab-email" className="text-right">Email</Label>
-                                        <Input id="collab-email" type="email" {...registerCollab("email")} className="col-span-3" aria-invalid={collabErrors.email ? "true" : "false"} />
-                                        {collabErrors.email && <p className="col-span-4 text-red-500 text-sm text-right">{collabErrors.email.message}</p>}
+                                     <div className="grid w-full items-center gap-1.5">
+                                        <Label htmlFor="collab-email" className="text-sm text-muted-foreground">Email</Label>
+                                        <Input id="collab-email" className="bg-muted" type="email" {...registerCollab("email")} aria-invalid={collabErrors.email ? "true" : "false"} />
+                                        {collabErrors.email && <p className="text-red-500 text-sm">{collabErrors.email.message}</p>}
                                     </div>
                                 </div>
                                 <DialogFooter>
@@ -371,46 +378,110 @@ const CollectionDetail = () => {
                     </Dialog>
                 )}
             </div>
-            <div className="flex flex-wrap gap-4">
-                {/* Owner Card */}
-                <div className="flex items-center gap-2 p-2 border rounded-md bg-muted/50">
-                     <Avatar className="h-7 w-7"><AvatarImage src={getImageUrl(collection.owner_avatar)} /><AvatarFallback>{getInitials(collection.owner_username)}</AvatarFallback></Avatar>
-                     <div><p className="text-sm font-medium">{collection.owner_username ?? 'Owner'}</p><p className="text-xs text-muted-foreground">Owner</p></div>
-                </div>
-                {/* Collaborator Cards */}
-                {collection.collaborators.map((c) => (
-                    <div key={c.user_id} className="flex items-center gap-2 p-2 border rounded-md">
-                        <Avatar className="h-7 w-7"><AvatarImage src={getImageUrl(c.avatar_url)} /><AvatarFallback>{getInitials(c.username)}</AvatarFallback></Avatar>
-                        <div><p className="text-sm font-medium">{c.username ?? c.email}</p><p className="text-xs text-muted-foreground capitalize">{c.permission}</p></div>
-                        {isOwner && (
-                            <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-6 w-6 ml-1 text-muted-foreground hover:text-destructive" disabled={removeCollaboratorMutation.isPending && removeCollaboratorMutation.variables?.userId === c.user_id}>
-                                        {(removeCollaboratorMutation.isPending && removeCollaboratorMutation.variables?.userId === c.user_id) ? <Loader2 className="h-3 w-3 animate-spin"/> : <UserMinus className="h-3 w-3" />}
-                                    </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                    {/* ... Remove Collaborator Confirmation ... */}
-                                     <AlertDialogHeader>
-                                        <AlertDialogTitle>Remove Collaborator?</AlertDialogTitle>
-                                        <AlertDialogDescription>Remove {c.username ?? c.email}?</AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                        <AlertDialogAction onClick={() => removeCollaboratorMutation.mutate({ collectionId: collectionId!, userId: c.user_id })} >Remove</AlertDialogAction>
-                                    </AlertDialogFooter>
-                                </AlertDialogContent>
-                            </AlertDialog>
+            {/* --- Avatar Stack and Management Dialog --- */}
+            <Dialog open={isCollabListOpen} onOpenChange={setIsCollabListOpen}>
+                <DialogTrigger asChild>
+                    <div className="flex items-center cursor-pointer hover:opacity-80 transition-opacity">
+                        {/* Owner Avatar */}
+                        <Avatar className="h-8 w-8 border-2 border-background ring-1 ring-border">
+                            <AvatarImage src={collection.owner_avatar} />
+                            <AvatarFallback>{getInitials(collection.owner_username)}</AvatarFallback>
+                        </Avatar>
+                        {/* First few Collaborator Avatars */}
+                        {collectionDetails.collaborators.slice(0, 3).map((c, index) => (
+                            <Avatar key={c.user_id} className="-ml-3 h-8 w-8 border-2 border-background ring-1 ring-border">
+                                <AvatarImage src={c.avatar_url} />
+                                <AvatarFallback>{getInitials(c.username)}</AvatarFallback>
+                            </Avatar>
+                        ))}
+                        {/* More Indicator */}
+                        {collectionDetails.collaborators.length > 3 && (
+                            <Avatar className="-ml-3 h-8 w-8 border-2 border-background ring-1 ring-border bg-muted">
+                                <AvatarFallback>+{collectionDetails.collaborators.length - 3}</AvatarFallback>
+                            </Avatar>
                         )}
+                         {/* Show a placeholder if only owner exists */}
+                         {collectionDetails.collaborators.length === 0 && (
+                             <span className="ml-2 text-sm text-muted-foreground">(Only Owner)</span>
+                         )}
                     </div>
-                ))}
-            </div>
+                </DialogTrigger>
+                <DialogContent className="w-[90%] sm:max-w-[480px] rounded-lg">
+                    <DialogHeader>
+                        <DialogTitle>Manage Collaborators</DialogTitle>
+                        <DialogDescription>View and remove collaborators from this collection.</DialogDescription>
+                    </DialogHeader>
+                    <ScrollArea className="max-h-[400px] pr-4"> {/* Added ScrollArea */}
+                        <div className="space-y-3 py-2">
+                            {/* Owner Row (Not Removable) */}
+                            <div className="flex items-center justify-between gap-4 p-2 rounded-md bg-muted/30">
+                                <div className="flex items-center gap-3">
+                                    <Avatar className="h-8 w-8">
+                                        <AvatarImage src={collection.owner_avatar} />
+                                        <AvatarFallback>{getInitials(collection.owner_username)}</AvatarFallback>
+                                    </Avatar>
+                                    <div>
+                                        <p className="text-sm font-medium">{collection.owner_username ?? 'Owner'}</p>
+                                        <p className="text-xs text-muted-foreground">Owner</p>
+                                    </div>
+                                </div>
+                                {/* Placeholder for alignment */}
+                                <div className="w-8"></div> 
+                            </div>
+
+                            {/* Collaborator Rows (Removable) */}
+                            {collectionDetails.collaborators.map((c) => (
+                                <div key={c.user_id} className="flex items-center justify-between gap-4 p-2 rounded-md hover:bg-muted/50">
+                                    <div className="flex items-center gap-3">
+                                        <Avatar className="h-8 w-8">
+                                            <AvatarImage src={c.avatar_url} />
+                                            <AvatarFallback>{getInitials(c.username)}</AvatarFallback>
+                                        </Avatar>
+                                        <div>
+                                            <p className="text-sm font-medium">{c.username ?? c.email}</p>
+                                            <p className="text-xs text-muted-foreground capitalize">{c.permission}</p>
+                                        </div>
+                                    </div>
+                                    {/* Remove Button */}
+                                    {isOwner && (
+                                        <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive flex-shrink-0" disabled={removeCollaboratorMutation.isPending && removeCollaboratorMutation.variables?.userId === c.user_id}>
+                                                    {(removeCollaboratorMutation.isPending && removeCollaboratorMutation.variables?.userId === c.user_id) ? <Loader2 className="h-4 w-4 animate-spin"/> : <UserMinus className="h-4 w-4" />}
+                                                </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent className="w-[90%] sm:max-w-[425px] rounded-lg">
+                                                <AlertDialogHeader>
+                                                    <AlertDialogTitle>Remove Collaborator?</AlertDialogTitle>
+                                                    <AlertDialogDescription>Remove {c.username ?? c.email} from this collection?</AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                    <AlertDialogAction onClick={() => removeCollaboratorMutation.mutate({ collectionId: collectionId!, userId: c.user_id })} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Remove</AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
+                                    )}
+                                     {/* Placeholder if not owner for alignment */}
+                                     {!isOwner && <div className="w-8"></div>}
+                                </div>
+                            ))}
+                        </div>
+                    </ScrollArea>
+                     <DialogFooter>
+                        <DialogClose asChild>
+                            <Button type="button" variant="outline">Close</Button>
+                        </DialogClose>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+            {/* --- End Avatar Stack and Management Dialog --- */}
         </div>
 
         {/* Movies Section */}
         <div>
             <div className="flex justify-between items-center mb-4">
-                <h2 className="text-2xl font-semibold flex items-center"><Film className="mr-2 h-5 w-5"/> Movies ({collection.movies.length})</h2>
+                <h2 className="text-2xl font-semibold flex items-center"><Film className="mr-2 h-5 w-5"/> Movies ({collectionDetails.movies.length})</h2>
                 {canEdit && (
                     <Dialog open={isAddMovieOpen} onOpenChange={setIsAddMovieOpen}>
                         <DialogTrigger asChild>
@@ -427,16 +498,16 @@ const CollectionDetail = () => {
             </div>
             {isLoadingMovies ? (
                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                     {Array.from({ length: collection.movies.length || 6 }).map((_, i) => 
+                     {Array.from({ length: collectionDetails.movies.length || 6 }).map((_, i) => 
                         <div key={i} className="space-y-2">
                             <Skeleton className="aspect-[2/3] w-full rounded-md" />
                             <Skeleton className="h-3 w-[80%]" />
                          </div>
                      )}
                  </div>
-            ) : collection.movies.length > 0 ? (
+            ) : collectionDetails.movies.length > 0 ? (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                    {collection.movies.map(movieEntry => {
+                    {collectionDetails.movies.map(movieEntry => {
                         const movie = moviesDetailsMap?.[movieEntry.movie_id];
                         if (!movie) return (
                             <Card key={movieEntry.movie_id} className="relative group overflow-hidden">
@@ -457,7 +528,7 @@ const CollectionDetail = () => {
                                         {(removeMovieMutation.isPending && removeMovieMutation.variables?.movieId === movie.id) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />} 
                                     </Button>
                                 )}
-                                <p className="text-xs text-muted-foreground mt-1 text-center">Added by {movieEntry.added_by_username ?? 'Unknown'}</p>
+                                <p className="text-xs text-muted-foreground mt-1 mx-2">{movieEntry.added_by_username ?? 'Unknown'}</p>
                             </div>
                         );
                     })}
@@ -535,7 +606,7 @@ const AddMovieDialog: React.FC<AddMovieDialogProps> = ({ collectionId, existingM
     const movies = searchResultsData?.pages.flatMap(page => page.results) ?? [];
 
     return (
-        <DialogContent className="sm:max-w-[600px]">
+        <DialogContent className="w-[90%] sm:max-w-[600px] rounded-lg">
             {/* ... Dialog Header ... */}
              <DialogHeader>
                 <DialogTitle>Add Movie to Collection</DialogTitle>

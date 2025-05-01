@@ -10,6 +10,7 @@ interface MovieCardProps {
 }
 
 export function MovieCard({ movie, onClick }: MovieCardProps) {
+  console.log("MovieCard", movie);
   const releaseYear = movie.release_date 
     ? new Date(movie.release_date).getFullYear() 
     : "Unknown";

@@ -1,40 +1,51 @@
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    --background: 215 28% 17%;
-    --foreground: 210 40% 98%;
+    /* Darker, less saturated background */
+    --background: 220 15% 10%; 
+    --foreground: 210 20% 95%; /* Slightly softer white */
 
-    --card: 215 28% 17%;
-    --card-foreground: 210 40% 98%;
+    /* Slightly lighter card/popover background for layering */
+    --card: 220 15% 15%; 
+    --card-foreground: 210 20% 95%;
 
-    --popover: 215 28% 17%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 220 15% 15%;
+    --popover-foreground: 210 20% 95%;
 
-    --primary: 196 92% 58%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    /* Keep primary vibrant */
+    --primary: 196 70% 55%; 
+    --primary-foreground: 210 40% 98%; /* Ensure high contrast on primary */
 
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
+    /* Muted grays for secondary elements */
+    --secondary: 220 10% 25%; 
+    --secondary-foreground: 210 15% 75%; /* Lighter gray for contrast */
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted: 220 10% 25%;
+    --muted-foreground: 210 15% 75%; 
 
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 220 10% 25%;
+    --accent-foreground: 210 15% 75%;
 
-    --destructive: 0 70% 50%;
+    /* Keep destructive clear */
+    --destructive: 0 70% 50%; 
     --destructive-foreground: 210 40% 98%;
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 196 92% 58%;
+    /* Subtle border, distinct from background/card */
+    --border: 220 10% 20%; 
+    /* Input background matching card */
+    --input: 220 15% 15%; 
+    /* Ring matching primary */
+    --ring: 196 92% 58%; 
 
-    --radius: 0.5rem;
+    /* Slightly larger radius for softer corners */
+    --radius: 0.75rem; 
   }
+
+  /* You might not need a separate .dark class definition 
+     if :root already defines your dark theme */
 }
 
 @layer base {

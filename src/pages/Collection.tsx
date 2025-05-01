@@ -73,7 +73,7 @@ const CollectionPage = () => {
 
   return (
     <>
-      <Navbar isLoggedIn={false} />
+      <Navbar />
       <main className="container py-8">
         {loading ? (
           <div className="flex justify-center items-center py-12">
