@@ -60,7 +60,7 @@ export const deserializeUser = async (req: Request, res: Response, next: NextFun
 // Middleware to protect routes - requires a valid JWT with userId
 export const requireAuth = (req: Request, res: Response, next: NextFunction) => {
     if (res.locals.path === "/api/content") {
-        console.log("[requireAuth] Skipping auth check for root path.");
+        console.log("[requireAuth] Skipping auth check for content path.");
         return next();
     }
 
