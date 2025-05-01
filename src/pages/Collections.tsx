@@ -62,7 +62,7 @@ const Collections = () => {
   });
 
   const onSubmit = (formData: FrontendCreateCollectionInput) => {
-    createMutation.mutate(formData);
+    createMutation.mutate(formData as CreateCollectionInput);
   };
 
   const formatDate = (dateString: string) => {

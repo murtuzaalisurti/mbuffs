@@ -196,7 +196,6 @@ const CollectionDetail = () => {
 
   // --- Derived State & Permissions ---
   const collection = collectionDetails?.collection;
-  console.log('Collection:', collection);
   const isOwner = collection?.owner_id === currentUser?.id;
   const canEdit = isOwner || collectionDetails?.collaborators.some(c => c.user_id === currentUser?.id && c.permission === 'edit');
 
