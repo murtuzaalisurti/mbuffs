@@ -16,7 +16,6 @@ const fetchDetailsFromMoviesAPI = async (req: Request, res: Response, next: Next
 
     try {
         const response = await fetch(url.toString());
-        console.log(response);
         if (!response.ok) {
             let errorData = { status_message: `HTTP error ${response.status}` };
              try {

@@ -80,7 +80,7 @@ export const getCollectionById = async (req: Request, res: Response, next: NextF
         };
 
         const moviesResult = await sql`
-            SELECT cm.movie_id, cm.added_at, u.username as added_by_username
+            SELECT cm.movie_id, cm.is_movie, cm.added_at, u.username as added_by_username
             FROM collection_movies cm
             JOIN "user" u ON cm.added_by_user_id = u.id
             WHERE cm.collection_id = ${collectionId}
@@ -96,7 +96,7 @@ export const getCollectionById = async (req: Request, res: Response, next: NextF
         
         const responseData: CollectionDetailsResponse = {
              collection: collectionSummary,
-             movies: (moviesResult as (CollectionMovieEntry & { added_by_username: string | null })[]).map(m => ({ movie_id: m.movie_id, added_at: m.added_at, added_by_username: m.added_by_username })), 
+             movies: (moviesResult as (CollectionMovieEntry & { added_by_username: string | null })[]).map(m => ({ movie_id: m.movie_id, added_at: m.added_at, added_by_username: m.added_by_username, is_movie: m.is_movie })), 
              collaborators: collaboratorsResult as CollectionCollaborator[]
         };
 

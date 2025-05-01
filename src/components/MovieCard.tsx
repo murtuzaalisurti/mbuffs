@@ -10,9 +10,8 @@ interface MovieCardProps {
 }
 
 export function MovieCard({ movie, onClick }: MovieCardProps) {
-  console.log("MovieCard", movie);
-  const releaseYear = movie.release_date 
-    ? new Date(movie.release_date).getFullYear() 
+  const releaseYear = (movie.release_date || movie.first_air_date) 
+    ? new Date(movie.first_air_date || movie.release_date).getFullYear() 
     : "Unknown";
 
   return (
@@ -23,7 +22,7 @@ export function MovieCard({ movie, onClick }: MovieCardProps) {
       <div className="aspect-[2/3] relative overflow-hidden">
         <img
           src={getImageUrl(movie.poster_path)}
-          alt={movie.title}
+          alt={movie.name || movie.title}
           className="h-full w-full object-cover"
           loading="lazy"
         />
@@ -37,7 +36,7 @@ export function MovieCard({ movie, onClick }: MovieCardProps) {
         </div>
       </div>
       <CardContent className="p-4">
-        <h3 className="font-bold line-clamp-1">{movie.title}</h3>
+        <h3 className="font-bold line-clamp-1">{movie.name || movie.title}</h3>
         <p className="text-sm text-muted-foreground">{releaseYear}</p>
       </CardContent>
     </Card>

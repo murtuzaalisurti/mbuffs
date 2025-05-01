@@ -9,6 +9,22 @@ import {
 const BACKEND_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
 const JWT_TOKEN_KEY = 'authToken'; // Key for localStorage
 
+const interleaveArrays = <T>(arr1: T[], arr2: T[]): T[] => {
+    const maxLength = Math.max(arr1.length, arr2.length);
+    const result: T[] = [];
+    for (let i = 0; i < maxLength; i++) {
+        // Add item from arr1 if it exists
+        if (i < arr1.length) {
+            result.push(arr1[i]);
+        }
+        // Add item from arr2 if it exists
+        if (i < arr2.length) {
+            result.push(arr2[i]);
+        }
+    }
+    return result;
+};
+
 // Helper function for backend fetch requests
 export const fetchBackend = async (endpoint: string, options: RequestInit = {}) => {
     const url = `${BACKEND_BASE_URL}/api${endpoint}`;
@@ -167,11 +183,26 @@ export const fetchMovieDetailsApi = async (id: number): Promise<MovieDetails | n
     }
 };
 
+export const fetchTvDetailsApi = async (id: number): Promise<MovieDetails | null> => {
+    try {
+        return await fetchBackend(`/content`, {
+            method: 'POST',
+            body: JSON.stringify({
+                endpoint: `/tv/${id}`,
+            }),
+        });
+    }
+    catch (error) {
+        console.error(`Failed to fetch details for TV show ${id}:`, error);
+        return null;
+    }
+};
+
 export const searchMoviesApi = async (query: string, page = 1): Promise<SearchResults> => {
     const defaultResult: SearchResults = { page: 0, results: [], total_pages: 0, total_results: 0 };
     if (!query) return defaultResult;
     try {
-        const data = await fetchBackend(`/content`, {
+        const movieData = await fetchBackend(`/content`, {
             method: 'POST',
             body: JSON.stringify({
                 endpoint: `/search/movie`,
@@ -181,7 +212,41 @@ export const searchMoviesApi = async (query: string, page = 1): Promise<SearchRe
                 },
             }),
         });
-        return data || defaultResult;
+
+        const tvData = await fetchBackend(`/content`, {
+            method: 'POST',
+            body: JSON.stringify({
+                endpoint: `/search/tv`,
+                params: {
+                    query, 
+                    page: String(page)
+                },
+            }),
+        });
+
+        // Get the results arrays, defaulting to empty arrays
+        const movieResults = movieData?.results || [];
+        const tvResults = tvData?.results || [];
+
+        // Interleave the results for better relevance mixing
+        const combinedResults = interleaveArrays(movieResults, tvResults) as Movie[];
+
+        // If both searches failed or returned no results, return default
+        if (combinedResults.length === 0 && !movieData && !tvData) {
+            return defaultResult;
+        }
+
+        // Use movie data for primary pagination, sum total results
+        const finalPage = movieData?.page ?? tvData?.page ?? 0;
+        const finalTotalPages = Math.max(movieData?.total_pages ?? 0, tvData?.total_pages ?? 0); // Or use movieData's? Depends on desired UX
+        const finalTotalResults = (movieData?.total_results ?? 0) + (tvData?.total_results ?? 0);
+
+        return {
+            page: finalPage,
+            results: combinedResults,
+            total_pages: finalTotalPages,
+            total_results: finalTotalResults,
+        };
     } catch (error) {
         console.error(`Failed to search movies for query "${query}":`, error);
         return defaultResult;

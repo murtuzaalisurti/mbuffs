@@ -23,7 +23,7 @@ export const updateCollectionSchema = z.object({
 export type UpdateCollectionInput = z.infer<typeof updateCollectionSchema>;
 
 export const addMovieSchema = z.object({
-  movieId: z.number().int().positive("Invalid Movie ID"),
+  movieId: z.string({ message: "Movie ID is required and must be a number or a string." }).or(z.number({ message: "Movie ID is required and must be a number or a string." })),
   // Optional: could include title/poster directly if desired
   // title: z.string().optional(),
   // posterPath: z.string().optional(),

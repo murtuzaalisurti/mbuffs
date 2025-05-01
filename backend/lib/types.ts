@@ -27,6 +27,7 @@ export interface CollectionMovieEntry {
   movie_id: number;
   added_at: string; // ISO string from DB
   added_by_username: string | null;
+  is_movie: boolean; // true if movie, false if TV show
 }
 
 // Collaborator entry within a collection

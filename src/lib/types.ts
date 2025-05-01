@@ -2,8 +2,10 @@
 export interface Movie {
   id: number;
   title: string;
+  name?: string;
   poster_path: string | null;
   release_date: string;
+  first_air_date?: string;
   vote_average: number;
   overview: string;
 }
@@ -51,6 +53,7 @@ export interface CollectionMovieEntry {
   movie_id: number;
   added_at: string; // ISO string from DB
   added_by_username: string | null;
+  is_movie: boolean; // true if movie, false if TV show
 }
 
 // Collaborator entry within a collection
