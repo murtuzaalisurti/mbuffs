@@ -6,7 +6,7 @@ import { MovieDetails } from '@/lib/types'; // Assuming TvShowDetails type exist
 import { Navbar } from "@/components/Navbar";
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-import { Star } from 'lucide-react';
+import { ImageOff, Star } from 'lucide-react';
 
 const MovieDetail = () => {
     // Assuming routes like /movie/:id or /tv/:id
@@ -93,17 +93,27 @@ const MovieDetail = () => {
         <>
             <Navbar />
             {/* Optional Backdrop */}
-            {backdropPath && (
-                <div className="relative h-64 md:h-96 w-full">
+            <div className="relative h-64 md:h-96 w-full bg-muted/50"> {/* Ensure container exists */}
+                {backdropPath ? (
                     <img
                         src={getImageUrl(backdropPath, 'original')}
                         alt={`${title} backdrop`}
                         className="absolute inset-0 w-full h-full object-cover object-top opacity-30"
+                        onError={(e) => {
+                            // Optional: Hide image on error, container remains
+                            (e.target as HTMLImageElement).style.display = 'none';
+                        }}
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-transparent"></div>
-                </div>
-            )}
-            <main className={`container pb-12 ${backdropPath ? '-mt-32 md:-mt-48 relative z-10' : 'pt-8'}`}>
+                ) : (
+                    // Fallback content if no backdrop path
+                    <div className="absolute inset-0 flex items-center justify-center">
+                        <ImageOff className="w-16 h-16 text-muted-foreground/50" />
+                    </div>
+                )}
+                 {/* Gradient overlay always present */}
+                <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-transparent"></div>
+            </div>
+            <main className={`container pb-12 relative z-10`}>
                 <div className="flex flex-col md:flex-row gap-6 md:gap-8">
                     {/* Poster */}
                     <div className="w-48 md:w-1/4 lg:w-1/5 flex-shrink-0 mx-auto md:mx-0">

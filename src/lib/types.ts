@@ -8,6 +8,7 @@ export interface Movie {
   first_air_date?: string;
   vote_average: number;
   overview: string;
+  backdrop_path: string | null;
 }
 
 export interface MovieDetails extends Movie {
