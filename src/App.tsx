@@ -11,6 +11,7 @@ import NotFound from "./pages/NotFound";
 import { useAuth } from './hooks/useAuth';
 import { Loader2 } from 'lucide-react';
 import { useToast } from "@/components/ui/use-toast"; // Import the correct useToast
+import MovieDetail from './pages/MovieDetail';
 
 // AuthProvider wrapper to initialize auth and handle token from URL
 const AuthProvider = ({ children }: { children: React.ReactNode }) => {
@@ -44,6 +45,14 @@ const App = () => (
             element={
               <ProtectedRoute>
                 <CollectionDetail />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/media/:mediaType/:mediaId"
+            element={
+              <ProtectedRoute>
+                <MovieDetail />
               </ProtectedRoute>
             }
           />
