@@ -22,7 +22,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getImageUrl } from "@/lib/api";
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/useAuth';
-import { Users, Film, Trash2, Edit, UserPlus, X, Loader2, Check, UserMinus, Copy, PlusCircle, Search as SearchIcon } from 'lucide-react';
+import { Users, Film, Trash2, Edit, UserPlus, X, Loader2, Check, UserMinus, Copy, PlusCircle, Search as SearchIcon, Clapperboard, Tv } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger, DialogClose } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
@@ -31,10 +31,11 @@ import { Label } from "@/components/ui/label";
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { toast } from "sonner";
 import { ScrollArea } from '@/components/ui/scroll-area'; // For scrollable search results
 import { useDebounce } from '@/hooks/use-debounce'; // Import the actual hook
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 // **Important**: Copy/paste Zod schemas or share
 const frontendAddCollaboratorSchema = z.object({
@@ -59,6 +60,7 @@ const CollectionDetail = () => {
     const [isEditCollabOpen, setIsEditCollabOpen] = useState(false);
     const [isAddMovieOpen, setIsAddMovieOpen] = useState(false);
     const [isCollabListOpen, setIsCollabListOpen] = useState(false);
+    const [mediaTypeFilter, setMediaTypeFilter] = useState('all'); // State for the filter
 
     const collectionQueryKey = ['collection', collectionId];
 
@@ -98,6 +100,28 @@ const CollectionDetail = () => {
         enabled: movieIds.length > 0,
         staleTime: 1000 * 60 * 60,
     });
+
+    // Filtered Movies/TV Shows based on selection
+    const filteredMedia = useMemo(() => {
+        if (!collectionDetails || !moviesDetailsMap) return [];
+
+        return collectionDetails.movies.filter(entry => {
+            const media = moviesDetailsMap[entry.movie_id];
+            if (!media) return false; // Don't show if details haven't loaded or failed
+
+            switch (mediaTypeFilter) {
+                case 'movie':
+                    // Check if it's a movie (has release_date, not first_air_date)
+                    return 'release_date' in media && media.release_date !== undefined;
+                case 'tv':
+                    // Check if it's a TV show (has first_air_date)
+                    return 'first_air_date' in media && media.first_air_date !== undefined;
+                case 'all':
+                default:
+                    return true; // Show all loaded items
+            }
+        });
+    }, [collectionDetails, moviesDetailsMap, mediaTypeFilter]);
 
     // --- Mutations ---
 
@@ -387,7 +411,7 @@ const CollectionDetail = () => {
                     {/* --- Avatar Stack and Management Dialog --- */}
                     <Dialog open={isCollabListOpen} onOpenChange={setIsCollabListOpen}>
                         <DialogTrigger asChild>
-                            <div className="flex items-center cursor-pointer hover:opacity-80 transition-opacity">
+                            <div className="flex items-center cursor-pointer hover:opacity-80 transition-opacity w-fit">
                                 {/* Owner Avatar */}
                                 <Avatar className="h-8 w-8 border-2 border-background ring-1 ring-border">
                                     <AvatarImage src={collection.owner_avatar} />
@@ -487,11 +511,36 @@ const CollectionDetail = () => {
                 {/* Movies Section */}
                 <div>
                     <div className="flex justify-between items-center mb-4">
-                        <h2 className="text-2xl font-semibold flex items-center"><Film className="mr-2 h-5 w-5" /> Movies ({collectionDetails.movies.length})</h2>
+                        {/* Filter Dropdown */}
+                        <div className='flex items-center gap-2 w-auto'>
+                            <Select value={mediaTypeFilter} onValueChange={(value) => setMediaTypeFilter(value)}>
+                                <SelectTrigger className="w-full sm:w-[180px] h-9">
+                                    <SelectValue placeholder="Filter type" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">
+                                        <div className="flex items-center gap-2">
+                                            <Clapperboard className="h-4 w-4 text-muted-foreground" /> All
+                                        </div>
+                                    </SelectItem>
+                                    <SelectItem value="movie">
+                                        <div className="flex items-center gap-2">
+                                            <Film className="h-4 w-4 text-muted-foreground" /> Movies
+                                        </div>
+                                    </SelectItem>
+                                    <SelectItem value="tv">
+                                        <div className="flex items-center gap-2">
+                                            <Tv className="h-4 w-4 text-muted-foreground" /> TV
+                                        </div>
+                                    </SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <p className='text-muted-foreground'>{filteredMedia.length}</p>
+                        </div>
                         {canEdit && (
                             <Dialog open={isAddMovieOpen} onOpenChange={setIsAddMovieOpen}>
                                 <DialogTrigger asChild>
-                                    <Button variant="outline" size="sm"><PlusCircle className="mr-2 h-4 w-4" /> Add Movie</Button>
+                                    <Button variant="outline" size="sm"><PlusCircle className="mr-2 h-4 w-4" /> Add New</Button>
                                 </DialogTrigger>
                                 <AddMovieDialog
                                     collectionId={collectionId!}
@@ -511,10 +560,11 @@ const CollectionDetail = () => {
                                 </div>
                             )}
                         </div>
-                    ) : collectionDetails.movies.length > 0 ? (
+                    ) : filteredMedia.length > 0 ? (
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                            {collectionDetails.movies.map(movieEntry => {
+                            {filteredMedia.map(movieEntry => {
                                 const movie = moviesDetailsMap?.[movieEntry.movie_id];
+                                console.log('Movie Entry:', movie);
                                 if (!movie) return (
                                     <Card key={movieEntry.movie_id} className="relative group overflow-hidden">
                                         <Skeleton className="aspect-[2/3] w-full" />
@@ -543,7 +593,11 @@ const CollectionDetail = () => {
                         <Card className="text-center py-12 border border-dashed">
                             <CardContent>
                                 <Film className="mx-auto h-10 w-10 text-muted-foreground mb-2" />
-                                <p className="text-muted-foreground">No movies added to this collection yet.</p>
+                                <p className="text-muted-foreground">
+                                    {mediaTypeFilter === 'all' ? 'No media added to this collection yet.' :
+                                        mediaTypeFilter === 'movie' ? 'No movies match the filter.' :
+                                            'No TV shows match the filter.'}
+                                </p>
                                 {canEdit && (
                                     <Dialog open={isAddMovieOpen} onOpenChange={setIsAddMovieOpen}>
                                         <DialogTrigger asChild>
