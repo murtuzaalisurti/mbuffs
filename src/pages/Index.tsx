@@ -23,9 +23,9 @@ const Index = () => {
     <>
       <Navbar /> {/* Navbar now handles its own auth state */}
       <main className="container py-8">
-        <h1 className="text-3xl font-bold mb-6">Discover Movies</h1>
+        <h1 className="text-3xl font-bold mb-6">A place for your movie buffs.</h1>
         <p className="text-lg text-muted-foreground mb-8">
-          Browse the latest popular movies.
+          Watch, Add, Share.
         </p>
         
         {isLoading ? (
