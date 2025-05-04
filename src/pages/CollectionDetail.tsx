@@ -564,7 +564,6 @@ const CollectionDetail = () => {
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                             {filteredMedia.map(movieEntry => {
                                 const movie = moviesDetailsMap?.[movieEntry.movie_id];
-                                console.log('Movie Entry:', movie);
                                 if (!movie) return (
                                     <Card key={movieEntry.movie_id} className="relative group overflow-hidden">
                                         <Skeleton className="aspect-[2/3] w-full" />
