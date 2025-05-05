@@ -88,6 +88,7 @@ const MovieDetail = () => {
     const genres = mediaDetails.genres ?? [];
     const rating = mediaDetails.vote_average?.toFixed(1);
     const tagline = mediaDetails.tagline;
+    const networks = mediaDetails.networks ?? [];
 
     return (
         <>
@@ -141,6 +142,24 @@ const MovieDetail = () => {
                             )}
                             {/* Add runtime or number of seasons/episodes if available */}
                         </div>
+
+                        {networks && networks.length > 0 && (
+                            <div className="mt-4">
+                                <div className="flex flex-wrap justify-center md:justify-start -space-x-1 overflow-hidden">
+                                    {networks.slice(0, 5).map((network, i) => (
+                                        <div key={i} className="mt-4">
+                                            <div className="flex flex-wrap justify-center md:justify-start gap-2"> {/* Use gap instead of negative space */}
+                                                {networks.map((network) => (
+                                                    <Badge key={network.id} variant="secondary"> {/* Use Badge component */}
+                                                        {network.name}
+                                                    </Badge>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
 
                         <div className="flex flex-wrap justify-center md:justify-start gap-2 pt-2">
                             {genres.map(genre => (

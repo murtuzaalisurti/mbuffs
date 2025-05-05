@@ -1,4 +1,11 @@
 // --- TMDB Types ---
+export interface Network {
+  id: number;
+  logo_path: string | null;
+  name: string;
+  origin_country: string;
+}
+
 export interface Movie {
   id: number;
   title: string;
@@ -15,6 +22,7 @@ export interface MovieDetails extends Movie {
   genres: { id: number; name: string }[];
   runtime: number;
   tagline: string;
+  networks: Network[];
 }
 
 export interface SearchResults {
