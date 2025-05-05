@@ -15,6 +15,7 @@ const fetchDetailsFromMoviesAPI = async (req: Request, res: Response, next: Next
     Object.entries(params as Record<string, string>).forEach(([key, value]) => url.searchParams.append(key, value));
 
     try {
+        console.log("TMDB API URL:", url.toString());
         const response = await fetch(url.toString());
         if (!response.ok) {
             let errorData = { status_message: `HTTP error ${response.status}` };
