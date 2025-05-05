@@ -1,9 +1,12 @@
+import dayjs from 'dayjs';
 import {
     Movie, MovieDetails, SearchResults, User,
     CollectionSummary, CollectionDetails, CollectionCollaborator, UserCollectionsResponse,
     CreateCollectionInput, UpdateCollectionInput, AddMovieInput, AddCollaboratorInput,
     UpdateCollaboratorInput, AddMovieResponse
 } from './types';
+
+const _dayjs = dayjs();
 
 // --- Backend API Configuration ---
 const BACKEND_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
@@ -43,6 +46,7 @@ export const fetchBackend = async (endpoint: string, options: RequestInit = {}) 
     };
 
     try {
+        console.log(`Fetching ${url} with options:`, requestOptions);
         const response = await fetch(url, requestOptions);
         if (!response.ok) {
             let errorData = { message: `HTTP error ${response.status}` };
@@ -50,9 +54,9 @@ export const fetchBackend = async (endpoint: string, options: RequestInit = {}) 
                 const jsonError = await response.json();
                 errorData = { ...errorData, ...jsonError };
             } catch (e) { /* Ignore JSON parsing error */ }
-            
+
             console.error(`API Error (${response.status}) on ${endpoint}:`, errorData);
-            
+
             // --- Removed automatic token clearing on 401 --- 
             // It's generally better to handle token expiry/invalidation 
             // within the useAuth hook based on the query status, or 
@@ -85,7 +89,7 @@ export const fetchCurrentUserApi = async (): Promise<{ user: User }> => {
 
 export const logoutUserApi = async (): Promise<void> => {
     try {
-       await fetchBackend('/auth/logout', { method: 'POST' }); 
+        await fetchBackend('/auth/logout', { method: 'POST' });
     } catch (error) {
         console.warn("Optional backend logout call failed:", error);
     }
@@ -156,16 +160,63 @@ export const getImageUrl = (path: string | null | undefined, size = 'w500') => {
     return `${IMAGE_BASE_URL}/${size}${path}`;
 };
 
-export const fetchPopularMoviesApi = async (): Promise<Movie[]> => {
+export const fetchPopularMoviesApi = async (pageToFetch: number = 1): Promise<SearchResults> => {
+    const defaultResult: SearchResults = { page: 0, results: [], total_pages: 0, total_results: 0 };
+    // Get the current date in the format YYYY-MM-DD
+    const maxDate = _dayjs.format('YYYY-MM-DD');
+
+    // Get the date one year in the past in the format YYYY-MM-DD
+    const minDate = _dayjs.subtract(1, 'year').format('YYYY-MM-DD');
+
+    const page = pageToFetch; // Default page number
+    const sortBy = 'popularity.desc'; // Default sort order
+    const includeVideo = false; // Default value for include_video
+    const movieWatchProviders = '8|9|337|350|2|15'; // Default watch providers
+    const tvWatchProviders = '8|9|337|350|2|15|2336'; // Default watch providers for TV shows
+    const movieGenres = '28|12|16|80|53|878|9648|27'; // Default genres for movies
+    const tvGenres = '10759|16|80|9648|10765'; // Default genres for TV shows
+    const watchRegion = 'US'; // Default watch region
+    const includeAdult = true; // Default value for include_adult
+
     try {
-        const data = await fetchBackend(`/content`, {
+        const movieData = await fetchBackend(`/content`, {
             method: 'POST',
             body: JSON.stringify({
-                endpoint: `/movie/popular`,
+                endpoint: `/discover/movie?include_adult=${includeAdult}&include_video=${includeVideo}&page=${page}&sort_by=${sortBy}&with_watch_providers=${movieWatchProviders}&with_genres=${movieGenres}&primary_release_date.gte=${minDate}&primary_release_date.lte=${maxDate}&watch_region=${watchRegion}`,
             }),
         });
-        return data?.results || [];
-    } catch (error) { console.error("Failed to fetch popular movies:", error); return []; }
+
+        const tvData = await fetchBackend(`/content`, {
+            method: 'POST',
+            body: JSON.stringify({
+                endpoint: `/discover/tv?include_adult=${includeAdult}&include_video=${includeVideo}&page=${page}&sort_by=${sortBy}&with_watch_providers=${tvWatchProviders}&with_genres=${tvGenres}&first_air_date.gte=${minDate}&first_air_date.lte=${maxDate}&watch_region=${watchRegion}`,
+            }),
+        });
+
+        // Get the results arrays, defaulting to empty arrays
+        const movieResults = movieData?.results || [];
+        const tvResults = tvData?.results || [];
+
+        // Interleave the results for better relevance mixing
+        const combinedResults = interleaveArrays(movieResults, tvResults) as Movie[];
+
+        // If both searches failed or returned no results, return default
+        if (combinedResults.length === 0 && !movieData && !tvData) {
+            return defaultResult;
+        }
+        console.log("Combined results:", combinedResults);
+        // Use movie data for primary pagination, sum total results
+        const finalPage = movieData?.page ?? tvData?.page ?? 0;
+        const finalTotalPages = Math.max(movieData?.total_pages ?? 0, tvData?.total_pages ?? 0); // Or use movieData's? Depends on desired UX
+        const finalTotalResults = (movieData?.total_results ?? 0) + (tvData?.total_results ?? 0);
+
+        return {
+            page: finalPage,
+            results: combinedResults,
+            total_pages: finalTotalPages,
+            total_results: finalTotalResults,
+        };
+    } catch (error) { console.error("Failed to fetch popular movies:", error); return defaultResult; }
 };
 
 export const fetchMovieDetailsApi = async (id: number): Promise<MovieDetails | null> => {
@@ -207,7 +258,7 @@ export const searchMoviesApi = async (query: string, page = 1): Promise<SearchRe
             body: JSON.stringify({
                 endpoint: `/search/movie`,
                 params: {
-                    query, 
+                    query,
                     page: String(page)
                 },
             }),
@@ -218,7 +269,7 @@ export const searchMoviesApi = async (query: string, page = 1): Promise<SearchRe
             body: JSON.stringify({
                 endpoint: `/search/tv`,
                 params: {
-                    query, 
+                    query,
                     page: String(page)
                 },
             }),
