@@ -38,7 +38,7 @@
     /* Input background matching card */
     --input: 220 15% 15%; 
     /* Ring matching primary */
-    --ring: 196 92% 58%; 
+    --ring: 220 10% 25%; 
 
     /* Slightly larger radius for softer corners */
     --radius: 0.75rem; 

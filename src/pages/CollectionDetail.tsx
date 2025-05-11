@@ -31,7 +31,7 @@ import { Label } from "@/components/ui/label";
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, Fragment } from 'react';
 import { toast } from "sonner";
 import { ScrollArea } from '@/components/ui/scroll-area'; // For scrollable search results
 import { useDebounce } from '@/hooks/use-debounce'; // Import the actual hook
@@ -50,6 +50,7 @@ const frontendUpdateCollectionSchema = z.object({
 type FrontendUpdateCollectionInput = z.infer<typeof frontendUpdateCollectionSchema>;
 
 // REMOVED the inline useDebounce definition
+const ITEMS_PER_PAGE = 30; // Define how many items to load at a time
 
 const CollectionDetail = () => {
     const { collectionId } = useParams<{ collectionId: string }>();
@@ -61,6 +62,7 @@ const CollectionDetail = () => {
     const [isAddMovieOpen, setIsAddMovieOpen] = useState(false);
     const [isCollabListOpen, setIsCollabListOpen] = useState(false);
     const [mediaTypeFilter, setMediaTypeFilter] = useState('all'); // State for the filter
+    const [visibleItemsCount, setVisibleItemsCount] = useState(ITEMS_PER_PAGE); // State for visible items
 
     const collectionQueryKey = ['collection', collectionId];
 
@@ -122,6 +124,15 @@ const CollectionDetail = () => {
             }
         });
     }, [collectionDetails, moviesDetailsMap, mediaTypeFilter]);
+
+    // Reset visible items count when filter changes
+    useEffect(() => {
+        setVisibleItemsCount(ITEMS_PER_PAGE);
+    }, [mediaTypeFilter]);
+
+    const currentVisibleMedia = useMemo(() => {
+        return filteredMedia.slice(0, visibleItemsCount);
+    }, [filteredMedia, visibleItemsCount]);
 
     // --- Mutations ---
 
@@ -357,7 +368,7 @@ const CollectionDetail = () => {
                                     </AlertDialogContent>
                                 </AlertDialog>
                             )}
-                            <Button variant="outline" size="sm" onClick={copyInviteLink}>
+                            <Button variant="outline" className='bg-muted' size="sm" onClick={copyInviteLink}>
                                 <Copy className="h-4 w-4" />
                                 <span className="ml-2 hidden sm:inline">Copy Link</span>
                             </Button>
@@ -380,7 +391,7 @@ const CollectionDetail = () => {
                         {isOwner && (
                             <Dialog open={isAddCollabOpen} onOpenChange={setIsAddCollabOpen}>
                                 <DialogTrigger asChild>
-                                    <Button variant="default" size="sm"><UserPlus className="h-4 w-4 sm:mr-2" />
+                                    <Button variant="outline" className='bg-muted' size="sm"><UserPlus className="h-4 w-4 sm:mr-2" />
                                         <span className="hidden sm:inline">
                                             Add Collaborator
                                         </span>
@@ -514,7 +525,7 @@ const CollectionDetail = () => {
                         {/* Filter Dropdown */}
                         <div className='flex items-center gap-2 w-auto'>
                             <Select value={mediaTypeFilter} onValueChange={(value) => setMediaTypeFilter(value)}>
-                                <SelectTrigger className="w-full sm:w-[180px] h-9">
+                                <SelectTrigger className="w-full sm:w-[180px] h-9 bg-muted">
                                     <SelectValue placeholder="Filter type" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -540,7 +551,7 @@ const CollectionDetail = () => {
                         {canEdit && (
                             <Dialog open={isAddMovieOpen} onOpenChange={setIsAddMovieOpen}>
                                 <DialogTrigger asChild>
-                                    <Button variant="outline" size="sm"><PlusCircle className="mr-2 h-4 w-4" /> Add New</Button>
+                                    <Button variant="outline" className='bg-muted' size="sm"><PlusCircle className="mr-2 h-4 w-4" /> Add New</Button>
                                 </DialogTrigger>
                                 <AddMovieDialog
                                     collectionId={collectionId!}
@@ -560,34 +571,48 @@ const CollectionDetail = () => {
                                 </div>
                             )}
                         </div>
-                    ) : filteredMedia.length > 0 ? (
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                            {filteredMedia.map(movieEntry => {
-                                const movie = moviesDetailsMap?.[movieEntry.movie_id];
-                                if (!movie) return (
-                                    <Card key={movieEntry.movie_id} className="relative group overflow-hidden">
-                                        <Skeleton className="aspect-[2/3] w-full" />
-                                        {/* Still show remove button on skeleton if needed */}
-                                        {canEdit && (
-                                            <Button variant="destructive" size="icon" className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10 h-7 w-7" onClick={() => removeMovieMutation.mutate({ collectionId: collectionId!, movieId: movieEntry.movie_id })} disabled={removeMovieMutation.isPending && removeMovieMutation.variables?.movieId === movieEntry.movie_id}>
-                                                {(removeMovieMutation.isPending && removeMovieMutation.variables?.movieId === movieEntry.movie_id) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                                            </Button>
-                                        )}
-                                    </Card>
-                                );
-                                return (
-                                    <div key={movieEntry.movie_id} className="relative group">
-                                        <MovieCard movie={movie} />
-                                        {canEdit && (
-                                            <Button variant="destructive" size="icon" className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10 h-7 w-7" onClick={() => removeMovieMutation.mutate({ collectionId: collectionId!, movieId: movieEntry.movie_id })} disabled={removeMovieMutation.isPending && removeMovieMutation.variables?.movieId === movieEntry.movie_id}>
-                                                {(removeMovieMutation.isPending && removeMovieMutation.variables?.movieId === movieEntry.movie_id) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                                            </Button>
-                                        )}
-                                        <p className="text-xs text-muted-foreground mt-1 mx-2">{movieEntry.added_by_username ?? 'Unknown'}</p>
-                                    </div>
-                                );
-                            })}
-                        </div>
+                    ) : currentVisibleMedia.length > 0 ? (
+                        <Fragment>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                                {currentVisibleMedia.map(movieEntry => {
+                                    const movie = moviesDetailsMap?.[movieEntry.movie_id];
+                                    if (!movie) return (
+                                        <Card key={movieEntry.movie_id} className="relative group overflow-hidden">
+                                            <Skeleton className="aspect-[2/3] w-full" />
+                                            {/* Still show remove button on skeleton if needed */}
+                                            {canEdit && (
+                                                <Button variant="destructive" size="icon" className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10 h-7 w-7" onClick={() => removeMovieMutation.mutate({ collectionId: collectionId!, movieId: movieEntry.movie_id })} disabled={removeMovieMutation.isPending && removeMovieMutation.variables?.movieId === movieEntry.movie_id}>
+                                                    {(removeMovieMutation.isPending && removeMovieMutation.variables?.movieId === movieEntry.movie_id) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                                                </Button>
+                                            )}
+                                        </Card>
+                                    );
+                                    return (
+                                        <div key={movieEntry.movie_id} className="relative group">
+                                            <MovieCard movie={movie} />
+                                            {canEdit && (
+                                                <Button variant="destructive" size="icon" className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10 h-7 w-7" onClick={() => removeMovieMutation.mutate({ collectionId: collectionId!, movieId: movieEntry.movie_id })} disabled={removeMovieMutation.isPending && removeMovieMutation.variables?.movieId === movieEntry.movie_id}>
+                                                    {(removeMovieMutation.isPending && removeMovieMutation.variables?.movieId === movieEntry.movie_id) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                                                </Button>
+                                            )}
+                                            <p className="text-xs text-muted-foreground mt-1 mx-2">{movieEntry.added_by_username ?? 'Unknown'}</p>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                            {/* Load More Button */}
+                            {filteredMedia.length > visibleItemsCount && (
+                                <div className="text-center mt-8">
+                                    <Button
+                                        variant="outline"
+                                        className='bg-muted'
+                                        onClick={() => setVisibleItemsCount(prevCount => prevCount + ITEMS_PER_PAGE)}
+                                    >
+                                        Load More ({filteredMedia.length - visibleItemsCount} remaining)
+                                    </Button>
+                                </div>
+                            )}
+                        </Fragment>
                     ) : (
                         <Card className="text-center py-12 border border-dashed">
                             <CardContent>
@@ -709,7 +734,7 @@ const AddMovieDialog: React.FC<AddMovieDialogProps> = ({ collectionId, existingM
                     })}
                     {/* Load More Button */}
                     {hasNextPage && (
-                        <Button variant="outline" className="w-full mt-4" onClick={() => fetchNextPage()} disabled={isFetchingNextPage}>
+                        <Button variant="outline" className="w-full mt-4 bg-muted" onClick={() => fetchNextPage()} disabled={isFetchingNextPage}>
                             {isFetchingNextPage ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} Load More
                         </Button>
                     )}

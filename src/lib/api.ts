@@ -46,7 +46,6 @@ export const fetchBackend = async (endpoint: string, options: RequestInit = {}) 
     };
 
     try {
-        console.log(`Fetching ${url} with options:`, requestOptions);
         const response = await fetch(url, requestOptions);
         if (!response.ok) {
             let errorData = { message: `HTTP error ${response.status}` };
@@ -204,7 +203,7 @@ export const fetchPopularMoviesApi = async (pageToFetch: number = 1): Promise<Se
         if (combinedResults.length === 0 && !movieData && !tvData) {
             return defaultResult;
         }
-        console.log("Combined results:", combinedResults);
+
         // Use movie data for primary pagination, sum total results
         const finalPage = movieData?.page ?? tvData?.page ?? 0;
         const finalTotalPages = Math.max(movieData?.total_pages ?? 0, tvData?.total_pages ?? 0); // Or use movieData's? Depends on desired UX

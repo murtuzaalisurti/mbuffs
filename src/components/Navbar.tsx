@@ -71,7 +71,7 @@ export const Navbar = () => {
               <Input
                 type="search"
                 placeholder="Search..."
-                className="pl-8 w-32 sm:w-50 md:w-64 lg:w-80 bg-muted text-muted-foreground focus-visible:ring-primary focus-visible:ring-offset-0 rounded-lg border border-border" // Keep responsive width
+                className="pl-8 w-32 sm:w-50 md:w-64 lg:w-80 bg-muted text-muted-foreground focus-visible:ring-muted focus-visible:ring-offset-0 rounded-lg border border-border" // Keep responsive width
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />

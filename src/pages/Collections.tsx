@@ -175,7 +175,7 @@ const Collections = () => {
                 </CardContent>
                 <CardFooter>
                    <Link to={`/collection/${collection.id}`}>
-                     <Button variant="outline" size="sm">View Collection</Button>
+                     <Button variant="default" size="sm">View Collection</Button>
                    </Link>
                 </CardFooter>
               </Card>
