@@ -49,7 +49,7 @@ app.use('/api/collections', collectionRoutes);
 app.use('/api/content', contentRoutes);
 
 app.get('/api', (req: Request, res: Response) => {
-    res.json({ message: 'Welcome to the mbuffs API!' });
+    res.json({ message: `Welcome to the mbuffs API! ${process.env.FRONTEND_URL}` });
 });
 
 // --- Define Global Error Handler with explicit type ---
