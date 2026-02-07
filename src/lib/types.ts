@@ -25,6 +25,22 @@ export interface MovieDetails extends Movie {
   networks: Network[];
 }
 
+export interface Video {
+  id: string;
+  key: string;
+  name: string;
+  site: string;
+  size: number;
+  type: string;
+  official: boolean;
+  published_at: string;
+}
+
+export interface VideosResponse {
+  id: number;
+  results: Video[];
+}
+
 export interface SearchResults {
   page: number;
   results: Movie[];

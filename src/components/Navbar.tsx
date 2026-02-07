@@ -1,17 +1,27 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, LogOut, UserCircle, Film, List, LogIn, Loader2, LoaderCircle } from 'lucide-react';
+import { Search, LogOut, UserCircle, Popcorn, List, LogIn, Loader2, LoaderCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { useAuth } from '../hooks/useAuth'; // Adjust path as needed
-import { useToast } from '@/components/ui/use-toast'; // Import useToast
+import { useAuth } from '../hooks/useAuth';
+import { useToast } from '@/components/ui/use-toast';
 
 export const Navbar = () => {
   const navigate = useNavigate();
   const { user, isLoggedIn, logout, isLoggingOut, isLoadingUser } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
-  const { toast } = useToast(); // Get toast function
+  const { toast } = useToast();
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 10);
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll(); // check initial state
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   const handleSearch = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -42,36 +52,37 @@ export const Navbar = () => {
   const googleLoginUrl = `${backendUrl}/api/auth/google`;
 
   return (
-    <header className="sticky top-0 z-50 flex h-16 items-center gap-4 border-b bg-background px-4 md:px-6">
+    <header className={`sticky top-0 z-50 flex h-14 items-center gap-4 px-4 md:px-6 transition-all duration-300 ${scrolled ? 'glass border-b border-white/[0.06]' : 'bg-transparent border-b border-transparent'}`}>
       {/* Logo / Home Link */}
       <nav className="flex-col gap-6 text-lg font-medium md:flex md:flex-row md:items-center md:gap-5 md:text-sm lg:gap-6">
         <Link
           to="/"
-          className="flex items-center gap-2 text-lg font-semibold md:text-base"
+          className="flex items-center gap-2.5 text-lg font-bold tracking-tight md:text-base group"
         >
-          <Film className="h-6 w-6 text-primary" />
-          <span>mbuffs</span>
+          <Popcorn className="h-5 w-5 transition-transform group-hover:scale-110" style={{ stroke: 'url(#logo-gradient)' }} />
+          <svg width="0" height="0" className="absolute">
+            <defs>
+              <linearGradient id="logo-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="hsl(196 80% 60%)" />
+                <stop offset="100%" stopColor="hsl(260 60% 65%)" />
+              </linearGradient>
+            </defs>
+          </svg>
+          <span className="bg-gradient-to-r from-white to-white/80 bg-clip-text text-transparent">mbuffs</span>
         </Link>
-        {/* Optional: Add other nav links here if needed */}
-        {/* <Link
-          to="/trends"
-          className="text-muted-foreground transition-colors hover:text-foreground"
-        >
-          Trends
-        </Link> */}
       </nav>
 
       {/* Search and User Actions */}
       <div className="flex w-full items-center gap-4 md:ml-auto md:gap-2 lg:gap-4">
-        <div className="flex items-center gap-4 ml-auto"> { /* Use ml-auto to push auth to the right */}
-          {/* Search Form - removed hidden md:block */}
+        <div className="flex items-center gap-3 ml-auto">
+          {/* Search Form */}
           <form onSubmit={handleSearch} className="flex-1 md:flex-initial">
             <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/50 pointer-events-none z-10" />
               <Input
-                type="search"
-                placeholder="Search..."
-                className="pl-8 w-32 sm:w-50 md:w-64 lg:w-80 bg-muted text-muted-foreground focus-visible:ring-muted focus-visible:ring-offset-0 rounded-lg border border-border" // Keep responsive width
+                type="text"
+                placeholder="Search movies..."
+                className="!pl-9 !pr-4 !h-9 w-32 sm:w-48 md:w-64 lg:w-80 !bg-black/40 !backdrop-blur-md !text-white !placeholder-white/50 !rounded-xl !border-white/[0.12] !ring-offset-0 focus-visible:!ring-1 focus-visible:!ring-primary/40 focus-visible:!bg-black/50 focus-visible:!border-primary/30 transition-all"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -84,7 +95,7 @@ export const Navbar = () => {
               <DropdownMenuTrigger asChild>
                 <Button variant="secondary" size="icon" className="rounded-full">
                   {user.avatar_url ? (
-                    <img src={user.avatar_url} alt={user.username || 'User Avatar'} className="h-8 w-8 rounded-full" />
+                    <img src={user.avatar_url} alt={user.username || 'User Avatar'} className="h-8 w-8 rounded-full" referrerPolicy="no-referrer" />
                   ) : (
                     <UserCircle className="h-5 w-5" />
                   )}

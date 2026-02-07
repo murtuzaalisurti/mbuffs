@@ -3,7 +3,7 @@ import {
     Movie, MovieDetails, SearchResults, User,
     CollectionSummary, CollectionDetails, CollectionCollaborator, UserCollectionsResponse,
     CreateCollectionInput, UpdateCollectionInput, AddMovieInput, AddCollaboratorInput,
-    UpdateCollaboratorInput, AddMovieResponse
+    UpdateCollaboratorInput, AddMovieResponse, VideosResponse
 } from './types';
 
 const _dayjs = dayjs();
@@ -244,6 +244,20 @@ export const fetchTvDetailsApi = async (id: number): Promise<MovieDetails | null
     }
     catch (error) {
         console.error(`Failed to fetch details for TV show ${id}:`, error);
+        return null;
+    }
+};
+
+export const fetchVideosApi = async (mediaType: 'movie' | 'tv', id: number): Promise<VideosResponse | null> => {
+    try {
+        return await fetchBackend(`/content`, {
+            method: 'POST',
+            body: JSON.stringify({
+                endpoint: `/${mediaType}/${id}/videos`,
+            }),
+        });
+    } catch (error) {
+        console.error(`Failed to fetch videos for ${mediaType} ${id}:`, error);
         return null;
     }
 };

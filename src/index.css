@@ -4,48 +4,45 @@
 
 @layer base {
   :root {
-    /* Darker, less saturated background */
-    --background: 220 15% 10%; 
-    --foreground: 210 20% 95%; /* Slightly softer white */
+    /* Deep, rich background with slight blue undertone */
+    --background: 225 20% 7%;
+    --foreground: 210 20% 95%;
 
-    /* Slightly lighter card/popover background for layering */
-    --card: 220 15% 15%; 
+    /* Elevated surface for cards — subtle lift */
+    --card: 225 18% 12%;
     --card-foreground: 210 20% 95%;
 
-    --popover: 220 15% 15%;
+    --popover: 225 18% 12%;
     --popover-foreground: 210 20% 95%;
 
-    /* Keep primary vibrant */
-    --primary: 196 70% 55%; 
-    --primary-foreground: 210 40% 98%; /* Ensure high contrast on primary */
+    /* Primary — vibrant teal-cyan accent */
+    --primary: 196 80% 50%;
+    --primary-foreground: 210 40% 98%;
 
-    /* Muted grays for secondary elements */
-    --secondary: 220 10% 25%; 
-    --secondary-foreground: 210 15% 75%; /* Lighter gray for contrast */
+    /* Secondary — muted cool gray */
+    --secondary: 225 12% 18%;
+    --secondary-foreground: 210 15% 80%;
 
-    --muted: 220 10% 25%;
-    --muted-foreground: 210 15% 75%; 
+    --muted: 225 12% 18%;
+    --muted-foreground: 215 15% 55%;
 
-    --accent: 220 10% 25%;
-    --accent-foreground: 210 15% 75%;
+    --accent: 225 12% 20%;
+    --accent-foreground: 210 15% 85%;
 
-    /* Keep destructive clear */
-    --destructive: 0 70% 50%; 
+    /* Destructive */
+    --destructive: 0 70% 50%;
     --destructive-foreground: 210 40% 98%;
 
-    /* Subtle border, distinct from background/card */
-    --border: 220 10% 20%; 
-    /* Input background matching card */
-    --input: 220 15% 15%; 
-    /* Ring matching primary */
-    --ring: 220 10% 25%; 
+    /* Subtle border with slight visibility */
+    --border: 225 12% 16%;
+    /* Input matching secondary */
+    --input: 225 15% 14%;
+    /* Ring — muted, non-intrusive */
+    --ring: 196 60% 45%;
 
     /* Slightly larger radius for softer corners */
-    --radius: 0.75rem; 
+    --radius: 0.75rem;
   }
-
-  /* You might not need a separate .dark class definition 
-     if :root already defines your dark theme */
 }
 
 @layer base {
@@ -54,7 +51,57 @@
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
     font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+@layer utilities {
+  /* Gradient text utility */
+  .text-gradient {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, hsl(196 80% 60%), hsl(260 60% 65%));
+  }
+
+  /* Subtle glow effect for cards on hover */
+  .card-glow {
+    transition: box-shadow 0.3s ease, transform 0.3s ease;
+  }
+  .card-glow:hover {
+    box-shadow: 0 8px 32px -8px hsl(196 80% 50% / 0.15),
+                0 4px 16px -4px hsl(0 0% 0% / 0.3);
+  }
+
+  /* Glass effect */
+  .glass {
+    backdrop-filter: blur(16px) saturate(180%);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    background-color: hsl(225 20% 7% / 0.75);
+  }
+
+  /* Subtle shimmer for loading states */
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+  .animate-shimmer {
+    background: linear-gradient(90deg, transparent, hsl(225 15% 20% / 0.5), transparent);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+  }
+
+  /* Fade-in animation */
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  .animate-fade-in-up {
+    animation: fadeInUp 0.5s ease-out forwards;
   }
 }

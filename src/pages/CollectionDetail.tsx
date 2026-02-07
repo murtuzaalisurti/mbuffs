@@ -581,7 +581,7 @@ const CollectionDetail = () => {
                                             <Skeleton className="aspect-[2/3] w-full" />
                                             {/* Still show remove button on skeleton if needed */}
                                             {canEdit && (
-                                                <Button variant="destructive" size="icon" className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10 h-7 w-7" onClick={() => removeMovieMutation.mutate({ collectionId: collectionId!, movieId: movieEntry.movie_id })} disabled={removeMovieMutation.isPending && removeMovieMutation.variables?.movieId === movieEntry.movie_id}>
+                                                <Button variant="destructive" size="icon" className="absolute top-2 right-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity z-10 h-7 w-7" onClick={() => removeMovieMutation.mutate({ collectionId: collectionId!, movieId: movieEntry.movie_id })} disabled={removeMovieMutation.isPending && removeMovieMutation.variables?.movieId === movieEntry.movie_id}>
                                                     {(removeMovieMutation.isPending && removeMovieMutation.variables?.movieId === movieEntry.movie_id) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                                                 </Button>
                                             )}
@@ -591,7 +591,7 @@ const CollectionDetail = () => {
                                         <div key={movieEntry.movie_id} className="relative group">
                                             <MovieCard movie={movie} />
                                             {canEdit && (
-                                                <Button variant="destructive" size="icon" className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10 h-7 w-7" onClick={() => removeMovieMutation.mutate({ collectionId: collectionId!, movieId: movieEntry.movie_id })} disabled={removeMovieMutation.isPending && removeMovieMutation.variables?.movieId === movieEntry.movie_id}>
+                                                <Button variant="destructive" size="icon" className="absolute top-2 right-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity z-10 h-7 w-7" onClick={(e) => { e.preventDefault(); e.stopPropagation(); removeMovieMutation.mutate({ collectionId: collectionId!, movieId: movieEntry.movie_id }); }} disabled={removeMovieMutation.isPending && removeMovieMutation.variables?.movieId === movieEntry.movie_id}>
                                                     {(removeMovieMutation.isPending && removeMovieMutation.variables?.movieId === movieEntry.movie_id) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                                                 </Button>
                                             )}

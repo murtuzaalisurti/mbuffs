@@ -1,14 +1,14 @@
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import { MovieGrid } from "@/components/MovieGrid";
 import { fetchPopularMoviesApi } from "@/lib/api";
 import { Navbar } from "@/components/Navbar";
 import { Movie } from '@/lib/types';
-import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
+import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
+import { ChevronDown } from 'lucide-react';
 
 const POPULAR_MOVIES_QUERY_KEY = ['movies', 'popular'];
 
-// Define the expected shape of the API response if it includes pagination info
 interface PopularMoviesResponse {
   results: Movie[];
   page: number;
@@ -16,87 +16,105 @@ interface PopularMoviesResponse {
   total_results: number;
 }
 
-
 const Index = () => {
   const {
-    data, // Data is now an object with pages and pageParams
+    data,
     error,
     fetchNextPage,
     hasNextPage,
-    isFetching, // General fetching state (initial load)
-    isFetchingNextPage, // Fetching state for subsequent pages
-    isLoading, // Initial loading state
+    isFetching,
+    isFetchingNextPage,
+    isLoading,
     isError,
-  } = useInfiniteQuery<PopularMoviesResponse, Error>({ // Use useInfiniteQuery and specify response type
+  } = useInfiniteQuery<PopularMoviesResponse, Error>({
     queryKey: POPULAR_MOVIES_QUERY_KEY,
-    // Assuming fetchPopularMoviesApi accepts a page number
-    // You might need to adjust fetchPopularMoviesApi accordingly
     queryFn: ({ pageParam = 1 }) => fetchPopularMoviesApi(pageParam as number),
-    initialPageParam: 1, // Start fetching from page 1
+    initialPageParam: 1,
     getNextPageParam: (lastPage) => {
-      // Check if there's a next page based on the API response
       if (lastPage.page < lastPage.total_pages) {
         return lastPage.page + 1;
       }
-      return undefined; // No more pages
+      return undefined;
     },
-    staleTime: 1000 * 60 * 60, // Cache popular movies for 1 hour
+    staleTime: 1000 * 60 * 60,
   });
 
-  // Flatten the pages array into a single array of movies
   const popularMovies = data?.pages.flatMap(page => page.results) || [];
 
   return (
     <>
       <Navbar />
-      <main className="container py-8">
-        <h1 className="text-3xl font-bold mb-6">A place for your movie buffs.</h1>
-        <p className="text-lg text-muted-foreground mb-8">
-          Watch, Add, Share.
-        </p>
+      <main className="container py-6 md:py-10">
+        {/* Hero Section */}
+        <section className="relative mb-12 md:mb-16">
+          {/* Subtle gradient orb behind the text */}
+          <div className="absolute -top-20 -left-20 w-72 h-72 bg-primary/[0.06] rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute -top-10 left-40 w-48 h-48 bg-purple-500/[0.04] rounded-full blur-3xl pointer-events-none" />
+          
+          <div className="relative">
+            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.1] mb-4">
+              A place for your
+              <br />
+              <span className="text-gradient">movie buffs.</span>
+            </h1>
+            <p className="text-lg md:text-xl text-muted-foreground max-w-md">
+              Watch, Add, Share.
+            </p>
+          </div>
+        </section>
 
-        {isLoading ? ( // Show skeleton only on initial load
+        {/* Content Section */}
+        {isLoading ? (
           <div>
-            <Skeleton className="h-8 w-48 mb-6" />
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-              {Array.from({ length: 12 }).map((_, index) => (
-                <div key={index} className="space-y-2">
-                  <Skeleton className="aspect-[2/3] w-full rounded-md" />
-                  <Skeleton className="h-4 w-[80%]" />
-                  <Skeleton className="h-4 w-[50%]" />
+            <Skeleton className="h-7 w-44 mb-8 rounded-lg" />
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 md:gap-5">
+              {Array.from({ length: 10 }).map((_, index) => (
+                <div key={index} className="space-y-3">
+                  <Skeleton className="aspect-[2/3] w-full rounded-xl" />
+                  <Skeleton className="h-4 w-[75%] rounded-md" />
+                  <Skeleton className="h-3 w-[45%] rounded-md" />
                 </div>
               ))}
             </div>
           </div>
         ) : isError ? (
-           <div className="text-red-500 text-center py-12">
-             <p>Error loading popular movies: {error.message}</p>
-             <p>Please check your TMDB API key (VITE_TMDB_API_KEY) and internet connection.</p>
+           <div className="text-red-500 text-center py-16 rounded-2xl bg-red-500/[0.05] border border-red-500/10">
+             <p className="font-medium">Error loading popular movies: {error.message}</p>
+             <p className="text-sm text-red-400/70 mt-1">Please check your TMDB API key and internet connection.</p>
            </div>
         ) : (
-          <>
+          <div>
             <MovieGrid
-              movies={popularMovies} // Pass the flattened array
+              movies={popularMovies}
               title="Recent Content"
             />
-            {/* Add Load More Button */}
-            <div className="text-center mt-8">
+            
+            {/* Load More */}
+            <div className="flex justify-center mt-10 md:mt-12">
               <Button
+                variant="outline"
+                size="lg"
                 onClick={() => fetchNextPage()}
                 disabled={!hasNextPage || isFetchingNextPage}
+                className="rounded-xl border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.06] hover:border-white/[0.12] transition-all px-8 gap-2"
               >
-                {isFetchingNextPage
-                  ? 'Loading more...'
-                  : hasNextPage
-                  ? 'Load More'
-                  : 'Nothing more to load'}
+                {isFetchingNextPage ? (
+                  'Loading...'
+                ) : hasNextPage ? (
+                  <>
+                    Load More
+                    <ChevronDown className="h-4 w-4" />
+                  </>
+                ) : (
+                  "You've seen it all"
+                )}
               </Button>
             </div>
-            {/* Optional: Show a loading indicator while fetching next page */}
+            
             {isFetching && !isFetchingNextPage && !isLoading && (
-              <div className="text-center mt-4">Fetching...</div>
+              <div className="text-center mt-4 text-muted-foreground text-sm">Refreshing...</div>
             )}
-          </>
+          </div>
         )}
       </main>
     </>

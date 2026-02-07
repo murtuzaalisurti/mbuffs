@@ -2,7 +2,7 @@ import React from 'react';
 import { Toaster } from "@/components/ui/toaster"; // Keep this Toaster
 import { Toaster as Sonner } from "@/components/ui/sonner"; // Keep Sonner
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigationType } from "react-router-dom";
 import Index from "./pages/Index";
 import Search from "./pages/Search";
 import Collections from "./pages/Collections";
@@ -10,6 +10,21 @@ import CollectionDetail from "./pages/CollectionDetail";
 import NotFound from "./pages/NotFound";
 import { useAuth } from './hooks/useAuth';
 import { Loader2 } from 'lucide-react';
+import { useEffect } from 'react';
+
+// Scrolls to top on every navigation (except browser back/forward)
+const ScrollToTop = () => {
+  const location = useLocation();
+  const navType = useNavigationType();
+
+  useEffect(() => {
+    if (navType !== 'POP') {
+      window.scrollTo(0, 0);
+    }
+  }, [location.pathname, navType]);
+
+  return null;
+};
 import { useToast } from "@/components/ui/use-toast"; // Import the correct useToast
 import MovieDetail from './pages/MovieDetail';
 
@@ -25,7 +40,8 @@ const App = () => (
     <Toaster />
     <Sonner />
     <BrowserRouter>
-      <AuthProvider> { /* Wrap routes with AuthProvider */}
+      <ScrollToTop />
+      <AuthProvider>
         <Routes>
           {/* Public Routes */}
           <Route path="/" element={<Index />} />
