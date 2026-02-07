@@ -22,7 +22,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getImageUrl } from "@/lib/api";
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/useAuth';
-import { Users, Film, Trash2, Edit, UserPlus, X, Loader2, Check, UserMinus, Copy, PlusCircle, Search as SearchIcon, Clapperboard, Tv } from 'lucide-react';
+import { Users, Film, Trash2, Edit, UserPlus, X, Loader2, Check, UserMinus, Copy, PlusCircle, Search as SearchIcon, Clapperboard, Tv, MoreVertical } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger, DialogClose } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
@@ -581,9 +582,25 @@ const CollectionDetail = () => {
                                             <Skeleton className="aspect-[2/3] w-full" />
                                             {/* Still show remove button on skeleton if needed */}
                                             {canEdit && (
-                                                <Button variant="destructive" size="icon" className="absolute top-2 right-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity z-10 h-7 w-7" onClick={() => removeMovieMutation.mutate({ collectionId: collectionId!, movieId: movieEntry.movie_id })} disabled={removeMovieMutation.isPending && removeMovieMutation.variables?.movieId === movieEntry.movie_id}>
-                                                    {(removeMovieMutation.isPending && removeMovieMutation.variables?.movieId === movieEntry.movie_id) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                                                </Button>
+                                                <div className="absolute top-2 right-2 z-10">
+                                                    <DropdownMenu>
+                                                        <DropdownMenuTrigger asChild>
+                                                            <Button variant="secondary" size="icon" className="h-7 w-7 rounded-full bg-black/50 backdrop-blur-sm border-0 hover:bg-black/70">
+                                                                <MoreVertical className="h-4 w-4 text-white" />
+                                                            </Button>
+                                                        </DropdownMenuTrigger>
+                                                        <DropdownMenuContent align="end" className="w-40">
+                                                            <DropdownMenuItem
+                                                                className="text-destructive focus:text-destructive cursor-pointer"
+                                                                disabled={removeMovieMutation.isPending && removeMovieMutation.variables?.movieId === movieEntry.movie_id}
+                                                                onClick={() => removeMovieMutation.mutate({ collectionId: collectionId!, movieId: movieEntry.movie_id })}
+                                                            >
+                                                                {(removeMovieMutation.isPending && removeMovieMutation.variables?.movieId === movieEntry.movie_id) ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+                                                                Remove
+                                                            </DropdownMenuItem>
+                                                        </DropdownMenuContent>
+                                                    </DropdownMenu>
+                                                </div>
                                             )}
                                         </Card>
                                     );
@@ -591,9 +608,25 @@ const CollectionDetail = () => {
                                         <div key={movieEntry.movie_id} className="relative group">
                                             <MovieCard movie={movie} />
                                             {canEdit && (
-                                                <Button variant="destructive" size="icon" className="absolute top-2 right-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity z-10 h-7 w-7" onClick={(e) => { e.preventDefault(); e.stopPropagation(); removeMovieMutation.mutate({ collectionId: collectionId!, movieId: movieEntry.movie_id }); }} disabled={removeMovieMutation.isPending && removeMovieMutation.variables?.movieId === movieEntry.movie_id}>
-                                                    {(removeMovieMutation.isPending && removeMovieMutation.variables?.movieId === movieEntry.movie_id) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                                                </Button>
+                                                <div className="absolute top-2 right-2 z-10">
+                                                    <DropdownMenu>
+                                                        <DropdownMenuTrigger asChild>
+                                                            <Button variant="secondary" size="icon" className="h-7 w-7 rounded-full bg-black/50 backdrop-blur-sm border-0 hover:bg-black/70 md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100 transition-opacity" onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
+                                                                <MoreVertical className="h-4 w-4 text-white" />
+                                                            </Button>
+                                                        </DropdownMenuTrigger>
+                                                        <DropdownMenuContent align="end" className="w-40">
+                                                            <DropdownMenuItem
+                                                                className="text-destructive focus:text-destructive cursor-pointer"
+                                                                disabled={removeMovieMutation.isPending && removeMovieMutation.variables?.movieId === movieEntry.movie_id}
+                                                                onClick={() => removeMovieMutation.mutate({ collectionId: collectionId!, movieId: movieEntry.movie_id })}
+                                                            >
+                                                                {(removeMovieMutation.isPending && removeMovieMutation.variables?.movieId === movieEntry.movie_id) ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+                                                                Remove
+                                                            </DropdownMenuItem>
+                                                        </DropdownMenuContent>
+                                                    </DropdownMenu>
+                                                </div>
                                             )}
                                             <p className="text-xs text-muted-foreground mt-1 mx-2">{movieEntry.added_by_username ?? 'Unknown'}</p>
                                         </div>
