@@ -159,6 +159,148 @@ export const getImageUrl = (path: string | null | undefined, size = 'w500') => {
     return `${IMAGE_BASE_URL}/${size}${path}`;
 };
 
+
+
+export const fetchUserRegion = async (): Promise<string> => {
+    try {
+        const response = await fetch('https://get.geojs.io/v1/ip/country.json');
+        if (!response.ok) throw new Error('Geo fetch failed');
+        const data = await response.json();
+        return data.country || 'US';
+    } catch (e) {
+        console.warn('Failed to fetch user region, defaulting to US', e);
+        return 'US';
+    }
+};
+
+const MOVIE_GENRES = '9648|27|53|28|35|10751'; // Mystery, Horror, Thriller, Action, Comedy (Feel Good), Family (Feel Good)
+const TV_GENRES = '9648|10759|35|10751|10765'; // Mystery, Action & Adventure, Comedy, Family, Sci-Fi & Fantasy
+
+export const fetchRecentContentApi = async (page = 1, region = 'US'): Promise<SearchResults> => {
+    try {
+        // Fetch Upcoming Movies
+        const movieData = await fetchBackend(`/content`, {
+            method: 'POST',
+            body: JSON.stringify({
+                endpoint: `/discover/movie`,
+                params: {
+                    page: String(page),
+                    region: region,
+                    // 'primary_release_date.gte': startDate,
+                    // 'primary_release_date.lte': endDate,
+                    with_release_type: '2|3', // Theatrical releases
+                    with_genres: MOVIE_GENRES,
+                    sort_by: 'popularity.desc',
+                    watch_region: region,
+                    include_adult: true
+                }
+            }),
+        });
+
+        // Fetch Upcoming TV Shows
+        const tvData = await fetchBackend(`/content`, {
+            method: 'POST',
+            body: JSON.stringify({
+                endpoint: `/discover/tv`,
+                params: {
+                    page: String(page),
+                    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                    // 'air_date.gte': startDate,
+                    // 'air_date.lte': endDate,
+                    with_genres: TV_GENRES,
+                    sort_by: 'popularity.desc',
+                    watch_region: region,
+                    include_adult: true,
+                    with_watch_providers: '8|119|350|2336|11' // Major streaming providers
+                    // with_origin_country: region // Optional: strict region filtering for TV?
+                }
+            }),
+        });
+
+        const movieResults = movieData?.results || [];
+        const tvResults = tvData?.results || [];
+        
+        // Interleave results
+        const combinedResults = interleaveArrays(movieResults, tvResults) as Movie[];
+
+        return {
+            page: movieData?.page || 1,
+            results: combinedResults,
+            total_pages: Math.max(movieData?.total_pages || 0, tvData?.total_pages || 0),
+            total_results: (movieData?.total_results || 0) + (tvData?.total_results || 0)
+        };
+    } catch (error) {
+        console.error("Failed to fetch upcoming content:", error);
+        return { page: 0, results: [], total_pages: 0, total_results: 0 };
+    }
+};
+
+export const fetchNowPlayingMoviesApi = async (page = 1, region?: string): Promise<SearchResults> => {
+    try {
+        const params: Record<string, string> = { page: String(page) };
+        if (region) {
+            params.region = region;
+        }
+        
+        return await fetchBackend(`/content`, {
+            method: 'POST',
+            body: JSON.stringify({
+                endpoint: `/movie/now_playing`,
+                params
+            }),
+        });
+    } catch (error) {
+        console.error("Failed to fetch now playing movies:", error);
+        return { page: 0, results: [], total_pages: 0, total_results: 0 };
+    }
+};
+
+export const fetchOnTheAirTvShowsApi = async (page = 1, timezone?: string): Promise<SearchResults> => {
+    try {
+        const params: Record<string, string> = { page: String(page) };
+        if (timezone) {
+            params.timezone = timezone;
+        }
+
+        return await fetchBackend(`/content`, {
+            method: 'POST',
+            body: JSON.stringify({
+                endpoint: `/tv/on_the_air`,
+                params
+            }),
+        });
+    } catch (error) {
+        console.error("Failed to fetch on the air TV shows:", error);
+        return { page: 0, results: [], total_pages: 0, total_results: 0 };
+    }
+};
+
+export const fetchNewOnPlatformApi = async (providerId: number, region = 'US', page = 1): Promise<SearchResults> => {
+    try {
+        const sortBy = 'primary_release_date.desc';
+        // Ensure we don't show future releases
+        const maxDate = dayjs().format('YYYY-MM-DD');
+        
+        return await fetchBackend(`/content`, {
+            method: 'POST',
+            body: JSON.stringify({
+                endpoint: `/discover/movie`,
+                params: {
+                    with_watch_providers: String(providerId),
+                    watch_region: region,
+                    sort_by: sortBy,
+                    'primary_release_date.lte': maxDate,
+                    'vote_count.gte': '0', // Allow new movies with few votes
+                    page: String(page)
+                }
+            }),
+        });
+    } catch (error) {
+        console.error(`Failed to fetch new on platform ${providerId}:`, error);
+        return { page: 0, results: [], total_pages: 0, total_results: 0 };
+    }
+};
+
 export const fetchPopularMoviesApi = async (pageToFetch: number = 1): Promise<SearchResults> => {
     const defaultResult: SearchResults = { page: 0, results: [], total_pages: 0, total_results: 0 };
     // Get the current date in the format YYYY-MM-DD

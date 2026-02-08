@@ -1,45 +1,30 @@
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { MovieGrid } from "@/components/MovieGrid";
-import { fetchPopularMoviesApi } from "@/lib/api";
+import { fetchRecentContentApi, fetchUserRegion } from "@/lib/api";
 import { Navbar } from "@/components/Navbar";
-import { Movie } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Button } from '@/components/ui/button';
-import { ChevronDown } from 'lucide-react';
 
-const POPULAR_MOVIES_QUERY_KEY = ['movies', 'popular'];
-
-interface PopularMoviesResponse {
-  results: Movie[];
-  page: number;
-  total_pages: number;
-  total_results: number;
-}
+const RECENT_CONTENT_QUERY_KEY = ['content', 'upcoming'];
 
 const Index = () => {
-  const {
-    data,
-    error,
-    fetchNextPage,
-    hasNextPage,
-    isFetching,
-    isFetchingNextPage,
-    isLoading,
-    isError,
-  } = useInfiniteQuery<PopularMoviesResponse, Error>({
-    queryKey: POPULAR_MOVIES_QUERY_KEY,
-    queryFn: ({ pageParam = 1 }) => fetchPopularMoviesApi(pageParam as number),
-    initialPageParam: 1,
-    getNextPageParam: (lastPage) => {
-      if (lastPage.page < lastPage.total_pages) {
-        return lastPage.page + 1;
-      }
-      return undefined;
-    },
-    staleTime: 1000 * 60 * 60,
+  // Fetch user's region via IP for accurate location detection
+  const { data: userRegion } = useQuery({
+    queryKey: ['userRegion'],
+    queryFn: fetchUserRegion,
+    staleTime: Infinity, // Region unlikely to change in session
   });
 
-  const popularMovies = data?.pages.flatMap(page => page.results) || [];
+  const {
+    data: recentContentData,
+    isLoading: isRecentContentLoading,
+  } = useQuery({
+    queryKey: [RECENT_CONTENT_QUERY_KEY, userRegion],
+    queryFn: () => fetchRecentContentApi(1, userRegion as string),
+    enabled: !!userRegion,
+    staleTime: 1000 * 60 * 10, // Cache for 10 minutes to reduce API calls
+  });
+
+  const recentContent = recentContentData?.results?.slice(0, 10) || [];
 
   return (
     <>
@@ -64,58 +49,28 @@ const Index = () => {
         </section>
 
         {/* Content Section */}
-        {isLoading ? (
-          <div>
-            <Skeleton className="h-7 w-44 mb-8 rounded-lg" />
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 md:gap-5">
-              {Array.from({ length: 10 }).map((_, index) => (
-                <div key={index} className="space-y-3">
-                  <Skeleton className="aspect-[2/3] w-full rounded-xl" />
-                  <Skeleton className="h-4 w-[75%] rounded-md" />
-                  <Skeleton className="h-3 w-[45%] rounded-md" />
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : isError ? (
-           <div className="text-red-500 text-center py-16 rounded-2xl bg-red-500/[0.05] border border-red-500/10">
-             <p className="font-medium">Error loading popular movies: {error.message}</p>
-             <p className="text-sm text-red-400/70 mt-1">Please check your TMDB API key and internet connection.</p>
-           </div>
-        ) : (
-          <div>
-            <MovieGrid
-              movies={popularMovies}
-              title="Recent Content"
-            />
-            
-            {/* Load More */}
-            <div className="flex justify-center mt-10 md:mt-12">
-              <Button
-                variant="outline"
-                size="lg"
-                onClick={() => fetchNextPage()}
-                disabled={!hasNextPage || isFetchingNextPage}
-                className="rounded-xl border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.06] hover:border-white/[0.12] transition-all px-8 gap-2"
-              >
-                {isFetchingNextPage ? (
-                  'Loading...'
-                ) : hasNextPage ? (
-                  <>
-                    Load More
-                    <ChevronDown className="h-4 w-4" />
-                  </>
-                ) : (
-                  "You've seen it all"
-                )}
-              </Button>
-            </div>
-            
-            {isFetching && !isFetchingNextPage && !isLoading && (
-              <div className="text-center mt-4 text-muted-foreground text-sm">Refreshing...</div>
+        <div className="space-y-16">
+            {/* Recent Content */}
+            {isRecentContentLoading ? (
+               <div className="space-y-6">
+                 <Skeleton className="h-7 w-48 rounded-lg" />
+                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 md:gap-5">
+                   {Array.from({ length: 5 }).map((_, index) => (
+                     <div key={index} className="space-y-3">
+                       <Skeleton className="aspect-[2/3] w-full rounded-xl" />
+                       <Skeleton className="h-4 w-[75%] rounded-md" />
+                       <Skeleton className="h-3 w-[45%] rounded-md" />
+                     </div>
+                   ))}
+                 </div>
+               </div>
+            ) : recentContent.length > 0 && (
+                <MovieGrid
+                    movies={recentContent}
+                    title="Recent"
+                />
             )}
-          </div>
-        )}
+        </div>
       </main>
     </>
   );
