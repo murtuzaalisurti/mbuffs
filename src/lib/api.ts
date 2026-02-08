@@ -176,7 +176,7 @@ export const fetchUserRegion = async (): Promise<string> => {
 const MOVIE_GENRES = '9648|27|53|28|35|10751'; // Mystery, Horror, Thriller, Action, Comedy (Feel Good), Family (Feel Good)
 const TV_GENRES = '9648|10759|35|10751|10765'; // Mystery, Action & Adventure, Comedy, Family, Sci-Fi & Fantasy
 
-export const fetchRecentContentApi = async (page = 1, region = 'US'): Promise<SearchResults> => {
+export const fetchRecentContentApi = async (page = 1, region = 'US', timezone: string): Promise<SearchResults> => {
     try {
         // Fetch Upcoming Movies
         const movieData = await fetchBackend(`/content`, {
@@ -186,8 +186,6 @@ export const fetchRecentContentApi = async (page = 1, region = 'US'): Promise<Se
                 params: {
                     page: String(page),
                     region: region,
-                    // 'primary_release_date.gte': startDate,
-                    // 'primary_release_date.lte': endDate,
                     with_release_type: '2|3', // Theatrical releases
                     with_genres: MOVIE_GENRES,
                     sort_by: 'popularity.desc',
@@ -204,9 +202,7 @@ export const fetchRecentContentApi = async (page = 1, region = 'US'): Promise<Se
                 endpoint: `/discover/tv`,
                 params: {
                     page: String(page),
-                    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-                    // 'air_date.gte': startDate,
-                    // 'air_date.lte': endDate,
+                    timezone,
                     with_genres: TV_GENRES,
                     sort_by: 'popularity.desc',
                     watch_region: region,

@@ -14,12 +14,14 @@ const Index = () => {
     staleTime: Infinity, // Region unlikely to change in session
   });
 
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
   const {
     data: recentContentData,
     isLoading: isRecentContentLoading,
   } = useQuery({
     queryKey: [RECENT_CONTENT_QUERY_KEY, userRegion],
-    queryFn: () => fetchRecentContentApi(1, userRegion as string),
+    queryFn: () => fetchRecentContentApi(1, userRegion as string, timezone),
     enabled: !!userRegion,
     staleTime: 1000 * 60 * 10, // Cache for 10 minutes to reduce API calls
   });
