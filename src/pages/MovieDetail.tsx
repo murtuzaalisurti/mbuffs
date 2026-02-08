@@ -439,7 +439,7 @@ const MovieDetail = () => {
                         {/* Overview Tab */}
                         <TabsContent value="overview">
                             {overview ? (
-                                <div>
+                                <div className="flex flex-col items-center md:items-start text-center md:text-left">
                                     <p className="text-base leading-relaxed text-foreground/80 max-w-2xl">
                                         {overview.length > OVERVIEW_CHAR_LIMIT && !overviewExpanded
                                             ? overview.slice(0, OVERVIEW_CHAR_LIMIT).trimEnd() + '...'
@@ -455,7 +455,7 @@ const MovieDetail = () => {
                                     )}
                                 </div>
                             ) : (
-                                <p className="text-muted-foreground">No overview available.</p>
+                                <p className="text-muted-foreground text-center md:text-left">No overview available.</p>
                             )}
                         </TabsContent>
 
@@ -491,7 +491,7 @@ const MovieDetail = () => {
                         {/* Trailer Tab */}
                         <TabsContent value="trailer">
                             {trailer ? (
-                                <div className="relative w-full max-w-xl rounded-xl overflow-hidden border border-white/[0.08]">
+                                <div className="relative w-full max-w-xl rounded-xl overflow-hidden border border-white/[0.08] mx-auto md:mx-0">
                                     {showTrailer ? (
                                         <div className="aspect-video">
                                             <iframe
