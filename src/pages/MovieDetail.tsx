@@ -71,7 +71,7 @@ const MovieDetail = () => {
     const renderSkeletons = () => (
         <>
             {/* Skeleton backdrop — matches real backdrop area */}
-            <div className="-mt-14 relative w-full h-[50vh] md:h-[60vh] overflow-hidden">
+            <div className="-mt-16 relative w-full h-[50vh] md:h-[60vh] overflow-hidden">
                 <Skeleton className="absolute inset-0 rounded-none" />
                 <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-background/20" />
             </div>
@@ -155,7 +155,7 @@ const MovieDetail = () => {
             <Navbar />
 
             {/* Backdrop Hero — extends behind navbar */}
-            <div className="relative -mt-14 w-full h-[50vh] md:h-[60vh] overflow-hidden">
+            <div className="relative -mt-16 w-full h-[50vh] md:h-[60vh] overflow-hidden">
                 {backdropPath ? (
                     <img
                         src={getImageUrl(backdropPath, 'original')}

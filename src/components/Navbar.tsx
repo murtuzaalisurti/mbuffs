@@ -75,7 +75,7 @@ export const Navbar = () => {
 
   return (
     <>
-      <header className={`sticky top-0 z-50 flex h-14 items-center gap-4 px-4 md:px-6 transition-all duration-300 ${scrolled ? 'glass border-b border-white/[0.06]' : 'bg-transparent border-b border-transparent'}`}>
+      <header className={`sticky top-0 z-50 flex h-16 items-center gap-4 px-8 transition-all duration-300 ${scrolled ? 'glass border-b border-white/[0.06]' : 'bg-transparent border-b border-transparent'}`}>
         {/* Logo / Home Link */}
         <nav className="flex-col gap-6 text-lg font-medium md:flex md:flex-row md:items-center md:gap-5 md:text-sm lg:gap-6">
           <Link
@@ -126,7 +126,7 @@ export const Navbar = () => {
             {isLoggedIn && user ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="secondary" size="icon" className="rounded-full">
+                  <Button variant="ghost" size="icon" className="rounded-full hover:bg-transparent">
                     {user.avatar_url ? (
                       <img src={user.avatar_url} alt={user.username || 'User Avatar'} className="h-8 w-8 rounded-full" referrerPolicy="no-referrer" />
                     ) : (
