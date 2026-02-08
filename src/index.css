@@ -57,6 +57,15 @@
 }
 
 @layer utilities {
+  /* Hide scrollbar while keeping scroll functionality */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
   /* Gradient text utility */
   .text-gradient {
     @apply bg-clip-text text-transparent;

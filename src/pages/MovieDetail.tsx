@@ -1,11 +1,12 @@
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { fetchMovieDetailsApi, fetchTvDetailsApi, fetchVideosApi, getImageUrl } from '@/lib/api';
-import { MovieDetails, Network, Video } from '@/lib/types';
+import { fetchMovieDetailsApi, fetchTvDetailsApi, fetchVideosApi, fetchCreditsApi, getImageUrl } from '@/lib/api';
+import { MovieDetails, Network, Video, CastMember, CrewMember } from '@/lib/types';
 import { Navbar } from "@/components/Navbar";
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-import { ImageOff, Star, Play } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ImageOff, Star, Play, User } from 'lucide-react';
 import { useState } from 'react';
 
 const TMDB_LOGO_BASE = 'https://image.tmdb.org/t/p/w92';
@@ -56,6 +57,14 @@ const MovieDetail = () => {
         staleTime: 1000 * 60 * 60,
     });
 
+    // Fetch credits/cast
+    const { data: creditsData } = useQuery({
+        queryKey: [mediaType, 'credits', mediaId],
+        queryFn: () => fetchCreditsApi(mediaType as 'movie' | 'tv', Number(mediaId)),
+        enabled: !!mediaId && !!mediaType,
+        staleTime: 1000 * 60 * 60,
+    });
+
     // Find the best trailer: prefer official YouTube trailers
     const trailer = videosData?.results?.find(
         (v: Video) => v.site === 'YouTube' && v.type === 'Trailer' && v.official
@@ -64,6 +73,12 @@ const MovieDetail = () => {
     ) || videosData?.results?.find(
         (v: Video) => v.site === 'YouTube' && v.type === 'Teaser'
     );
+
+    // Get top cast members (limit to 12)
+    const cast = creditsData?.cast?.slice(0, 12) ?? [];
+
+    // Get director(s) from crew
+    const directors = creditsData?.crew?.filter((c: CrewMember) => c.job === 'Director') ?? [];
 
     const [showTrailer, setShowTrailer] = useState(false);
     const [overviewExpanded, setOverviewExpanded] = useState(false);
@@ -149,6 +164,7 @@ const MovieDetail = () => {
     const rating = mediaDetails.vote_average?.toFixed(1);
     const tagline = mediaDetails.tagline;
     const networks = mediaDetails.networks ?? [];
+    const creators = mediaDetails.created_by ?? []; // For TV shows
 
     return (
         <>
@@ -238,73 +254,135 @@ const MovieDetail = () => {
                             ))}
                         </div>
 
-                        {/* Overview */}
-                        {overview && (
-                            <div className="pt-2">
-                                <h2 className="text-lg font-semibold mb-2">Overview</h2>
-                                <p className="text-base leading-relaxed text-foreground/80 max-w-2xl">
-                                    {overview.length > OVERVIEW_CHAR_LIMIT && !overviewExpanded
-                                        ? overview.slice(0, OVERVIEW_CHAR_LIMIT).trimEnd() + '...'
-                                        : overview}
-                                </p>
-                                {overview.length > OVERVIEW_CHAR_LIMIT && (
-                                    <button
-                                        onClick={() => setOverviewExpanded(!overviewExpanded)}
-                                        className="mt-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-                                    >
-                                        {overviewExpanded ? 'Show less' : 'Read more'}
-                                    </button>
-                                )}
+                        {/* Directed by (movies) / Created by (TV shows) */}
+                        {isMovie && directors.length > 0 && (
+                            <div className="pt-2 text-center md:text-left">
+                                <span className="text-sm text-muted-foreground">Directed by </span>
+                                <span className="text-sm font-medium text-foreground/90">
+                                    {directors.map((d: CrewMember) => d.name).join(', ')}
+                                </span>
                             </div>
                         )}
+                        {!isMovie && creators.length > 0 && (
+                            <div className="pt-2 text-center md:text-left">
+                                <span className="text-sm text-muted-foreground">Created by </span>
+                                <span className="text-sm font-medium text-foreground/90">
+                                    {creators.map((c) => c.name).join(', ')}
+                                </span>
+                            </div>
+                        )}
+
                     </div>
                 </div>
 
-                {/* Trailer Section */}
-                {trailer && (
-                    <section className="mt-10 md:mt-14">
-                        <div className="flex items-center gap-3 mb-5">
-                            <div className="h-6 w-1 rounded-full bg-primary" />
-                            <h2 className="text-xl md:text-2xl font-semibold tracking-tight">Trailer</h2>
+                {/* Tabs Section */}
+                <section className="mt-10 md:mt-14">
+                    <Tabs defaultValue="overview" className="w-full">
+                        <div className="flex justify-center md:justify-start overflow-x-auto scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
+                            <TabsList className="mb-6 bg-white/[0.04] border border-white/[0.08] w-max">
+                                <TabsTrigger value="overview" className="data-[state=active]:bg-white/[0.1]">Overview</TabsTrigger>
+                                <TabsTrigger value="cast" className="data-[state=active]:bg-white/[0.1]">Cast</TabsTrigger>
+                                <TabsTrigger value="trailer" className="data-[state=active]:bg-white/[0.1]">Trailer</TabsTrigger>
+                            </TabsList>
                         </div>
-                        <div className="relative w-full max-w-xl rounded-xl overflow-hidden border border-white/[0.08]">
-                            {showTrailer ? (
-                                <div className="aspect-video">
-                                    <iframe
-                                        src={`https://www.youtube.com/embed/${trailer.key}?rel=0`}
-                                        title={trailer.name}
-                                        className="w-full h-full"
-                                        allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                        allowFullScreen
-                                    />
+
+                        {/* Overview Tab */}
+                        <TabsContent value="overview">
+                            {overview ? (
+                                <div>
+                                    <p className="text-base leading-relaxed text-foreground/80 max-w-2xl">
+                                        {overview.length > OVERVIEW_CHAR_LIMIT && !overviewExpanded
+                                            ? overview.slice(0, OVERVIEW_CHAR_LIMIT).trimEnd() + '...'
+                                            : overview}
+                                    </p>
+                                    {overview.length > OVERVIEW_CHAR_LIMIT && (
+                                        <button
+                                            onClick={() => setOverviewExpanded(!overviewExpanded)}
+                                            className="mt-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+                                        >
+                                            {overviewExpanded ? 'Show less' : 'Read more'}
+                                        </button>
+                                    )}
                                 </div>
                             ) : (
-                                <button
-                                    onClick={() => setShowTrailer(true)}
-                                    className="relative aspect-video w-full group cursor-pointer"
-                                >
-                                    <img
-                                        src={`https://img.youtube.com/vi/${trailer.key}/maxresdefault.jpg`}
-                                        alt={trailer.name}
-                                        className="absolute inset-0 w-full h-full object-cover object-center"
-                                        onError={(e) => {
-                                            (e.target as HTMLImageElement).src = `https://img.youtube.com/vi/${trailer.key}/sddefault.jpg`;
-                                        }}
-                                    />
-                                    <div className="absolute inset-0 bg-black/40 transition-colors group-hover:bg-black/30" />
-                                    <div className="absolute inset-0 flex items-center justify-center">
-                                        <div className="w-16 h-16 md:w-20 md:h-20 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center transition-transform group-hover:scale-110">
-                                            <Play className="w-7 h-7 md:w-8 md:h-8 text-white fill-white ml-1" />
-                                        </div>
-                                    </div>
-                                    <div className="absolute bottom-4 left-4 text-sm text-white/70">
-                                        {trailer.name}
-                                    </div>
-                                </button>
+                                <p className="text-muted-foreground">No overview available.</p>
                             )}
-                        </div>
-                    </section>
-                )}
+                        </TabsContent>
+
+                        {/* Cast Tab */}
+                        <TabsContent value="cast">
+                            {cast.length > 0 ? (
+                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                                    {cast.map((member: CastMember) => (
+                                        <div key={member.id} className="flex flex-col items-center text-center">
+                                            <div className="w-20 h-20 md:w-24 md:h-24 rounded-full overflow-hidden bg-muted/30 border border-white/[0.08] mb-2">
+                                                {member.profile_path ? (
+                                                    <img
+                                                        src={getImageUrl(member.profile_path, 'w185')}
+                                                        alt={member.name}
+                                                        className="w-full h-full object-cover"
+                                                    />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center">
+                                                        <User className="w-8 h-8 text-muted-foreground/50" />
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <p className="text-sm font-medium text-foreground/90 line-clamp-1">{member.name}</p>
+                                            <p className="text-xs text-muted-foreground line-clamp-1">{member.character}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <p className="text-muted-foreground">No cast information available.</p>
+                            )}
+                        </TabsContent>
+
+                        {/* Trailer Tab */}
+                        <TabsContent value="trailer">
+                            {trailer ? (
+                                <div className="relative w-full max-w-xl rounded-xl overflow-hidden border border-white/[0.08]">
+                                    {showTrailer ? (
+                                        <div className="aspect-video">
+                                            <iframe
+                                                src={`https://www.youtube.com/embed/${trailer.key}?rel=0`}
+                                                title={trailer.name}
+                                                className="w-full h-full"
+                                                allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                                allowFullScreen
+                                            />
+                                        </div>
+                                    ) : (
+                                        <button
+                                            onClick={() => setShowTrailer(true)}
+                                            className="relative aspect-video w-full group cursor-pointer"
+                                        >
+                                            <img
+                                                src={`https://img.youtube.com/vi/${trailer.key}/maxresdefault.jpg`}
+                                                alt={trailer.name}
+                                                className="absolute inset-0 w-full h-full object-cover object-center"
+                                                onError={(e) => {
+                                                    (e.target as HTMLImageElement).src = `https://img.youtube.com/vi/${trailer.key}/sddefault.jpg`;
+                                                }}
+                                            />
+                                            <div className="absolute inset-0 bg-black/40 transition-colors group-hover:bg-black/30" />
+                                            <div className="absolute inset-0 flex items-center justify-center">
+                                                <div className="w-16 h-16 md:w-20 md:h-20 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center transition-transform group-hover:scale-110">
+                                                    <Play className="w-7 h-7 md:w-8 md:h-8 text-white fill-white ml-1" />
+                                                </div>
+                                            </div>
+                                            <div className="absolute bottom-4 left-4 text-sm text-white/70">
+                                                {trailer.name}
+                                            </div>
+                                        </button>
+                                    )}
+                                </div>
+                            ) : (
+                                <p className="text-muted-foreground">No trailer available.</p>
+                            )}
+                        </TabsContent>
+                    </Tabs>
+                </section>
             </main>
         </>
     );

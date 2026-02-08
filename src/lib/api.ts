@@ -3,7 +3,7 @@ import {
     Movie, MovieDetails, SearchResults, User,
     CollectionSummary, CollectionDetails, CollectionCollaborator, UserCollectionsResponse,
     CreateCollectionInput, UpdateCollectionInput, AddMovieInput, AddCollaboratorInput,
-    UpdateCollaboratorInput, AddMovieResponse, VideosResponse
+    UpdateCollaboratorInput, AddMovieResponse, VideosResponse, CreditsResponse
 } from './types';
 
 const _dayjs = dayjs();
@@ -258,6 +258,20 @@ export const fetchVideosApi = async (mediaType: 'movie' | 'tv', id: number): Pro
         });
     } catch (error) {
         console.error(`Failed to fetch videos for ${mediaType} ${id}:`, error);
+        return null;
+    }
+};
+
+export const fetchCreditsApi = async (mediaType: 'movie' | 'tv', id: number): Promise<CreditsResponse | null> => {
+    try {
+        return await fetchBackend(`/content`, {
+            method: 'POST',
+            body: JSON.stringify({
+                endpoint: `/${mediaType}/${id}/credits`,
+            }),
+        });
+    } catch (error) {
+        console.error(`Failed to fetch credits for ${mediaType} ${id}:`, error);
         return null;
     }
 };
