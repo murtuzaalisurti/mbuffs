@@ -362,6 +362,9 @@ export const fetchMovieDetailsApi = async (id: number): Promise<MovieDetails | n
             method: 'POST',
             body: JSON.stringify({
                 endpoint: `/movie/${id}`,
+                params: {
+                    append_to_response: 'watch/providers'
+                }
             }),
         });
     }
@@ -377,6 +380,9 @@ export const fetchTvDetailsApi = async (id: number): Promise<MovieDetails | null
             method: 'POST',
             body: JSON.stringify({
                 endpoint: `/tv/${id}`,
+                params: {
+                    append_to_response: 'watch/providers'
+                }
             }),
         });
     }

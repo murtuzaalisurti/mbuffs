@@ -24,12 +24,31 @@ export interface Creator {
   profile_path: string | null;
 }
 
+export interface WatchProvider {
+  display_priority: number;
+  logo_path: string;
+  provider_id: number;
+  provider_name: string;
+}
+
+export interface WatchProvidersResult {
+  link: string;
+  flatrate?: WatchProvider[];
+  rent?: WatchProvider[];
+  buy?: WatchProvider[];
+}
+
+export interface WatchProvidersResponse {
+  results: Record<string, WatchProvidersResult>;
+}
+
 export interface MovieDetails extends Movie {
   genres: { id: number; name: string }[];
   runtime: number;
   tagline: string;
   networks: Network[];
   created_by?: Creator[]; // For TV shows
+  'watch/providers'?: WatchProvidersResponse;
 }
 
 export interface Video {

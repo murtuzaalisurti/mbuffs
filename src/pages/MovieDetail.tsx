@@ -1,7 +1,7 @@
 import { useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchMovieDetailsApi, fetchTvDetailsApi, fetchVideosApi, fetchCreditsApi, fetchUserCollectionsApi, fetchCollectionDetailsApi, addMovieToCollectionApi, removeMovieFromCollectionApi, getImageUrl } from '@/lib/api';
-import { MovieDetails, Network, Video, CastMember, CrewMember, CollectionSummary } from '@/lib/types';
+import { fetchMovieDetailsApi, fetchTvDetailsApi, fetchVideosApi, fetchCreditsApi, fetchUserCollectionsApi, fetchCollectionDetailsApi, addMovieToCollectionApi, removeMovieFromCollectionApi, getImageUrl, fetchUserRegion } from '@/lib/api';
+import { MovieDetails, Network, Video, CastMember, CrewMember, CollectionSummary, WatchProvider } from '@/lib/types';
 import { Navbar } from "@/components/Navbar";
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
@@ -28,6 +28,26 @@ function NetworkBadge({ network }: { network: Network }) {
             ) : (
                 <span className="text-xs font-medium text-foreground/70">{network.name}</span>
             )}
+        </div>
+    );
+}
+
+function ProviderList({ title, providers }: { title: string, providers: WatchProvider[] | undefined }) {
+    if (!providers || providers.length === 0) return null;
+    return (
+        <div className="flex flex-col gap-2 items-center md:items-start">
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{title}</span>
+            <div className="flex flex-wrap justify-center md:justify-start gap-3">
+                {providers.map(p => (
+                    <div key={p.provider_id} className="relative group" title={p.provider_name}>
+                        <img 
+                            src={`${TMDB_LOGO_BASE}${p.logo_path}`} 
+                            alt={p.provider_name} 
+                            className="w-10 h-10 rounded-md shadow-md border border-white/[0.08] transition-transform group-hover:scale-105"
+                        />
+                    </div>
+                ))}
+            </div>
         </div>
     );
 }
@@ -93,6 +113,13 @@ const MovieDetail = () => {
         queryFn: fetchUserCollectionsApi,
         enabled: isLoggedIn,
         staleTime: 1000 * 60 * 5,
+    });
+
+    // Fetch user's region for watch providers
+    const { data: userRegion } = useQuery({
+        queryKey: ['userRegion'],
+        queryFn: fetchUserRegion,
+        staleTime: Infinity,
     });
 
     // Construct the media ID as stored in collections (TV shows have 'tv' suffix)
@@ -185,7 +212,7 @@ const MovieDetail = () => {
                     </div>
 
                     {/* Details skeleton */}
-                    <div className="flex-grow space-y-4 pt-2 md:pt-8">
+                    <div className="flex-grow flex flex-col items-center md:items-start space-y-4 pt-2 md:pt-8 w-full">
                         <Skeleton className="h-10 w-64 md:w-80 rounded-lg" />
                         <Skeleton className="h-5 w-48 rounded-md" />
                         <Skeleton className="h-4 w-32 rounded-md" />
@@ -197,7 +224,7 @@ const MovieDetail = () => {
                             <Skeleton className="h-6 w-16 rounded-full" />
                             <Skeleton className="h-6 w-24 rounded-full" />
                         </div>
-                        <div className="space-y-2 pt-2">
+                        <div className="space-y-2 pt-2 w-full flex flex-col items-center md:items-start">
                             <Skeleton className="h-5 w-24 rounded-md" />
                             <Skeleton className="h-4 w-full max-w-2xl rounded-md" />
                             <Skeleton className="h-4 w-3/4 max-w-xl rounded-md" />
@@ -251,6 +278,7 @@ const MovieDetail = () => {
     const tagline = mediaDetails.tagline;
     const networks = mediaDetails.networks ?? [];
     const creators = mediaDetails.created_by ?? []; // For TV shows
+    const watchProviders = mediaDetails['watch/providers']?.results?.[userRegion || 'US'];
 
     return (
         <>
@@ -320,24 +348,18 @@ const MovieDetail = () => {
                                     <span>{Math.floor(mediaDetails.runtime / 60)}h {mediaDetails.runtime % 60}m</span>
                                 </>
                             )}
-                        </div>
-
-                        {/* Networks / Streaming Platforms */}
-                        {networks && networks.length > 0 && (
-                            <div className="flex flex-wrap justify-center md:justify-start gap-2">
-                                {Array.from(new Map(networks.map(n => [n.id, n])).values()).map((network) => (
-                                    <NetworkBadge key={network.id} network={network} />
-                                ))}
-                            </div>
-                        )}
-
-                        {/* Genres */}
-                        <div className="flex flex-wrap justify-center md:justify-start gap-2">
-                            {genres.map(genre => (
-                                <Badge key={genre.id} variant="outline" className="border-white/[0.1] text-foreground/70">
-                                    {genre.name}
-                                </Badge>
-                            ))}
+                            {genres.length > 0 && (
+                                <>
+                                    <span className="hidden md:inline text-white/20">|</span>
+                                    <div className="flex flex-wrap justify-center md:justify-start gap-2">
+                                        {genres.map(genre => (
+                                            <Badge key={genre.id} variant="outline" className="border-white/[0.1] text-foreground/70 px-2 py-0 h-5 text-xs font-normal">
+                                                {genre.name}
+                                            </Badge>
+                                        ))}
+                                    </div>
+                                </>
+                            )}
                         </div>
 
                         {/* Directed by (movies) / Created by (TV shows) */}
@@ -355,6 +377,20 @@ const MovieDetail = () => {
                                 <span className="text-sm font-medium text-foreground/90">
                                     {creators.map((c) => c.name).join(', ')}
                                 </span>
+                            </div>
+                        )}
+
+                        {/* Watch Providers */}
+                        {watchProviders && (
+                            <div className="pt-4 space-y-4">
+                                {watchProviders.flatrate && watchProviders.flatrate.length > 0 ? (
+                                    <ProviderList title="Stream" providers={watchProviders.flatrate} />
+                                ) : (
+                                    <div className="flex flex-wrap gap-x-8 gap-y-4">
+                                        <ProviderList title="Rent" providers={watchProviders.rent} />
+                                        <ProviderList title="Buy" providers={watchProviders.buy} />
+                                    </div>
+                                )}
                             </div>
                         )}
 
