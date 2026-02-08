@@ -5,7 +5,6 @@ const TMDB_BASE_URL = process.env.TMDB_BASE_URL;
 
 const fetchDetailsFromMoviesAPI = async (req: Request, res: Response, next: NextFunction) => {
     const { endpoint, params = {} } = req.body;
-    console.log("TMDB API Request:", { endpoint, params });
     if (!TMDB_API_KEY) {
         throw new Error("TMDB API key (VITE_TMDB_API_KEY) is missing.");
     }
@@ -15,7 +14,6 @@ const fetchDetailsFromMoviesAPI = async (req: Request, res: Response, next: Next
     Object.entries(params as Record<string, string>).forEach(([key, value]) => url.searchParams.append(key, value));
 
     try {
-        console.log("TMDB API URL:", url.toString());
         const response = await fetch(url.toString());
         if (!response.ok) {
             let errorData = { status_message: `HTTP error ${response.status}` };
