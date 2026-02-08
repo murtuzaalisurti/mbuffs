@@ -1,13 +1,18 @@
 import { useParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { fetchMovieDetailsApi, fetchTvDetailsApi, fetchVideosApi, fetchCreditsApi, getImageUrl } from '@/lib/api';
-import { MovieDetails, Network, Video, CastMember, CrewMember } from '@/lib/types';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { fetchMovieDetailsApi, fetchTvDetailsApi, fetchVideosApi, fetchCreditsApi, fetchUserCollectionsApi, fetchCollectionDetailsApi, addMovieToCollectionApi, removeMovieFromCollectionApi, getImageUrl } from '@/lib/api';
+import { MovieDetails, Network, Video, CastMember, CrewMember, CollectionSummary } from '@/lib/types';
 import { Navbar } from "@/components/Navbar";
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ImageOff, Star, Play, User } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Button } from '@/components/ui/button';
+import { ImageOff, Star, Play, User, Bookmark, MoreHorizontal, Loader2 } from 'lucide-react';
 import { useState } from 'react';
+import { useAuth } from '@/hooks/useAuth';
+import { toast } from 'sonner';
 
 const TMDB_LOGO_BASE = 'https://image.tmdb.org/t/p/w92';
 
@@ -31,6 +36,8 @@ const OVERVIEW_CHAR_LIMIT = 150;
 
 const MovieDetail = () => {
     const { mediaType, mediaId } = useParams<{ mediaType: 'movie' | 'tv', mediaId: string }>();
+    const { isLoggedIn } = useAuth();
+    const queryClient = useQueryClient();
 
     const isMovie = mediaType === 'movie';
     const queryKey = [mediaType, 'details', mediaId];
@@ -80,8 +87,87 @@ const MovieDetail = () => {
     // Get director(s) from crew
     const directors = creditsData?.crew?.filter((c: CrewMember) => c.job === 'Director') ?? [];
 
+    // Fetch user collections (only if logged in)
+    const { data: collectionsData, isLoading: isLoadingCollections } = useQuery({
+        queryKey: ['collections', 'user'],
+        queryFn: fetchUserCollectionsApi,
+        enabled: isLoggedIn,
+        staleTime: 1000 * 60 * 5,
+    });
+
+    // Construct the media ID as stored in collections (TV shows have 'tv' suffix)
+    const collectionMediaId = isMovie ? mediaId : `${mediaId}tv`;
+
+    // Fetch details for each collection to check if current movie/show is in it
+    const collections = collectionsData?.collections ?? [];
+    const movieStatusQueryKey = ['collections', 'movie-status', collectionMediaId];
+    const { data: movieStatusMap, isLoading: isLoadingMovieStatus, refetch: refetchMovieStatus } = useQuery({
+        queryKey: movieStatusQueryKey,
+        queryFn: async () => {
+            const results = await Promise.all(
+                collections.map(async (collection: CollectionSummary) => {
+                    const details = await fetchCollectionDetailsApi(collection.id);
+                    // movie_id is stored as string, with 'tv' suffix for TV shows
+                    const hasMedia = details?.movies?.some(
+                        m => String(m.movie_id) === collectionMediaId
+                    ) ?? false;
+                    return { collectionId: collection.id, hasMedia };
+                })
+            );
+            return results.reduce((acc, { collectionId, hasMedia }) => {
+                acc[collectionId] = hasMedia;
+                return acc;
+            }, {} as Record<string, boolean>);
+        },
+        enabled: isLoggedIn && collections.length > 0 && !!mediaId && !!mediaType,
+    });
+
+    // Check if movie is in at least one collection
+    const isInAnyCollection = movieStatusMap ? Object.values(movieStatusMap).some(Boolean) : false;
+
+    // Add movie to collection mutation
+    const addToCollectionMutation = useMutation({
+        mutationFn: ({ collectionId }: { collectionId: string }) => 
+            addMovieToCollectionApi(collectionId, { movieId: collectionMediaId as unknown as number }), // API expects number but handles string with 'tv' suffix
+        onSuccess: (_, { collectionId }) => {
+            toast.success('Added to collection');
+            refetchMovieStatus();
+            queryClient.invalidateQueries({ queryKey: ['collection', collectionId] });
+        },
+        onError: (error: Error & { data?: { message?: string } }) => {
+            if (error?.data?.message?.includes('already exists')) {
+                toast.warning('Already in this collection');
+            } else {
+                toast.error(`Failed to add: ${error.message}`);
+            }
+        },
+    });
+
+    // Remove movie from collection mutation
+    const removeFromCollectionMutation = useMutation({
+        mutationFn: ({ collectionId }: { collectionId: string }) => 
+            removeMovieFromCollectionApi(collectionId, collectionMediaId!),
+        onSuccess: (_, { collectionId }) => {
+            toast.success('Removed from collection');
+            refetchMovieStatus();
+            queryClient.invalidateQueries({ queryKey: ['collection', collectionId] });
+        },
+        onError: (error: Error) => {
+            toast.error(`Failed to remove: ${error.message}`);
+        },
+    });
+
+    const handleCollectionToggle = (collectionId: string, isCurrentlyInCollection: boolean) => {
+        if (isCurrentlyInCollection) {
+            removeFromCollectionMutation.mutate({ collectionId });
+        } else {
+            addToCollectionMutation.mutate({ collectionId });
+        }
+    };
+
     const [showTrailer, setShowTrailer] = useState(false);
     const [overviewExpanded, setOverviewExpanded] = useState(false);
+    const [collectionsOpen, setCollectionsOpen] = useState(false);
 
     const renderSkeletons = () => (
         <>
@@ -269,6 +355,70 @@ const MovieDetail = () => {
                                 <span className="text-sm font-medium text-foreground/90">
                                     {creators.map((c) => c.name).join(', ')}
                                 </span>
+                            </div>
+                        )}
+
+                        {/* Add to Collection Button */}
+                        {isLoggedIn && (
+                            <div className="pt-4 flex justify-center md:justify-start">
+                                <Popover open={collectionsOpen} onOpenChange={setCollectionsOpen}>
+                                    <PopoverTrigger asChild>
+                                        <Button 
+                                            variant="outline" 
+                                            className="border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] text-foreground/90 gap-2"
+                                        >
+                                            <Bookmark className={`h-4 w-4 ${isInAnyCollection ? 'fill-current' : ''}`} />
+                                            <span>Save</span>
+                                            <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-72 p-0 border-border bg-popover shadow-xl shadow-black/50" align="start">
+                                        <div className="px-4 py-3 border-b border-border">
+                                            <p className="text-sm font-semibold text-foreground">
+                                                Save to collection
+                                            </p>
+                                        </div>
+                                        <div className="p-1.5 max-h-[300px] overflow-y-auto custom-scrollbar">
+                                            {isLoadingCollections || isLoadingMovieStatus ? (
+                                                <div className="flex items-center justify-center py-6">
+                                                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                                                </div>
+                                            ) : collectionsData?.collections?.length === 0 ? (
+                                                <div className="py-6 px-4 text-center">
+                                                    <p className="text-sm text-muted-foreground">
+                                                        No collections yet
+                                                    </p>
+                                                    <Button variant="link" size="sm" className="mt-1 h-auto p-0 text-primary" asChild>
+                                                        <a href="/collections">Create one</a>
+                                                    </Button>
+                                                </div>
+                                            ) : (
+                                                collectionsData?.collections?.map((collection: CollectionSummary) => {
+                                                    const isInCollection = movieStatusMap?.[collection.id] ?? false;
+                                                    const isPending = addToCollectionMutation.isPending || removeFromCollectionMutation.isPending;
+                                                    
+                                                    return (
+                                                        <div
+                                                            key={collection.id}
+                                                            className="flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-accent/50 cursor-pointer transition-all group"
+                                                            onClick={() => !isPending && handleCollectionToggle(collection.id, isInCollection)}
+                                                        >
+                                                            <Checkbox 
+                                                                checked={isInCollection}
+                                                                disabled={isPending}
+                                                                onCheckedChange={() => handleCollectionToggle(collection.id, isInCollection)}
+                                                                className="pointer-events-none rounded-full w-5 h-5 border-muted-foreground/30 data-[state=checked]:bg-primary data-[state=checked]:border-primary transition-all group-hover:border-muted-foreground/50"
+                                                            />
+                                                            <span className={`text-sm truncate flex-1 transition-colors ${isInCollection ? 'text-foreground font-medium' : 'text-muted-foreground group-hover:text-foreground'}`}>
+                                                                {collection.name}
+                                                            </span>
+                                                        </div>
+                                                    );
+                                                })
+                                            )}
+                                        </div>
+                                    </PopoverContent>
+                                </Popover>
                             </div>
                         )}
 

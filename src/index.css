@@ -15,8 +15,8 @@
     --popover: 225 18% 12%;
     --popover-foreground: 210 20% 95%;
 
-    /* Primary — vibrant teal-cyan accent */
-    --primary: 196 80% 50%;
+    /* Primary — vibrant sky blue accent */
+    --primary: 217 91% 60%;
     --primary-foreground: 210 40% 98%;
 
     /* Secondary — muted cool gray */
@@ -112,5 +112,20 @@
   }
   .animate-fade-in-up {
     animation: fadeInUp 0.5s ease-out forwards;
+  }
+
+  /* Custom scrollbar for small containers */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: hsl(225 12% 25%);
+    border-radius: 4px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: hsl(225 12% 35%);
   }
 }

@@ -129,7 +129,7 @@ export const addMovieToCollectionApi = async (collectionId: string, data: AddMov
     });
 };
 
-export const removeMovieFromCollectionApi = async (collectionId: string, movieId: number): Promise<void> => {
+export const removeMovieFromCollectionApi = async (collectionId: string, movieId: number | string): Promise<void> => {
     await fetchBackend(`/collections/${collectionId}/movies/${movieId}`, { method: 'DELETE' });
 };
 

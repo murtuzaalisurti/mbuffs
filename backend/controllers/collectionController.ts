@@ -236,7 +236,7 @@ export const addMovieToCollection = async (req: Request, res: Response, next: Ne
                 RETURNING id, movie_id, added_at
             `;
             res.status(201).json({ movieEntry: result[0] as {id: string, movie_id: number, added_at: string} });
-        } catch (insertError: any) {
+        } catch (insertError: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
             if (insertError.code === '23505') { 
                 res.status(409).json({ message: 'Movie already exists in this collection' });
             } else {
@@ -256,14 +256,10 @@ export const removeMovieFromCollection = async (req: Request, res: Response, nex
         return;
     }
     try {
-        const movieIdNum = parseInt(movieId, 10);
-        if (isNaN(movieIdNum)) {
-            res.status(400).json({ message: 'Invalid Movie ID format' });
-            return;
-        }
+        // movie_id can be a number (for movies) or string with 'tv' suffix (for TV shows)
         const deleteResult = await sql`
             DELETE FROM collection_movies
-            WHERE collection_id = ${collectionId} AND movie_id = ${movieIdNum}
+            WHERE collection_id = ${collectionId} AND movie_id = ${movieId}
             RETURNING id
         `;
 
@@ -323,7 +319,7 @@ export const addCollaborator = async (req: Request, res: Response, next: NextFun
             `;
 
             res.status(201).json({ collaborator: collaboratorDetails[0] as CollectionCollaborator });
-        } catch (insertError: any) {
+        } catch (insertError: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
             if (insertError.code === '23505') {
                 res.status(409).json({ message: 'User is already a collaborator on this collection' });
             } else {

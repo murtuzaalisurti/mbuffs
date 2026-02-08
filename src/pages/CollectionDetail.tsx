@@ -89,10 +89,13 @@ const CollectionDetail = () => {
         queryFn: async () => {
             if (!movieIds || movieIds.length === 0) return {};
             const promises = movieIds.map((id) => {
-                if ((id as unknown as string).includes('tv')) {
-                    return fetchTvDetailsApi(id);
+                const idStr = String(id);
+                if (idStr.includes('tv')) {
+                    // Strip 'tv' suffix to get numeric ID for API call
+                    const numericId = parseInt(idStr.replace('tv', ''), 10);
+                    return fetchTvDetailsApi(numericId);
                 } else {
-                    return fetchMovieDetailsApi(id)
+                    return fetchMovieDetailsApi(Number(id));
                 }
             });
             const results = await Promise.all(promises);
@@ -148,12 +151,14 @@ const CollectionDetail = () => {
     });
 
     // Remove Movie
-    const removeMovieMutation = useMutation<void, Error, { collectionId: string; movieId: number }>({
+    const removeMovieMutation = useMutation<void, Error, { collectionId: string; movieId: number | string }>({
         mutationFn: ({ collectionId, movieId }) => removeMovieFromCollectionApi(collectionId, movieId),
-        onSuccess: () => {
-            toast.success("Movie removed from collection.");
+        onSuccess: (_, { movieId }) => {
+            toast.success("Removed from collection.");
             queryClient.invalidateQueries({ queryKey: collectionQueryKey });
-        }, onError: (error) => { toast.error(`Failed to remove movie: ${error.message}`); }
+            // Also invalidate movie status query used in MovieDetail page
+            queryClient.invalidateQueries({ queryKey: ['collections', 'movie-status', String(movieId)] });
+        }, onError: (error) => { toast.error(`Failed to remove: ${error.message}`); }
     });
 
     // Add Collaborator
@@ -225,14 +230,16 @@ const CollectionDetail = () => {
     const addMovieMutation = useMutation<any, Error, { collectionId: string; data: AddMovieInput }>({ // eslint-disable-line @typescript-eslint/no-explicit-any
         mutationFn: ({ collectionId, data }) => addMovieToCollectionApi(collectionId, data),
         onSuccess: (data, variables) => {
-            toast.success(`Movie added to collection.`);
+            toast.success(`Added to collection.`);
             queryClient.invalidateQueries({ queryKey: collectionQueryKey });
+            // Also invalidate movie status query used in MovieDetail page
+            queryClient.invalidateQueries({ queryKey: ['collections', 'movie-status', String(variables.data.movieId)] });
         },
         onError: (error: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
             if (error?.data?.message?.includes('already exists')) {
-                toast.warning("Movie already exists in this collection.");
+                toast.warning("Already in this collection.");
             } else {
-                toast.error(`Failed to add movie: ${error.message}`);
+                toast.error(`Failed to add: ${error.message}`);
             }
         }
     });
