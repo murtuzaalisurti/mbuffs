@@ -3,7 +3,8 @@ import {
     Movie, MovieDetails, SearchResults, User,
     CollectionSummary, CollectionDetails, CollectionCollaborator, UserCollectionsResponse,
     CreateCollectionInput, UpdateCollectionInput, AddMovieInput, AddCollaboratorInput,
-    UpdateCollaboratorInput, AddMovieResponse, VideosResponse, CreditsResponse
+    UpdateCollaboratorInput, AddMovieResponse, VideosResponse, CreditsResponse,
+    Genre, GenreListResponse
 } from './types';
 
 const _dayjs = dayjs();
@@ -471,6 +472,66 @@ export const searchMoviesApi = async (query: string, page = 1): Promise<SearchRe
         };
     } catch (error) {
         console.error(`Failed to search movies for query "${query}":`, error);
+        return defaultResult;
+    }
+};
+
+// --- Genre API Functions ---
+
+export const fetchGenreListApi = async (mediaType: 'movie' | 'tv'): Promise<GenreListResponse> => {
+    try {
+        return await fetchBackend(`/content`, {
+            method: 'POST',
+            body: JSON.stringify({
+                endpoint: `/genre/${mediaType}/list`,
+            }),
+        });
+    } catch (error) {
+        console.error(`Failed to fetch ${mediaType} genres:`, error);
+        return { genres: [] };
+    }
+};
+
+export const fetchMoviesByGenreApi = async (genreId: number, page = 1): Promise<SearchResults> => {
+    const defaultResult: SearchResults = { page: 0, results: [], total_pages: 0, total_results: 0 };
+    try {
+        return await fetchBackend(`/content`, {
+            method: 'POST',
+            body: JSON.stringify({
+                endpoint: `/discover/movie`,
+                params: {
+                    with_genres: String(genreId),
+                    sort_by: 'vote_average.desc',
+                    'vote_count.gte': '500',
+                    page: String(page),
+                    include_adult: 'false',
+                },
+            }),
+        });
+    } catch (error) {
+        console.error(`Failed to fetch movies for genre ${genreId}:`, error);
+        return defaultResult;
+    }
+};
+
+export const fetchTvByGenreApi = async (genreId: number, page = 1): Promise<SearchResults> => {
+    const defaultResult: SearchResults = { page: 0, results: [], total_pages: 0, total_results: 0 };
+    try {
+        return await fetchBackend(`/content`, {
+            method: 'POST',
+            body: JSON.stringify({
+                endpoint: `/discover/tv`,
+                params: {
+                    with_genres: String(genreId),
+                    sort_by: 'vote_average.desc',
+                    'vote_count.gte': '500',
+                    page: String(page),
+                    include_adult: 'false',
+                },
+            }),
+        });
+    } catch (error) {
+        console.error(`Failed to fetch TV shows for genre ${genreId}:`, error);
         return defaultResult;
     }
 };

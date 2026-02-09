@@ -197,3 +197,13 @@ export interface Collection {
   updatedAt: string; // Or Date if you parse it
   movies: Movie[];
 }
+
+// --- Genre Types ---
+export interface Genre {
+  id: number;
+  name: string;
+}
+
+export interface GenreListResponse {
+  genres: Genre[];
+}

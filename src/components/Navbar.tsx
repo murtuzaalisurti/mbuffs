@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, LogOut, UserCircle, Popcorn, List, LogIn, Loader2, LoaderCircle, Star } from 'lucide-react';
+import { Search, LogOut, UserCircle, Popcorn, List, LogIn, Loader2, LoaderCircle, Star, LayoutGrid } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -99,6 +99,13 @@ export const Navbar = () => {
             </svg>
             <span className="bg-gradient-to-r from-white to-white/80 bg-clip-text text-transparent">mbuffs</span>
           </Link>
+          <Link
+            to="/categories"
+            className="hidden md:flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <LayoutGrid className="h-4 w-4" />
+            <span>Categories</span>
+          </Link>
         </nav>
 
         {/* Search and User Actions */}
@@ -144,6 +151,10 @@ export const Navbar = () => {
                 <DropdownMenuContent align="end">
                   <DropdownMenuLabel>{user.username || user.email}</DropdownMenuLabel>
                   <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => navigate('/categories')} className="cursor-pointer md:hidden">
+                    <LayoutGrid className="mr-2 h-4 w-4" />
+                    <span>Categories</span>
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => navigate('/collections')} className="cursor-pointer">
                     <List className="mr-2 h-4 w-4" />
                     <span>My Collections</span>

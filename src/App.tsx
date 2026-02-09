@@ -7,6 +7,8 @@ import Index from "./pages/Index";
 import Search from "./pages/Search";
 import Collections from "./pages/Collections";
 import CollectionDetail from "./pages/CollectionDetail";
+import Categories from "./pages/Categories";
+import CategoryDetail from "./pages/CategoryDetail";
 import NotFound from "./pages/NotFound";
 import { useAuth } from './hooks/useAuth';
 import { Loader2 } from 'lucide-react';
@@ -46,6 +48,8 @@ const App = () => (
           {/* Public Routes */}
           <Route path="/" element={<Index />} />
           <Route path="/search" element={<Search />} />
+          <Route path="/categories" element={<Categories />} />
+          <Route path="/categories/:mediaType/:genreId" element={<CategoryDetail />} />
           
           {/* Protected Routes */}
           <Route 
