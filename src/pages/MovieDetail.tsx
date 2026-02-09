@@ -386,7 +386,7 @@ const MovieDetail = () => {
                                 {watchProviders.flatrate && watchProviders.flatrate.length > 0 ? (
                                     <ProviderList title="Stream" providers={watchProviders.flatrate} />
                                 ) : (
-                                    <div className="flex flex-wrap gap-x-8 gap-y-4">
+                                    <div className="flex flex-wrap justify-center md:justify-start gap-x-8 gap-y-4">
                                         <ProviderList title="Rent" providers={watchProviders.rent} />
                                         <ProviderList title="Buy" providers={watchProviders.buy} />
                                     </div>

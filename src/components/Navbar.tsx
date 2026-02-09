@@ -75,7 +75,13 @@ export const Navbar = () => {
 
   return (
     <>
-      <header className={`sticky top-0 z-50 flex h-16 items-center gap-4 px-8 transition-all duration-300 ${scrolled ? 'glass border-b border-white/[0.06]' : 'bg-transparent border-b border-transparent'}`}>
+      <header 
+        className={`sticky top-0 z-50 flex items-center gap-4 px-8 transition-all duration-300 ${scrolled ? 'glass border-b border-white/[0.06]' : 'bg-transparent border-b border-transparent'}`}
+        style={{ 
+          height: 'calc(4rem + env(safe-area-inset-top))', 
+          paddingTop: 'env(safe-area-inset-top)' 
+        }}
+      >
         {/* Logo / Home Link */}
         <nav className="flex-col gap-6 text-lg font-medium md:flex md:flex-row md:items-center md:gap-5 md:text-sm lg:gap-6">
           <Link
