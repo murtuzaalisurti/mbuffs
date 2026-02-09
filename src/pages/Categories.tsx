@@ -8,8 +8,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Film, Tv } from "lucide-react";
 
 // Popular genres to feature (subset for better UX)
-const FEATURED_MOVIE_GENRE_IDS = [28, 35, 27, 878, 10749, 16, 53, 18]; // Action, Comedy, Horror, Sci-Fi, Romance, Animation, Thriller, Drama
-const FEATURED_TV_GENRE_IDS = [10759, 35, 18, 9648, 10765, 16, 80, 10751]; // Action & Adventure, Comedy, Drama, Mystery, Sci-Fi & Fantasy, Animation, Crime, Family
+const FEATURED_MOVIE_GENRE_IDS = [27, 53, 18, 878, 16, 28, 35, 10749]; // Horror, Thriller, Drama, Sci-Fi, Animation, Action, Comedy, Romance
+const FEATURED_TV_GENRE_IDS = [9648, 18, 10765, 16, 10759, 35, 80, 10751]; // Mystery (closest to Horror/Thriller), Drama, Sci-Fi & Fantasy, Animation, Action & Adventure, Comedy, Crime, Family
 
 const Categories = () => {
   return (

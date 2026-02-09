@@ -26,7 +26,7 @@ const Index = () => {
     staleTime: 1000 * 60 * 10, // Cache for 10 minutes to reduce API calls
   });
 
-  const recentContent = recentContentData?.results?.slice(0, 10) || [];
+  const recentContent = recentContentData?.results?.slice(0, 50) || [];
 
   return (
     <>

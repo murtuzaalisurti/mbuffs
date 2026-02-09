@@ -174,12 +174,16 @@ export const fetchUserRegion = async (): Promise<string> => {
     }
 };
 
-const MOVIE_GENRES = '9648|27|53|28|35|10751'; // Mystery, Horror, Thriller, Action, Comedy (Feel Good), Family (Feel Good)
-const TV_GENRES = '9648|10759|35|10751|10765'; // Mystery, Action & Adventure, Comedy, Family, Sci-Fi & Fantasy
+const MOVIE_GENRES = '9648|27|53|12|28|878'; // Mystery, Horror, Thriller, Action, Comedy (Feel Good), Family (Feel Good)
+const TV_GENRES = '9648|10759|10765|80|37|10764'; // Mystery, Action & Adventure, Comedy, Family, Sci-Fi & Fantasy
 
 export const fetchRecentContentApi = async (page = 1, region = 'US', timezone: string): Promise<SearchResults> => {
     try {
-        // Fetch Upcoming Movies
+        // Date range: 6 months in the past to now
+        const maxDate = dayjs().format('YYYY-MM-DD');
+        const minDate = dayjs().subtract(12, 'month').format('YYYY-MM-DD');
+
+        // Fetch Recent Movies
         const movieData = await fetchBackend(`/content`, {
             method: 'POST',
             body: JSON.stringify({
@@ -189,14 +193,19 @@ export const fetchRecentContentApi = async (page = 1, region = 'US', timezone: s
                     region: region,
                     with_release_type: '2|3', // Theatrical releases
                     with_genres: MOVIE_GENRES,
-                    sort_by: 'popularity.desc',
+                    // sort_by: 'vote_average.desc',
+                    sort_by: 'revenue.desc', // Sort by revenue to surface more popular recent releases
+                    'vote_count.gte': '2000',
+                    'primary_release_date.gte': minDate,
+                    'primary_release_date.lte': maxDate,
                     watch_region: region,
-                    include_adult: true
+                    include_adult: true,
+                    with_watch_providers: '8|119|350|2336|11' // Major streaming providers
                 }
             }),
         });
 
-        // Fetch Upcoming TV Shows
+        // Fetch Recent TV Shows
         const tvData = await fetchBackend(`/content`, {
             method: 'POST',
             body: JSON.stringify({
@@ -205,11 +214,14 @@ export const fetchRecentContentApi = async (page = 1, region = 'US', timezone: s
                     page: String(page),
                     timezone,
                     with_genres: TV_GENRES,
-                    sort_by: 'popularity.desc',
+                    // sort_by: 'vote_average.desc',
+                    sort_by: 'revenue.desc', // Sort by revenue to surface more popular recent releases
+                    'vote_count.gte': '2000',
+                    'air_date.gte': minDate,
+                    'air_date.lte': maxDate,
                     watch_region: region,
                     include_adult: true,
                     with_watch_providers: '8|119|350|2336|11' // Major streaming providers
-                    // with_origin_country: region // Optional: strict region filtering for TV?
                 }
             }),
         });
@@ -502,9 +514,9 @@ export const fetchMoviesByGenreApi = async (genreId: number, page = 1): Promise<
                 params: {
                     with_genres: String(genreId),
                     sort_by: 'vote_average.desc',
-                    'vote_count.gte': '500',
+                    'vote_count.gte': '1000',
                     page: String(page),
-                    include_adult: 'false',
+                    include_adult: 'true',
                 },
             }),
         });
@@ -524,9 +536,9 @@ export const fetchTvByGenreApi = async (genreId: number, page = 1): Promise<Sear
                 params: {
                     with_genres: String(genreId),
                     sort_by: 'vote_average.desc',
-                    'vote_count.gte': '500',
+                    'vote_count.gte': '1000',
                     page: String(page),
-                    include_adult: 'false',
+                    include_adult: 'true',
                 },
             }),
         });
