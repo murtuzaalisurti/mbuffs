@@ -112,7 +112,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     // Added a small delay for the toast to be potentially visible before redirect
     // This might not always work perfectly depending on browser rendering.
     toast({
-      title: "Access Denied",
+      title: "Access Denied.",
       description: "Please log in to view this page.",
       variant: "destructive",
     });
