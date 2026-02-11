@@ -42,12 +42,24 @@ export interface WatchProvidersResponse {
   results: Record<string, WatchProvidersResult>;
 }
 
+export interface Season {
+  air_date: string;
+  episode_count: number;
+  id: number;
+  name: string;
+  overview: string;
+  poster_path: string | null;
+  season_number: number;
+  vote_average: number;
+}
+
 export interface MovieDetails extends Movie {
   genres: { id: number; name: string }[];
   runtime: number;
   tagline: string;
   networks: Network[];
   created_by?: Creator[]; // For TV shows
+  seasons?: Season[]; // For TV shows
   'watch/providers'?: WatchProvidersResponse;
 }
 
@@ -87,6 +99,19 @@ export interface CreditsResponse {
   id: number;
   cast: CastMember[];
   crew: CrewMember[];
+}
+
+export interface PersonCredit extends Movie {
+  media_type: 'movie' | 'tv';
+  job?: string;
+  department?: string;
+  character?: string;
+}
+
+export interface PersonCreditsResponse {
+  cast: PersonCredit[];
+  crew: PersonCredit[];
+  id: number;
 }
 
 export interface SearchResults {
@@ -152,8 +177,8 @@ export interface UserCollectionsResponse {
 
 // Input type for creating a collection
 export interface CreateCollectionInput {
-    name: string;
-    description?: string | null;
+  name: string;
+  description?: string | null;
 }
 
 // Input type for updating collection details
@@ -169,11 +194,11 @@ export interface AddMovieInput {
 
 // Response type after adding a movie
 export interface AddMovieResponse {
-    movieEntry: {
-        id: string;
-        movie_id: number;
-        added_at: string;
-    }
+  movieEntry: {
+    id: string;
+    movie_id: number;
+    added_at: string;
+  }
 }
 
 // Input type for adding a collaborator
@@ -206,4 +231,33 @@ export interface Genre {
 
 export interface GenreListResponse {
   genres: Genre[];
+}
+
+export interface Episode {
+  air_date: string;
+  episode_number: number;
+  id: number;
+  name: string;
+  overview: string;
+  production_code: string;
+  runtime: number | null;
+  season_number: number;
+  show_id: number;
+  still_path: string | null;
+  vote_average: number;
+  vote_count: number;
+  crew: CrewMember[];
+  guest_stars: CastMember[];
+}
+
+export interface SeasonDetails {
+  _id: string;
+  air_date: string;
+  episodes: Episode[];
+  name: string;
+  overview: string;
+  id: number;
+  poster_path: string | null;
+  season_number: number;
+  vote_average: number;
 }
