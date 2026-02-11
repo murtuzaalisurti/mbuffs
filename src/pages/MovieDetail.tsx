@@ -712,8 +712,8 @@ const MovieDetail = () => {
                                     className="flex overflow-x-auto gap-4 pb-4 snap-x scrollbar-hide px-4 pr-16"
                                 >
                                     {cast.map((member: CastMember) => (
-                                        <div key={member.id} className="flex-shrink-0 w-24 flex flex-col items-center text-center snap-center">
-                                            <div className="w-20 h-20 rounded-full overflow-hidden bg-muted/30 border border-white/[0.08] mb-2">
+                                        <Link key={member.id} to={`/person/${member.id}`} className="flex-shrink-0 w-24 flex flex-col items-center text-center snap-center group">
+                                            <div className="w-20 h-20 rounded-full overflow-hidden bg-muted/30 border border-white/[0.08] mb-2 transition-transform duration-300 group-hover:scale-105">
                                                 {member.profile_path ? (
                                                     <img
                                                         src={getImageUrl(member.profile_path, 'w185')}
@@ -726,9 +726,9 @@ const MovieDetail = () => {
                                                     </div>
                                                 )}
                                             </div>
-                                            <p className="text-sm font-medium text-foreground/90 line-clamp-1">{member.name}</p>
+                                            <p className="text-sm font-medium text-foreground/90 line-clamp-1 group-hover:text-foreground transition-colors">{member.name}</p>
                                             <p className="text-xs text-muted-foreground line-clamp-1">{member.character}</p>
-                                        </div>
+                                        </Link>
                                     ))}
                                 </div>
                                 <button
@@ -742,8 +742,8 @@ const MovieDetail = () => {
                             {/* Desktop: left-aligned grid */}
                             <div className="hidden md:grid grid-cols-4 lg:grid-cols-6 gap-x-6 gap-y-6">
                                 {cast.map((member: CastMember) => (
-                                    <div key={member.id} className="flex flex-col items-center text-center">
-                                        <div className="w-24 h-24 rounded-full overflow-hidden bg-muted/30 border border-white/[0.08] mb-2">
+                                    <Link key={member.id} to={`/person/${member.id}`} className="flex flex-col items-center text-center group">
+                                        <div className="w-24 h-24 rounded-full overflow-hidden bg-muted/30 border border-white/[0.08] mb-2 transition-transform duration-300 group-hover:scale-105">
                                             {member.profile_path ? (
                                                 <img
                                                     src={getImageUrl(member.profile_path, 'w185')}
@@ -756,9 +756,9 @@ const MovieDetail = () => {
                                                 </div>
                                             )}
                                         </div>
-                                        <p className="text-sm font-medium text-foreground/90 line-clamp-1">{member.name}</p>
+                                        <p className="text-sm font-medium text-foreground/90 line-clamp-1 group-hover:text-foreground transition-colors">{member.name}</p>
                                         <p className="text-xs text-muted-foreground line-clamp-1">{member.character}</p>
-                                    </div>
+                                    </Link>
                                 ))}
                             </div>
                         </section>
@@ -808,8 +808,8 @@ const MovieDetail = () => {
                                         className="flex overflow-x-auto gap-4 pb-4 snap-x scrollbar-hide px-4 pr-16"
                                     >
                                         {uniqueCrew.map((member) => (
-                                            <div key={member.id} className="flex-shrink-0 w-24 flex flex-col items-center text-center snap-center">
-                                                <div className="w-20 h-20 rounded-full overflow-hidden bg-muted/30 border border-white/[0.08] mb-2">
+                                            <Link key={member.id} to={`/person/${member.id}`} className="flex-shrink-0 w-24 flex flex-col items-center text-center snap-center group">
+                                                <div className="w-20 h-20 rounded-full overflow-hidden bg-muted/30 border border-white/[0.08] mb-2 transition-transform duration-300 group-hover:scale-105">
                                                     {member.profile_path ? (
                                                         <img
                                                             src={getImageUrl(member.profile_path, 'w185')}
@@ -822,9 +822,9 @@ const MovieDetail = () => {
                                                         </div>
                                                     )}
                                                 </div>
-                                                <p className="text-sm font-medium text-foreground/90 line-clamp-1">{member.name}</p>
+                                                <p className="text-sm font-medium text-foreground/90 line-clamp-1 group-hover:text-foreground transition-colors">{member.name}</p>
                                                 <p className="text-xs text-muted-foreground line-clamp-2">{member.jobs.join(', ')}</p>
-                                            </div>
+                                            </Link>
                                         ))}
                                     </div>
                                     <button
@@ -838,8 +838,8 @@ const MovieDetail = () => {
                                 {/* Desktop: left-aligned grid */}
                                 <div className="hidden md:grid grid-cols-4 lg:grid-cols-6 gap-x-6 gap-y-6">
                                     {uniqueCrew.map((member) => (
-                                        <div key={member.id} className="flex flex-col items-center text-center">
-                                            <div className="w-24 h-24 rounded-full overflow-hidden bg-muted/30 border border-white/[0.08] mb-2">
+                                        <Link key={member.id} to={`/person/${member.id}`} className="flex flex-col items-center text-center group">
+                                            <div className="w-24 h-24 rounded-full overflow-hidden bg-muted/30 border border-white/[0.08] mb-2 transition-transform duration-300 group-hover:scale-105">
                                                 {member.profile_path ? (
                                                     <img
                                                         src={getImageUrl(member.profile_path, 'w185')}
@@ -852,9 +852,9 @@ const MovieDetail = () => {
                                                     </div>
                                                 )}
                                             </div>
-                                            <p className="text-sm font-medium text-foreground/90 line-clamp-1">{member.name}</p>
+                                            <p className="text-sm font-medium text-foreground/90 line-clamp-1 group-hover:text-foreground transition-colors">{member.name}</p>
                                             <p className="text-xs text-muted-foreground line-clamp-2">{member.jobs.join(', ')}</p>
-                                        </div>
+                                        </Link>
                                     ))}
                                 </div>
                             </section>
