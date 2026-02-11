@@ -4,7 +4,7 @@ import {
     CollectionSummary, CollectionDetails, CollectionCollaborator, UserCollectionsResponse,
     CreateCollectionInput, UpdateCollectionInput, AddMovieInput, AddCollaboratorInput,
     UpdateCollaboratorInput, AddMovieResponse, VideosResponse, CreditsResponse,
-    Genre, GenreListResponse, PersonCreditsResponse, SeasonDetails
+    Genre, GenreListResponse, PersonCreditsResponse, SeasonDetails, TmdbCollectionDetails
 } from './types';
 
 const _dayjs = dayjs();
@@ -457,6 +457,20 @@ export const fetchTvSeasonDetailsApi = async (tvId: number, seasonNumber: number
         });
     } catch (error) {
         console.error(`Failed to fetch season details for TV ${tvId} S${seasonNumber}:`, error);
+        return null;
+    }
+};
+
+export const fetchTmdbCollectionDetailsApi = async (collectionId: number): Promise<TmdbCollectionDetails | null> => {
+    try {
+        return await fetchBackend(`/content`, {
+            method: 'POST',
+            body: JSON.stringify({
+                endpoint: `/collection/${collectionId}`,
+            }),
+        });
+    } catch (error) {
+        console.error(`Failed to fetch TMDB collection details ${collectionId}:`, error);
         return null;
     }
 };

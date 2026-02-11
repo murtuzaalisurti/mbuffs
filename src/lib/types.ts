@@ -53,6 +53,22 @@ export interface Season {
   vote_average: number;
 }
 
+export interface BelongsToCollection {
+  id: number;
+  name: string;
+  poster_path: string | null;
+  backdrop_path: string | null;
+}
+
+export interface TmdbCollectionDetails {
+  id: number;
+  name: string;
+  overview: string;
+  poster_path: string | null;
+  backdrop_path: string | null;
+  parts: Movie[];
+}
+
 export interface MovieDetails extends Movie {
   genres: { id: number; name: string }[];
   runtime: number;
@@ -60,6 +76,7 @@ export interface MovieDetails extends Movie {
   networks: Network[];
   created_by?: Creator[]; // For TV shows
   seasons?: Season[]; // For TV shows
+  belongs_to_collection?: BelongsToCollection | null;
   'watch/providers'?: WatchProvidersResponse;
 }
 
