@@ -4,7 +4,7 @@ import {
     CollectionSummary, CollectionDetails, CollectionCollaborator, UserCollectionsResponse,
     CreateCollectionInput, UpdateCollectionInput, AddMovieInput, AddCollaboratorInput,
     UpdateCollaboratorInput, AddMovieResponse, VideosResponse, CreditsResponse,
-    Genre, GenreListResponse
+    Genre, GenreListResponse, PersonCreditsResponse, SeasonDetails
 } from './types';
 
 const _dayjs = dayjs();
@@ -228,7 +228,7 @@ export const fetchRecentContentApi = async (page = 1, region = 'US', timezone: s
 
         const movieResults = movieData?.results || [];
         const tvResults = tvData?.results || [];
-        
+
         // Interleave results
         const combinedResults = interleaveArrays(movieResults, tvResults) as Movie[];
 
@@ -244,13 +244,55 @@ export const fetchRecentContentApi = async (page = 1, region = 'US', timezone: s
     }
 };
 
+export const fetchTrendingContentApi = async (page = 1): Promise<SearchResults> => {
+    try {
+        // Fetch Trending Movies
+        const movieData = await fetchBackend(`/content`, {
+            method: 'POST',
+            body: JSON.stringify({
+                endpoint: `/trending/movie/week`,
+                params: {
+                    page: String(page),
+                }
+            }),
+        });
+
+        // Fetch Trending TV Shows
+        const tvData = await fetchBackend(`/content`, {
+            method: 'POST',
+            body: JSON.stringify({
+                endpoint: `/trending/tv/week`,
+                params: {
+                    page: String(page),
+                }
+            }),
+        });
+
+        const movieResults = movieData?.results || [];
+        const tvResults = tvData?.results || [];
+
+        // Interleave results
+        const combinedResults = interleaveArrays(movieResults, tvResults) as Movie[];
+
+        return {
+            page: movieData?.page || 1,
+            results: combinedResults,
+            total_pages: Math.max(movieData?.total_pages || 0, tvData?.total_pages || 0),
+            total_results: (movieData?.total_results || 0) + (tvData?.total_results || 0)
+        };
+    } catch (error) {
+        console.error("Failed to fetch trending content:", error);
+        return { page: 0, results: [], total_pages: 0, total_results: 0 };
+    }
+};
+
 export const fetchNowPlayingMoviesApi = async (page = 1, region?: string): Promise<SearchResults> => {
     try {
         const params: Record<string, string> = { page: String(page) };
         if (region) {
             params.region = region;
         }
-        
+
         return await fetchBackend(`/content`, {
             method: 'POST',
             body: JSON.stringify({
@@ -289,7 +331,7 @@ export const fetchNewOnPlatformApi = async (providerId: number, region = 'US', p
         const sortBy = 'primary_release_date.desc';
         // Ensure we don't show future releases
         const maxDate = dayjs().format('YYYY-MM-DD');
-        
+
         return await fetchBackend(`/content`, {
             method: 'POST',
             body: JSON.stringify({
@@ -405,6 +447,20 @@ export const fetchTvDetailsApi = async (id: number): Promise<MovieDetails | null
     }
 };
 
+export const fetchTvSeasonDetailsApi = async (tvId: number, seasonNumber: number): Promise<SeasonDetails | null> => {
+    try {
+        return await fetchBackend(`/content`, {
+            method: 'POST',
+            body: JSON.stringify({
+                endpoint: `/tv/${tvId}/season/${seasonNumber}`,
+            }),
+        });
+    } catch (error) {
+        console.error(`Failed to fetch season details for TV ${tvId} S${seasonNumber}:`, error);
+        return null;
+    }
+};
+
 export const fetchVideosApi = async (mediaType: 'movie' | 'tv', id: number): Promise<VideosResponse | null> => {
     try {
         return await fetchBackend(`/content`, {
@@ -429,6 +485,20 @@ export const fetchCreditsApi = async (mediaType: 'movie' | 'tv', id: number): Pr
         });
     } catch (error) {
         console.error(`Failed to fetch credits for ${mediaType} ${id}:`, error);
+        return null;
+    }
+};
+
+export const fetchPersonCreditsApi = async (personId: number): Promise<PersonCreditsResponse | null> => {
+    try {
+        return await fetchBackend(`/content`, {
+            method: 'POST',
+            body: JSON.stringify({
+                endpoint: `/person/${personId}/combined_credits`,
+            }),
+        });
+    } catch (error) {
+        console.error(`Failed to fetch credits for person ${personId}:`, error);
         return null;
     }
 };
