@@ -9,8 +9,8 @@ import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
-import { ImageOff, Star, Play, User, Bookmark, MoreHorizontal, Loader2, Plus, Clock, Calendar, Globe, Share2, X, MessageSquare } from 'lucide-react';
-import { useState } from 'react';
+import { ImageOff, Star, Play, User, Bookmark, MoreHorizontal, Loader2, Plus, Clock, Calendar, Globe, Share2, X, MessageSquare, ChevronRight } from 'lucide-react';
+import { useState, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 
@@ -288,6 +288,14 @@ const MovieDetail = () => {
     const [playingVideoId, setPlayingVideoId] = useState<string | null>(null);
     const [overviewExpanded, setOverviewExpanded] = useState(false);
     const [collectionsOpen, setCollectionsOpen] = useState(false);
+    const castScrollRef = useRef<HTMLDivElement>(null);
+    const crewScrollRef = useRef<HTMLDivElement>(null);
+
+    const scrollRight = (ref: React.RefObject<HTMLDivElement | null>) => {
+        if (ref.current) {
+            ref.current.scrollBy({ left: 200, behavior: 'smooth' });
+        }
+    };
 
     const renderSkeletons = () => (
         <>
@@ -569,7 +577,7 @@ const MovieDetail = () => {
                     {/* Overview Section */}
                     {overview && (
                         <section className="space-y-4">
-                            <h2 className="text-xl md:text-2xl font-semibold text-foreground/90">Overview</h2>
+                            <h2 className="text-xl md:text-2xl font-semibold text-foreground/90 text-center md:text-left">Overview</h2>
                             <div className="flex flex-col items-center md:items-start text-center md:text-left">
                                 <p className="text-base leading-relaxed text-foreground/80 max-w-2xl">
                                     {overview.length > OVERVIEW_CHAR_LIMIT && !overviewExpanded
@@ -697,10 +705,45 @@ const MovieDetail = () => {
                     {cast.length > 0 && (
                         <section className="space-y-6">
                             <h2 className="text-xl md:text-2xl font-semibold text-foreground/90">Top Cast</h2>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                            {/* Mobile: horizontal scroll with gradient fade */}
+                            <div className="md:hidden relative -mx-4">
+                                <div 
+                                    ref={castScrollRef}
+                                    className="flex overflow-x-auto gap-4 pb-4 snap-x scrollbar-hide px-4 pr-16"
+                                >
+                                    {cast.map((member: CastMember) => (
+                                        <div key={member.id} className="flex-shrink-0 w-24 flex flex-col items-center text-center snap-center">
+                                            <div className="w-20 h-20 rounded-full overflow-hidden bg-muted/30 border border-white/[0.08] mb-2">
+                                                {member.profile_path ? (
+                                                    <img
+                                                        src={getImageUrl(member.profile_path, 'w185')}
+                                                        alt={member.name}
+                                                        className="w-full h-full object-cover"
+                                                    />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center">
+                                                        <User className="w-8 h-8 text-muted-foreground/50" />
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <p className="text-sm font-medium text-foreground/90 line-clamp-1">{member.name}</p>
+                                            <p className="text-xs text-muted-foreground line-clamp-1">{member.character}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                                <button
+                                    onClick={() => scrollRight(castScrollRef)}
+                                    className="absolute right-0 top-0 bottom-4 w-16 flex items-center justify-center bg-gradient-to-l from-background via-background/80 to-transparent"
+                                    aria-label="Scroll right"
+                                >
+                                    <ChevronRight className="w-5 h-5 text-foreground/60" />
+                                </button>
+                            </div>
+                            {/* Desktop: left-aligned grid */}
+                            <div className="hidden md:grid grid-cols-4 lg:grid-cols-6 gap-x-6 gap-y-6">
                                 {cast.map((member: CastMember) => (
                                     <div key={member.id} className="flex flex-col items-center text-center">
-                                        <div className="w-20 h-20 md:w-24 md:h-24 rounded-full overflow-hidden bg-muted/30 border border-white/[0.08] mb-2">
+                                        <div className="w-24 h-24 rounded-full overflow-hidden bg-muted/30 border border-white/[0.08] mb-2">
                                             {member.profile_path ? (
                                                 <img
                                                     src={getImageUrl(member.profile_path, 'w185')}
@@ -758,10 +801,45 @@ const MovieDetail = () => {
                         return (
                             <section className="space-y-6">
                                 <h2 className="text-xl md:text-2xl font-semibold text-foreground/90">Crew</h2>
-                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                                {/* Mobile: horizontal scroll with gradient fade */}
+                                <div className="md:hidden relative -mx-4">
+                                    <div 
+                                        ref={crewScrollRef}
+                                        className="flex overflow-x-auto gap-4 pb-4 snap-x scrollbar-hide px-4 pr-16"
+                                    >
+                                        {uniqueCrew.map((member) => (
+                                            <div key={member.id} className="flex-shrink-0 w-24 flex flex-col items-center text-center snap-center">
+                                                <div className="w-20 h-20 rounded-full overflow-hidden bg-muted/30 border border-white/[0.08] mb-2">
+                                                    {member.profile_path ? (
+                                                        <img
+                                                            src={getImageUrl(member.profile_path, 'w185')}
+                                                            alt={member.name}
+                                                            className="w-full h-full object-cover"
+                                                        />
+                                                    ) : (
+                                                        <div className="w-full h-full flex items-center justify-center">
+                                                            <User className="w-8 h-8 text-muted-foreground/50" />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <p className="text-sm font-medium text-foreground/90 line-clamp-1">{member.name}</p>
+                                                <p className="text-xs text-muted-foreground line-clamp-2">{member.jobs.join(', ')}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <button
+                                        onClick={() => scrollRight(crewScrollRef)}
+                                        className="absolute right-0 top-0 bottom-4 w-16 flex items-center justify-center bg-gradient-to-l from-background via-background/80 to-transparent"
+                                        aria-label="Scroll right"
+                                    >
+                                        <ChevronRight className="w-5 h-5 text-foreground/60" />
+                                    </button>
+                                </div>
+                                {/* Desktop: left-aligned grid */}
+                                <div className="hidden md:grid grid-cols-4 lg:grid-cols-6 gap-x-6 gap-y-6">
                                     {uniqueCrew.map((member) => (
                                         <div key={member.id} className="flex flex-col items-center text-center">
-                                            <div className="w-20 h-20 md:w-24 md:h-24 rounded-full overflow-hidden bg-muted/30 border border-white/[0.08] mb-2">
+                                            <div className="w-24 h-24 rounded-full overflow-hidden bg-muted/30 border border-white/[0.08] mb-2">
                                                 {member.profile_path ? (
                                                     <img
                                                         src={getImageUrl(member.profile_path, 'w185')}
