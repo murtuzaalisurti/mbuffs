@@ -14,6 +14,8 @@ export interface Movie {
   release_date: string;
   first_air_date?: string;
   vote_average: number;
+  vote_count?: number;
+  popularity?: number;
   overview: string;
   backdrop_path: string | null;
 }
@@ -129,6 +131,22 @@ export interface PersonCreditsResponse {
   cast: PersonCredit[];
   crew: PersonCredit[];
   id: number;
+}
+
+export interface PersonDetails {
+  id: number;
+  name: string;
+  biography: string;
+  birthday: string | null;
+  deathday: string | null;
+  place_of_birth: string | null;
+  profile_path: string | null;
+  known_for_department: string;
+  also_known_as: string[];
+  gender: number;
+  popularity: number;
+  imdb_id: string | null;
+  homepage: string | null;
 }
 
 export interface SearchResults {

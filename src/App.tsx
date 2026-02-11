@@ -30,6 +30,7 @@ const ScrollToTop = () => {
 import { useToast } from "@/components/ui/use-toast"; // Import the correct useToast
 import MovieDetail from './pages/MovieDetail';
 import SeasonDetail from './pages/SeasonDetail';
+import PersonDetail from './pages/PersonDetail';
 
 // AuthProvider wrapper to initialize auth and handle token from URL
 const AuthProvider = ({ children }: { children: React.ReactNode }) => {
@@ -82,6 +83,14 @@ const App = () => (
             element={
               <ProtectedRoute>
                 <SeasonDetail />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/person/:personId"
+            element={
+              <ProtectedRoute>
+                <PersonDetail />
               </ProtectedRoute>
             }
           />
