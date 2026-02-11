@@ -29,11 +29,12 @@ const ScrollToTop = () => {
 };
 import { useToast } from "@/components/ui/use-toast"; // Import the correct useToast
 import MovieDetail from './pages/MovieDetail';
+import SeasonDetail from './pages/SeasonDetail';
 
 // AuthProvider wrapper to initialize auth and handle token from URL
 const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   // Initialize the auth hook. The useEffect inside useAuth handles the token from URL.
-  useAuth(); 
+  useAuth();
   return <>{children}</>; // Render children once auth is initialized
 };
 
@@ -50,9 +51,9 @@ const App = () => (
           <Route path="/search" element={<Search />} />
           <Route path="/categories" element={<Categories />} />
           <Route path="/categories/:mediaType/:genreId" element={<CategoryDetail />} />
-          
+
           {/* Protected Routes */}
-          <Route 
+          <Route
             path="/collections"
             element={
               <ProtectedRoute>
@@ -60,7 +61,7 @@ const App = () => (
               </ProtectedRoute>
             }
           />
-          <Route 
+          <Route
             path="/collection/:collectionId"
             element={
               <ProtectedRoute>
@@ -76,7 +77,15 @@ const App = () => (
               </ProtectedRoute>
             }
           />
-          
+          <Route
+            path="/tv/:mediaId/season/:seasonNumber"
+            element={
+              <ProtectedRoute>
+                <SeasonDetail />
+              </ProtectedRoute>
+            }
+          />
+
           {/* Catch-all Route */}
           <Route path="*" element={<NotFound />} />
         </Routes>
@@ -102,10 +111,10 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   if (!isLoggedIn) {
     // Added a small delay for the toast to be potentially visible before redirect
     // This might not always work perfectly depending on browser rendering.
-    toast({ 
-        title: "Access Denied", 
-        description: "Please log in to view this page.",
-        variant: "destructive",
+    toast({
+      title: "Access Denied.",
+      description: "Please log in to view this page.",
+      variant: "destructive",
     });
     // Redirect them to the home page if not logged in.
     return <Navigate to="/" replace state={{ from: location }} />;
