@@ -1,7 +1,7 @@
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchMovieDetailsApi, fetchTvDetailsApi, fetchVideosApi, fetchCreditsApi, fetchPersonCreditsApi, fetchUserCollectionsApi, fetchCollectionDetailsApi, addMovieToCollectionApi, removeMovieFromCollectionApi, getImageUrl, fetchUserRegion } from '@/lib/api';
-import { MovieDetails, Network, Video, CastMember, CrewMember, CollectionSummary, WatchProvider, PersonCreditsResponse, PersonCredit } from '@/lib/types';
+import { fetchMovieDetailsApi, fetchTvDetailsApi, fetchVideosApi, fetchCreditsApi, fetchPersonCreditsApi, fetchUserCollectionsApi, fetchCollectionDetailsApi, addMovieToCollectionApi, removeMovieFromCollectionApi, getImageUrl, fetchUserRegion, fetchTmdbCollectionDetailsApi } from '@/lib/api';
+import { MovieDetails, Network, Video, CastMember, CrewMember, CollectionSummary, WatchProvider, PersonCreditsResponse, PersonCredit, VideosResponse, CreditsResponse, TmdbCollectionDetails } from '@/lib/types';
 import { Navbar } from "@/components/Navbar";
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
-import { ImageOff, Star, Play, User, Bookmark, MoreHorizontal, Loader2 } from 'lucide-react';
+import { ImageOff, Star, Play, User, Bookmark, MoreHorizontal, Loader2, Plus, Clock, Calendar, Globe, Share2, X, MessageSquare } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
@@ -53,6 +53,79 @@ function ProviderList({ title, providers }: { title: string, providers: WatchPro
 }
 
 const OVERVIEW_CHAR_LIMIT = 150;
+
+const CollectionSection = ({ collectionId, currentMediaId }: { collectionId: number, currentMediaId: string }) => {
+    const { data: collectionDetails } = useQuery<TmdbCollectionDetails | null>({
+        queryKey: ['collection', collectionId],
+        queryFn: () => fetchTmdbCollectionDetailsApi(collectionId),
+        enabled: !!collectionId,
+    });
+
+    if (!collectionDetails) return null;
+
+    // Filter out parts without posters and sort by release date
+    let parts = collectionDetails.parts || [];
+    parts = parts
+        .filter(part => part.poster_path)
+        .sort((a, b) => new Date(a.release_date).getTime() - new Date(b.release_date).getTime());
+
+    if (parts.length === 0) return null;
+
+    return (
+        <section className="space-y-6">
+            <div className="flex items-baseline justify-between">
+                <h2 className="text-xl md:text-2xl font-semibold text-foreground/90">
+                    The Collection
+                </h2>
+            </div>
+
+            <div className="flex overflow-x-auto gap-4 pb-4 snap-x scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
+                {parts.map((part) => (
+                    <Link
+                        key={part.id}
+                        to={`/media/movie/${part.id}`}
+                        className="flex-shrink-0 w-36 md:w-44 snap-center group/card block"
+                    >
+                        <div className="aspect-[2/3] rounded-lg overflow-hidden border border-white/[0.08] bg-muted shadow-md mb-2 relative">
+                            {part.poster_path ? (
+                                <img
+                                    src={getImageUrl(part.poster_path, 'w342')}
+                                    alt={part.title}
+                                    className="w-full h-full object-cover transition-transform duration-300 group-hover/card:scale-105"
+                                />
+                            ) : (
+                                <div className="w-full h-full flex items-center justify-center bg-muted">
+                                    <span className="text-muted-foreground text-xs text-center p-1">{part.title}</span>
+                                </div>
+                            )}
+                            {String(part.id) === currentMediaId && (
+                                <div className="absolute inset-0 bg-black/40 flex items-center justify-center backdrop-blur-[1px]">
+                                    <span className="bg-primary/90 text-primary-foreground text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wider">
+                                        Now Viewing
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+                        <p className={`text-sm font-medium line-clamp-2 leading-tight ${String(part.id) === currentMediaId ? 'text-primary' : 'text-foreground/90 group-hover/card:text-primary transition-colors'}`}>
+                            {part.title}
+                        </p>
+                        <div className="flex items-center gap-2 mt-1">
+                            <span className="text-xs text-muted-foreground">
+                                {part.release_date ? new Date(part.release_date).getFullYear() : 'TBA'}
+                            </span>
+                            {part.vote_average > 0 && (
+                                <span className="flex items-center text-xs text-yellow-500/80">
+                                    <Star className="w-3 h-3 mr-0.5 fill-current" />
+                                    {part.vote_average.toFixed(1)}
+                                </span>
+                            )}
+                        </div>
+                    </Link>
+                ))}
+            </div>
+        </section>
+    );
+};
 
 const MovieDetail = () => {
     const { mediaType, mediaId } = useParams<{ mediaType: 'movie' | 'tv', mediaId: string }>();
@@ -415,68 +488,78 @@ const MovieDetail = () => {
                         )}
 
                         {/* Add to Collection Button */}
-                        {isLoggedIn && (
-                            <div className="pt-4 flex justify-center md:justify-start">
-                                <Popover open={collectionsOpen} onOpenChange={setCollectionsOpen}>
-                                    <PopoverTrigger asChild>
-                                        <Button
-                                            variant="outline"
-                                            className="border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] text-foreground/90 gap-2"
-                                        >
-                                            <Bookmark className={`h-4 w-4 ${isInAnyCollection ? 'fill-current' : ''}`} />
-                                            <span>Save</span>
-                                            <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
-                                        </Button>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-72 p-0 border-border bg-popover shadow-xl shadow-black/50" align="start">
-                                        <div className="px-4 py-3 border-b border-border">
-                                            <p className="text-sm font-semibold text-foreground">
-                                                Save to collection
-                                            </p>
-                                        </div>
-                                        <div className="p-1.5 max-h-[300px] overflow-y-auto custom-scrollbar">
-                                            {isLoadingCollections || isLoadingMovieStatus ? (
-                                                <div className="flex items-center justify-center py-6">
-                                                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                                                </div>
-                                            ) : collectionsData?.collections?.length === 0 ? (
-                                                <div className="py-6 px-4 text-center">
-                                                    <p className="text-sm text-muted-foreground">
-                                                        No collections yet
-                                                    </p>
-                                                    <Button variant="link" size="sm" className="mt-1 h-auto p-0 text-primary" asChild>
-                                                        <a href="/collections">Create one</a>
-                                                    </Button>
-                                                </div>
-                                            ) : (
-                                                collectionsData?.collections?.map((collection: CollectionSummary) => {
-                                                    const isInCollection = movieStatusMap?.[collection.id] ?? false;
-                                                    const isPending = addToCollectionMutation.isPending || removeFromCollectionMutation.isPending;
+                        {/* Add to Collection Button */}
+                        <div className="pt-4 flex justify-center md:justify-start">
+                            <Popover open={collectionsOpen} onOpenChange={setCollectionsOpen}>
+                                <PopoverTrigger asChild>
+                                    <Button
+                                        variant="outline"
+                                        className="border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] text-foreground/90 gap-2"
+                                    >
+                                        <Bookmark className={`h-4 w-4 ${isInAnyCollection ? 'fill-current' : ''}`} />
+                                        <span>Save</span>
+                                        <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-72 p-0 border-border bg-popover shadow-xl shadow-black/50" align="start">
+                                    <div className="px-4 py-3 border-b border-border">
+                                        <p className="text-sm font-semibold text-foreground">
+                                            Save to collection
+                                        </p>
+                                    </div>
+                                    <div className="p-1.5 max-h-[300px] overflow-y-auto custom-scrollbar">
+                                        {!isLoggedIn ? (
+                                            <div className="py-6 px-4 text-center space-y-3">
+                                                <p className="text-sm text-muted-foreground">
+                                                    Sign in to save this to your collections
+                                                </p>
+                                                <Button asChild size="sm" className="w-full">
+                                                    <a href={`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'}/api/auth/google`}>
+                                                        Sign in with Google
+                                                    </a>
+                                                </Button>
+                                            </div>
+                                        ) : isLoadingCollections || isLoadingMovieStatus ? (
+                                            <div className="flex items-center justify-center py-6">
+                                                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                                            </div>
+                                        ) : collectionsData?.collections?.length === 0 ? (
+                                            <div className="py-6 px-4 text-center">
+                                                <p className="text-sm text-muted-foreground">
+                                                    No collections yet
+                                                </p>
+                                                <Button variant="link" size="sm" className="mt-1 h-auto p-0 text-primary" asChild>
+                                                    <a href="/collections">Create one</a>
+                                                </Button>
+                                            </div>
+                                        ) : (
+                                            collectionsData?.collections?.map((collection: CollectionSummary) => {
+                                                const isInCollection = movieStatusMap?.[collection.id] ?? false;
+                                                const isPending = addToCollectionMutation.isPending || removeFromCollectionMutation.isPending;
 
-                                                    return (
-                                                        <div
-                                                            key={collection.id}
-                                                            className="flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-accent/50 cursor-pointer transition-all group"
-                                                            onClick={() => !isPending && handleCollectionToggle(collection.id, isInCollection)}
-                                                        >
-                                                            <Checkbox
-                                                                checked={isInCollection}
-                                                                disabled={isPending}
-                                                                onCheckedChange={() => handleCollectionToggle(collection.id, isInCollection)}
-                                                                className="pointer-events-none rounded-full w-5 h-5 border-muted-foreground/30 data-[state=checked]:bg-primary data-[state=checked]:border-primary transition-all group-hover:border-muted-foreground/50"
-                                                            />
-                                                            <span className={`text-sm truncate flex-1 transition-colors ${isInCollection ? 'text-foreground font-medium' : 'text-muted-foreground group-hover:text-foreground'}`}>
-                                                                {collection.name}
-                                                            </span>
-                                                        </div>
-                                                    );
-                                                })
-                                            )}
-                                        </div>
-                                    </PopoverContent>
-                                </Popover>
-                            </div>
-                        )}
+                                                return (
+                                                    <div
+                                                        key={collection.id}
+                                                        className="flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-accent/50 cursor-pointer transition-all group"
+                                                        onClick={() => !isPending && handleCollectionToggle(collection.id, isInCollection)}
+                                                    >
+                                                        <Checkbox
+                                                            checked={isInCollection}
+                                                            disabled={isPending}
+                                                            onCheckedChange={() => handleCollectionToggle(collection.id, isInCollection)}
+                                                            className="pointer-events-none rounded-full w-5 h-5 border-muted-foreground/30 data-[state=checked]:bg-primary data-[state=checked]:border-primary transition-all group-hover:border-muted-foreground/50"
+                                                        />
+                                                        <span className={`text-sm truncate flex-1 transition-colors ${isInCollection ? 'text-foreground font-medium' : 'text-muted-foreground group-hover:text-foreground'}`}>
+                                                            {collection.name}
+                                                        </span>
+                                                    </div>
+                                                );
+                                            })
+                                        )}
+                                    </div>
+                                </PopoverContent>
+                            </Popover>
+                        </div>
 
                     </div>
                 </div>
@@ -699,6 +782,14 @@ const MovieDetail = () => {
                             </section>
                         );
                     })()}
+
+                    {/* Collection Section */}
+                    {mediaDetails.belongs_to_collection && (
+                        <CollectionSection
+                            collectionId={mediaDetails.belongs_to_collection.id}
+                            currentMediaId={String(mediaId)}
+                        />
+                    )}
 
 
                     {/* More from Director Section */}
