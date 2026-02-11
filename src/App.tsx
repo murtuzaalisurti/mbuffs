@@ -52,6 +52,9 @@ const App = () => (
           <Route path="/search" element={<Search />} />
           <Route path="/categories" element={<Categories />} />
           <Route path="/categories/:mediaType/:genreId" element={<CategoryDetail />} />
+          <Route path="/media/:mediaType/:mediaId" element={<MovieDetail />} />
+          <Route path="/tv/:mediaId/season/:seasonNumber" element={<SeasonDetail />} />
+          <Route path="/person/:personId" element={<PersonDetail />} />
 
           {/* Protected Routes */}
           <Route
@@ -67,30 +70,6 @@ const App = () => (
             element={
               <ProtectedRoute>
                 <CollectionDetail />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/media/:mediaType/:mediaId"
-            element={
-              <ProtectedRoute>
-                <MovieDetail />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/tv/:mediaId/season/:seasonNumber"
-            element={
-              <ProtectedRoute>
-                <SeasonDetail />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/person/:personId"
-            element={
-              <ProtectedRoute>
-                <PersonDetail />
               </ProtectedRoute>
             }
           />
