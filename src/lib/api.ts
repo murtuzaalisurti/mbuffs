@@ -244,6 +244,48 @@ export const fetchRecentContentApi = async (page = 1, region = 'US', timezone: s
     }
 };
 
+export const fetchTrendingContentApi = async (page = 1): Promise<SearchResults> => {
+    try {
+        // Fetch Trending Movies
+        const movieData = await fetchBackend(`/content`, {
+            method: 'POST',
+            body: JSON.stringify({
+                endpoint: `/trending/movie/week`,
+                params: {
+                    page: String(page),
+                }
+            }),
+        });
+
+        // Fetch Trending TV Shows
+        const tvData = await fetchBackend(`/content`, {
+            method: 'POST',
+            body: JSON.stringify({
+                endpoint: `/trending/tv/week`,
+                params: {
+                    page: String(page),
+                }
+            }),
+        });
+
+        const movieResults = movieData?.results || [];
+        const tvResults = tvData?.results || [];
+
+        // Interleave results
+        const combinedResults = interleaveArrays(movieResults, tvResults) as Movie[];
+
+        return {
+            page: movieData?.page || 1,
+            results: combinedResults,
+            total_pages: Math.max(movieData?.total_pages || 0, tvData?.total_pages || 0),
+            total_results: (movieData?.total_results || 0) + (tvData?.total_results || 0)
+        };
+    } catch (error) {
+        console.error("Failed to fetch trending content:", error);
+        return { page: 0, results: [], total_pages: 0, total_results: 0 };
+    }
+};
+
 export const fetchNowPlayingMoviesApi = async (page = 1, region?: string): Promise<SearchResults> => {
     try {
         const params: Record<string, string> = { page: String(page) };
