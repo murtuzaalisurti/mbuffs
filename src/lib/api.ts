@@ -605,14 +605,17 @@ export const fetchGenreListApi = async (mediaType: 'movie' | 'tv'): Promise<Genr
 export const fetchMoviesByGenreApi = async (genreId: number, page = 1): Promise<SearchResults> => {
     const defaultResult: SearchResults = { page: 0, results: [], total_pages: 0, total_results: 0 };
     try {
+        const today = dayjs().format('YYYY-MM-DD');
         return await fetchBackend(`/content`, {
             method: 'POST',
             body: JSON.stringify({
                 endpoint: `/discover/movie`,
                 params: {
                     with_genres: String(genreId),
-                    sort_by: 'vote_average.desc',
-                    'vote_count.gte': '1000',
+                    sort_by: 'primary_release_date.desc',
+                    'primary_release_date.lte': today,
+                    'vote_count.gte': '100',
+                    'vote_average.gte': '5.5',
                     page: String(page),
                     include_adult: 'true',
                 },
@@ -627,14 +630,17 @@ export const fetchMoviesByGenreApi = async (genreId: number, page = 1): Promise<
 export const fetchTvByGenreApi = async (genreId: number, page = 1): Promise<SearchResults> => {
     const defaultResult: SearchResults = { page: 0, results: [], total_pages: 0, total_results: 0 };
     try {
+        const today = dayjs().format('YYYY-MM-DD');
         return await fetchBackend(`/content`, {
             method: 'POST',
             body: JSON.stringify({
                 endpoint: `/discover/tv`,
                 params: {
                     with_genres: String(genreId),
-                    sort_by: 'vote_average.desc',
-                    'vote_count.gte': '1000',
+                    sort_by: 'first_air_date.desc',
+                    'first_air_date.lte': today,
+                    'vote_count.gte': '100',
+                    'vote_average.gte': '5.5',
                     page: String(page),
                     include_adult: 'true',
                 },
