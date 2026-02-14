@@ -70,6 +70,30 @@ CREATE TABLE IF NOT EXISTS "collection_movies" (
 );
 
 -- ============================================================================
+-- ADD MISSING COLUMNS (for existing tables)
+-- ============================================================================
+
+-- Add recommendations_enabled column to user table if it doesn't exist
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'user' AND column_name = 'recommendations_enabled'
+    ) THEN
+        ALTER TABLE "user" ADD COLUMN "recommendations_enabled" boolean DEFAULT false;
+    END IF;
+END $$;
+
+-- Add recommendations_collection_id column to user table if it doesn't exist
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'user' AND column_name = 'recommendations_collection_id'
+    ) THEN
+        ALTER TABLE "user" ADD COLUMN "recommendations_collection_id" text;
+    END IF;
+END $$;
+
+-- ============================================================================
 -- UNIQUE CONSTRAINTS (idempotent)
 -- ============================================================================
 
