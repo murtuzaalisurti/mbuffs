@@ -385,8 +385,11 @@ const MovieDetail = () => {
         <>
             <Navbar />
 
-            {/* Backdrop Hero — extends behind navbar */}
-            <div className="relative -mt-16 w-full h-[50vh] md:h-[60vh] overflow-hidden">
+            {/* Backdrop Hero — extends behind navbar and status bar */}
+            <div 
+                className="relative w-full h-[50vh] md:h-[60vh] overflow-hidden"
+                style={{ marginTop: 'calc(-4rem - env(safe-area-inset-top))' }}
+            >
                 {backdropPath ? (
                     <img
                         src={getImageUrl(backdropPath, 'original')}
