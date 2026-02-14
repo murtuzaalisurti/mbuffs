@@ -1,0 +1,28 @@
+import express, { RequestHandler } from 'express';
+import {
+    getRecommendations,
+    getRecommendationCollections,
+    addRecommendationCollectionHandler,
+    removeRecommendationCollectionHandler,
+    setRecommendationCollectionsHandler
+} from '../controllers/recommendationController.js';
+import { requireAuth } from '../middleware/authMiddleware.js';
+
+const router = express.Router();
+
+// GET /api/recommendations - Get personalized recommendations
+router.get('/', requireAuth as RequestHandler, getRecommendations as RequestHandler);
+
+// GET /api/recommendations/collections - Get user's recommendation source collections
+router.get('/collections', requireAuth as RequestHandler, getRecommendationCollections as RequestHandler);
+
+// POST /api/recommendations/collections - Add a collection to recommendation sources
+router.post('/collections', requireAuth as RequestHandler, addRecommendationCollectionHandler as RequestHandler);
+
+// PUT /api/recommendations/collections - Set all recommendation source collections
+router.put('/collections', requireAuth as RequestHandler, setRecommendationCollectionsHandler as RequestHandler);
+
+// DELETE /api/recommendations/collections/:collectionId - Remove a collection from recommendation sources
+router.delete('/collections/:collectionId', requireAuth as RequestHandler, removeRecommendationCollectionHandler as RequestHandler);
+
+export default router;

@@ -130,3 +130,27 @@ export const collectionMovies = pgTable("collection_movies", {
 	}).onDelete("cascade"),
 	unique("collection_movies_collection_id_movie_id_key").on(table.collectionId, table.movieId),
 ]);
+
+// ============================================================================
+// USER RECOMMENDATION COLLECTIONS TABLE (Junction table for multiple recommendation sources)
+// ============================================================================
+export const userRecommendationCollections = pgTable("user_recommendation_collections", {
+	id: text().primaryKey().notNull(),
+	userId: text("user_id").notNull(),
+	collectionId: text("collection_id").notNull(),
+	addedAt: timestamp("added_at", { withTimezone: true, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+	index("idx_user_recommendation_collections_user_id").using("btree", table.userId.asc().nullsLast().op("text_ops")),
+	index("idx_user_recommendation_collections_collection_id").using("btree", table.collectionId.asc().nullsLast().op("text_ops")),
+	foreignKey({
+		columns: [table.userId],
+		foreignColumns: [user.id],
+		name: "user_recommendation_collections_user_id_fkey"
+	}).onDelete("cascade"),
+	foreignKey({
+		columns: [table.collectionId],
+		foreignColumns: [collections.id],
+		name: "user_recommendation_collections_collection_id_fkey"
+	}).onDelete("cascade"),
+	unique("user_recommendation_collections_user_collection_key").on(table.userId, table.collectionId),
+]);

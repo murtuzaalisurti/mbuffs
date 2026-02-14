@@ -14,11 +14,21 @@ export interface DatabaseUserAttributes {
 export interface UserPreferences {
     recommendations_enabled: boolean;
     recommendations_collection_id: string | null;
+    // New: support for multiple recommendation collections
+    recommendations_collection_ids?: string[];
 }
 
 export interface UpdateUserPreferencesInput {
     recommendations_enabled?: boolean;
     recommendations_collection_id?: string | null;
+}
+
+// --- Recommendation Types ---
+export interface RecommendationCollection {
+    id: string;
+    name: string;
+    description: string | null;
+    added_at: string;
 }
 
 // --- Backend Collection Types (Subset needed for backend operations/responses) ---
