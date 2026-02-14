@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Navbar } from "@/components/Navbar";
 import { GenreRow } from "@/components/GenreRow";
-import { fetchGenreListApi, fetchMoviesByGenreApi, fetchTvByGenreApi } from "@/lib/api";
+import { fetchGenreListApi, fetchMoviesByGenreApi, fetchTvByGenreApi, fetchNowPlayingMoviesApi } from "@/lib/api";
 import { Genre } from "@/lib/types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -22,7 +22,7 @@ const Categories = () => {
             {/* Subtle gradient orb */}
             <div className="absolute -top-20 -left-20 w-72 h-72 bg-primary/[0.06] rounded-full blur-3xl pointer-events-none" />
             <div className="absolute -top-10 left-40 w-48 h-48 bg-purple-500/[0.04] rounded-full blur-3xl pointer-events-none" />
-            
+
             <div className="relative">
               <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight leading-[1.1] mb-4">
                 Browse by <span className="text-gradient">Category</span>
@@ -102,6 +102,7 @@ function GenreRowsContent({ mediaType, featuredGenreIds }: { mediaType: 'movie' 
 
   return (
     <div className="space-y-12">
+      {mediaType === 'movie' && <TheatricalReleasesRow />}
       {featuredGenres.map((genre) => (
         <GenreRowWithData
           key={`${mediaType}-${genre.id}`}
@@ -117,7 +118,7 @@ function GenreRowsContent({ mediaType, featuredGenreIds }: { mediaType: 'movie' 
 function GenreRowWithData({ genre, mediaType }: { genre: Genre; mediaType: 'movie' | 'tv' }) {
   const { data, isLoading } = useQuery({
     queryKey: ['genre', mediaType, genre.id, 'preview'],
-    queryFn: () => mediaType === 'movie' 
+    queryFn: () => mediaType === 'movie'
       ? fetchMoviesByGenreApi(genre.id, 1)
       : fetchTvByGenreApi(genre.id, 1),
     staleTime: 1000 * 60 * 10, // Cache for 10 minutes
@@ -130,6 +131,25 @@ function GenreRowWithData({ genre, mediaType }: { genre: Genre; mediaType: 'movi
       mediaType={mediaType}
       isLoading={isLoading}
       limit={10}
+    />
+  );
+}
+
+function TheatricalReleasesRow() {
+  const { data, isLoading } = useQuery({
+    queryKey: ['movies', 'now_playing'],
+    queryFn: () => fetchNowPlayingMoviesApi(1),
+    staleTime: 1000 * 60 * 30, // 30 minutes
+  });
+
+  return (
+    <GenreRow
+      title="Theatrical Releases"
+      movies={data?.results || []}
+      mediaType="movie"
+      isLoading={isLoading}
+      limit={10}
+      customLink="/categories/movie/now-playing"
     />
   );
 }

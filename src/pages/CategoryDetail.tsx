@@ -2,24 +2,26 @@ import { useParams, Link } from "react-router-dom";
 import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
 import { Navbar } from "@/components/Navbar";
 import { MovieCard } from "@/components/MovieCard";
-import { fetchGenreListApi, fetchMoviesByGenreApi, fetchTvByGenreApi } from "@/lib/api";
+import { fetchGenreListApi, fetchMoviesByGenreApi, fetchTvByGenreApi, fetchNowPlayingMoviesApi } from "@/lib/api";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, Loader2 } from "lucide-react";
 
 const CategoryDetail = () => {
   const { mediaType, genreId } = useParams<{ mediaType: 'movie' | 'tv'; genreId: string }>();
-  const genreIdNum = parseInt(genreId || '0', 10);
+  const genreIdNum = genreId === 'now-playing' ? 0 : parseInt(genreId || '0', 10);
 
   // Fetch genre name
   const { data: genreData } = useQuery({
     queryKey: ['genres', mediaType],
     queryFn: () => fetchGenreListApi(mediaType as 'movie' | 'tv'),
     staleTime: 1000 * 60 * 60, // Cache for 1 hour
-    enabled: !!mediaType,
+    enabled: !!mediaType && genreId !== 'now-playing',
   });
 
-  const genreName = genreData?.genres.find(g => g.id === genreIdNum)?.name || 'Category';
+  const genreName = genreId === 'now-playing'
+    ? "Theatrical Releases"
+    : (genreData?.genres.find(g => g.id === genreIdNum)?.name || 'Category');
 
   // Infinite query for paginated results
   const {
@@ -30,10 +32,14 @@ const CategoryDetail = () => {
     fetchNextPage,
   } = useInfiniteQuery({
     queryKey: ['genre', mediaType, genreIdNum, 'all'],
-    queryFn: ({ pageParam = 1 }) => 
-      mediaType === 'movie' 
+    queryFn: ({ pageParam = 1 }) => {
+      if (mediaType === 'movie' && genreId === 'now-playing') {
+        return fetchNowPlayingMoviesApi(pageParam);
+      }
+      return mediaType === 'movie'
         ? fetchMoviesByGenreApi(genreIdNum, pageParam)
-        : fetchTvByGenreApi(genreIdNum, pageParam),
+        : fetchTvByGenreApi(genreIdNum, pageParam);
+    },
     initialPageParam: 1,
     getNextPageParam: (lastPage) => {
       if (lastPage.page < lastPage.total_pages) {
@@ -42,7 +48,7 @@ const CategoryDetail = () => {
       return undefined;
     },
     staleTime: 1000 * 60 * 10,
-    enabled: !!mediaType && !!genreIdNum,
+    enabled: !!mediaType && (!!genreIdNum || genreId === 'now-playing'),
   });
 
   const allMovies = data?.pages.flatMap(page => page.results) || [];
@@ -61,7 +67,7 @@ const CategoryDetail = () => {
             <ChevronLeft className="h-4 w-4" />
             Back to Categories
           </Link>
-          
+
           <div className="flex items-center gap-3 mb-2">
             <div className="h-8 w-1 rounded-full bg-primary" />
             <h1 className="text-3xl md:text-4xl font-bold tracking-tight">
@@ -69,7 +75,7 @@ const CategoryDetail = () => {
             </h1>
           </div>
           <p className="text-muted-foreground">
-            {mediaType === 'movie' ? 'Movies' : 'TV Shows'} 
+            {mediaType === 'movie' ? 'Movies' : 'TV Shows'}
             {totalResults > 0 && ` (${totalResults.toLocaleString()} results)`}
           </p>
         </section>
