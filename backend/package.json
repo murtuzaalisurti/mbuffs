@@ -4,11 +4,11 @@
   "type": "module",
   "main": "dist/api/index.js",
   "scripts": {
-    "build": "npm run db:migrate && tsc",
+    "build": "node db/migrate.mjs && tsc",
     "start": "NODE_OPTIONS='--loader ts-node/esm' node api/index.ts",
     "dev": "NODE_OPTIONS='--loader ts-node/esm' nodemon api/index.ts",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "NODE_OPTIONS='--loader ts-node/esm' node db/migrate.ts",
+    "db:migrate": "node db/migrate.mjs",
     "db:push": "drizzle-kit push",
     "db:diff": "drizzle-kit push --verbose --strict",
     "db:studio": "drizzle-kit studio"

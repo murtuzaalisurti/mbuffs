@@ -1,4 +1,4 @@
-import { neon, neonConfig } from '@neondatabase/serverless';
+import { neon } from '@neondatabase/serverless';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
@@ -9,13 +9,10 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Helper to execute raw SQL with neon using the query method
+// Helper to execute raw SQL with neon
 // Splits SQL into individual statements and executes them sequentially
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function execRawSql(sqlFn: any, rawSql: string): Promise<void> {
-    // Split by semicolons, but be careful with DO $$ blocks
-    // We need to handle PL/pgSQL blocks specially
-    const statements: string[] = [];
+async function execRawSql(sqlFn, rawSql) {
+    const statements = [];
     let currentStatement = '';
     let inDollarQuote = false;
 
@@ -88,7 +85,7 @@ const runMigrations = async () => {
 
         // Get list of applied migrations
         const appliedMigrations = await sql`SELECT name FROM "_migrations" ORDER BY id`;
-        const appliedSet = new Set(appliedMigrations.map((m) => (m as { name: string }).name));
+        const appliedSet = new Set(appliedMigrations.map((m) => m.name));
 
         // Read migration files
         const migrationsDir = path.join(__dirname, 'migrations');
@@ -119,7 +116,6 @@ const runMigrations = async () => {
         }
 
         console.log('Migrations completed successfully!');
-        process.exit(0);
     } catch (error) {
         console.error('Migration failed:', error);
         process.exit(1);
