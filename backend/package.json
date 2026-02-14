@@ -4,9 +4,14 @@
   "type": "module",
   "main": "dist/api/index.js",
   "scripts": {
-    "build": "tsc",
+    "build": "npm run db:migrate && tsc",
     "start": "NODE_OPTIONS='--loader ts-node/esm' node api/index.ts",
-    "dev": "NODE_OPTIONS='--loader ts-node/esm' nodemon api/index.ts"
+    "dev": "NODE_OPTIONS='--loader ts-node/esm' nodemon api/index.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "NODE_OPTIONS='--loader ts-node/esm' node db/migrate.ts",
+    "db:push": "drizzle-kit push",
+    "db:diff": "drizzle-kit push --verbose --strict",
+    "db:studio": "drizzle-kit studio"
   },
   "keywords": [],
   "author": "",
@@ -14,12 +19,13 @@
   "description": "",
   "dependencies": {
     "@lucia-auth/adapter-postgresql": "^3.1.2",
-    "@neondatabase/serverless": "^0.9.5",
+    "@neondatabase/serverless": "^1.0.2",
     "@types/jsonwebtoken": "^9.0.9",
     "arctic": "^3.6.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
+    "drizzle-orm": "^0.45.1",
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
     "lucia": "^3.2.2",
@@ -32,6 +38,7 @@
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.1",
     "@types/node": "^22.15.2",
+    "drizzle-kit": "^0.31.9",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.8.3"
   }

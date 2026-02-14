@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, LogOut, UserCircle, Popcorn, List, LogIn, Loader2, LoaderCircle, Star, LayoutGrid } from 'lucide-react';
+import { Search, LogOut, UserCircle, Popcorn, List, LogIn, Loader2, LoaderCircle, Star, LayoutGrid, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -151,6 +151,10 @@ export const Navbar = () => {
                 <DropdownMenuContent align="end">
                   <DropdownMenuLabel>{user.username || user.email}</DropdownMenuLabel>
                   <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => navigate('/profile')} className="cursor-pointer">
+                    <User className="mr-2 h-4 w-4" />
+                    <span>Profile</span>
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => navigate('/categories')} className="cursor-pointer md:hidden">
                     <LayoutGrid className="mr-2 h-4 w-4" />
                     <span>Categories</span>
@@ -159,6 +163,7 @@ export const Navbar = () => {
                     <List className="mr-2 h-4 w-4" />
                     <span>My Collections</span>
                   </DropdownMenuItem>
+                  <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleLogout} disabled={isLoggingOut} className="cursor-pointer text-red-600 focus:bg-red-100 focus:text-red-700">
                     <LogOut className="mr-2 h-4 w-4" />
                     <span>{isLoggingOut ? 'Logging out...' : 'Logout'}</span>

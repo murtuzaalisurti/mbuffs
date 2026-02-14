@@ -154,23 +154,30 @@ export const updateCollection = async (req: Request, res: Response, next: NextFu
              return;
         }
 
-        // Revert to manual query string construction
-        let setClause = "updated_at = CURRENT_TIMESTAMP";
-        const params: (string | null)[] = [collectionId]; 
-        let paramIndex = 1;
-
-        if (name !== undefined) {
-            setClause += `, name = $${++paramIndex}`;
-            params.push(name);
+        // Build the update dynamically using tagged template
+        let result;
+        if (name !== undefined && description !== undefined) {
+            result = await sql`
+                UPDATE collections 
+                SET updated_at = CURRENT_TIMESTAMP, name = ${name}, description = ${description}
+                WHERE id = ${collectionId}
+                RETURNING *
+            `;
+        } else if (name !== undefined) {
+            result = await sql`
+                UPDATE collections 
+                SET updated_at = CURRENT_TIMESTAMP, name = ${name}
+                WHERE id = ${collectionId}
+                RETURNING *
+            `;
+        } else {
+            result = await sql`
+                UPDATE collections 
+                SET updated_at = CURRENT_TIMESTAMP, description = ${description}
+                WHERE id = ${collectionId}
+                RETURNING *
+            `;
         }
-        if (description !== undefined) { 
-            setClause += `, description = $${++paramIndex}`;
-            params.push(description);
-        }
-        
-        const queryString = `UPDATE collections SET ${setClause} WHERE id = $1 RETURNING *`;
-        // Use standard sql template tag for raw query
-        const result = await sql(queryString, params);
 
         if (result.length === 0) {
             res.status(404).json({ message: 'Collection not found or no changes made' });

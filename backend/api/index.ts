@@ -7,6 +7,7 @@ import { deserializeUser } from '../middleware/authMiddleware.js';
 import oauthRoutes from '../routes/oauthRoutes.js';
 import collectionRoutes from '../routes/collectionRoutes.js';
 import contentRoutes from '../routes/contentRoutes.js';
+import userRoutes from '../routes/userRoutes.js';
 // import { testDbConnection } from './lib/db';
 
 dotenv.config({
@@ -47,6 +48,7 @@ app.use(deserializeUser);
 app.use('/api/auth', oauthRoutes);
 app.use('/api/collections', collectionRoutes);
 app.use('/api/content', contentRoutes);
+app.use('/api/user', userRoutes);
 
 app.get('/api', (req: Request, res: Response) => {
     res.json({ message: `Welcome to the mbuffs API! ${process.env.FRONTEND_URL}` });

@@ -146,7 +146,7 @@ export const getCurrentUser = async (req: Request, res: Response, next: NextFunc
     try {
         // Fetch user details based on req.userId
         // Fix: Correct SQL type argument
-        const result = await sql`SELECT id, email, username, avatar_url FROM "user" WHERE id = ${req.userId}`;
+        const result = await sql`SELECT id, email, username, avatar_url, recommendations_enabled, recommendations_collection_id FROM "user" WHERE id = ${req.userId}`;
         console.log(`Fetched user details for ID: ${req.userId}`, result);
          // Fix: Check rowCount
         if (result.length === 0) {

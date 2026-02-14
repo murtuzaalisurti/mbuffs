@@ -4,7 +4,8 @@ import {
     CollectionSummary, CollectionDetails, CollectionCollaborator, UserCollectionsResponse,
     CreateCollectionInput, UpdateCollectionInput, AddMovieInput, AddCollaboratorInput,
     UpdateCollaboratorInput, AddMovieResponse, VideosResponse, CreditsResponse,
-    Genre, GenreListResponse, PersonCreditsResponse, SeasonDetails, TmdbCollectionDetails
+    Genre, GenreListResponse, PersonCreditsResponse, SeasonDetails, TmdbCollectionDetails,
+    UserPreferences, UpdateUserPreferencesInput
 } from './types';
 
 const _dayjs = dayjs();
@@ -93,6 +94,18 @@ export const logoutUserApi = async (): Promise<void> => {
     } catch (error) {
         console.warn("Optional backend logout call failed:", error);
     }
+};
+
+// --- User Preferences API Functions ---
+export const fetchUserPreferencesApi = async (): Promise<{ preferences: UserPreferences }> => {
+    return fetchBackend('/user/preferences');
+};
+
+export const updateUserPreferencesApi = async (data: UpdateUserPreferencesInput): Promise<{ preferences: UserPreferences }> => {
+    return fetchBackend('/user/preferences', {
+        method: 'PUT',
+        body: JSON.stringify(data),
+    });
 };
 
 // --- Collection API Functions (No changes needed, use fetchBackend) ---

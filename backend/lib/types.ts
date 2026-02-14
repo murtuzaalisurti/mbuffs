@@ -6,6 +6,19 @@ export interface DatabaseUserAttributes {
     avatar_url: string | null;
     created_at: Date;
     updated_at: Date;
+    recommendations_enabled: boolean;
+    recommendations_collection_id: string | null;
+}
+
+// --- User Preferences Types ---
+export interface UserPreferences {
+    recommendations_enabled: boolean;
+    recommendations_collection_id: string | null;
+}
+
+export interface UpdateUserPreferencesInput {
+    recommendations_enabled?: boolean;
+    recommendations_collection_id?: string | null;
 }
 
 // --- Backend Collection Types (Subset needed for backend operations/responses) ---

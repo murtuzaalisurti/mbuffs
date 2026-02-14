@@ -165,6 +165,19 @@ export interface User {
   avatar_url?: string | null;
   createdAt?: Date | string; // From Lucia attributes
   updatedAt?: Date | string; // From Lucia attributes
+  recommendations_enabled?: boolean;
+  recommendations_collection_id?: string | null;
+}
+
+// --- User Preferences Types ---
+export interface UserPreferences {
+  recommendations_enabled: boolean;
+  recommendations_collection_id: string | null;
+}
+
+export interface UpdateUserPreferencesInput {
+  recommendations_enabled?: boolean;
+  recommendations_collection_id?: string | null;
 }
 
 // --- Backend Collection Types ---

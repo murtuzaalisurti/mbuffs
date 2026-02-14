@@ -9,6 +9,7 @@ import Collections from "./pages/Collections";
 import CollectionDetail from "./pages/CollectionDetail";
 import Categories from "./pages/Categories";
 import CategoryDetail from "./pages/CategoryDetail";
+import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
 import { useAuth } from './hooks/useAuth';
 import { Loader2 } from 'lucide-react';
@@ -57,6 +58,14 @@ const App = () => (
           <Route path="/person/:personId" element={<PersonDetail />} />
 
           {/* Protected Routes */}
+          <Route
+            path="/profile"
+            element={
+              <ProtectedRoute>
+                <Profile />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/collections"
             element={
