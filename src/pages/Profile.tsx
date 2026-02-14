@@ -124,8 +124,8 @@ const Profile = () => {
                 {/* User Info Card */}
                 <Card className="mb-6">
                     <CardContent className="pt-6">
-                        <div className="flex items-start gap-4">
-                            <Avatar className="h-20 w-20">
+                        <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4">
+                            <Avatar className="h-20 w-20 shrink-0">
                                 <AvatarImage
                                     src={user.avatar_url || user.avatarUrl || undefined}
                                     alt={user.username || 'User'}
@@ -134,17 +134,17 @@ const Profile = () => {
                                     {getInitials(user.username)}
                                 </AvatarFallback>
                             </Avatar>
-                            <div className="flex-1 space-y-1">
+                            <div className="flex-1 min-w-0 space-y-1 text-center sm:text-left w-full">
                                 <h2 className="text-2xl font-semibold">
                                     {user.username || 'User'}
                                 </h2>
-                                <div className="flex items-center gap-2 text-muted-foreground">
-                                    <Mail className="h-4 w-4" />
-                                    <span>{user.email || 'No email'}</span>
+                                <div className="flex items-center justify-center sm:justify-start gap-2 text-muted-foreground">
+                                    <Mail className="h-4 w-4 shrink-0" />
+                                    <span className="truncate">{user.email || 'No email'}</span>
                                 </div>
                                 {user.createdAt && (
-                                    <div className="flex items-center gap-2 text-muted-foreground text-sm">
-                                        <Calendar className="h-4 w-4" />
+                                    <div className="flex items-center justify-center sm:justify-start gap-2 text-muted-foreground text-sm">
+                                        <Calendar className="h-4 w-4 shrink-0" />
                                         <span>Joined {formatDate(user.createdAt)}</span>
                                     </div>
                                 )}
@@ -159,6 +159,9 @@ const Profile = () => {
                         <CardTitle className="flex items-center gap-2">
                             <Sparkles className="h-5 w-5" />
                             Recommendations
+                            <span className="text-xs font-medium bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                                Beta
+                            </span>
                         </CardTitle>
                         <CardDescription>
                             Get personalized movie and TV show recommendations based on your collections.
