@@ -66,7 +66,7 @@ const globalErrorHandler: ErrorRequestHandler = (err, req, res, next) => {
     // Handle Zod validation errors
     if (err instanceof z.ZodError) {
         statusCode = 400; // Bad Request
-        message = err.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
+        message = err.issues.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
     }
     // Add more specific error type handling here if needed
     // else if (err instanceof SomeCustomError) { ... }

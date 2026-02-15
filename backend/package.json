@@ -31,13 +31,13 @@
     "lucia": "^3.2.2",
     "nodemon": "^3.1.11",
     "oslo": "^1.2.1",
-    "zod": "^3.24.3"
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
-    "@types/node": "^22.15.2",
+    "@types/node": "^25.2.3",
     "drizzle-kit": "^0.31.9",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.9.3"
