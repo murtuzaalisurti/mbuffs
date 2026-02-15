@@ -32,6 +32,7 @@ const CollectionPage = () => {
               id: 1,
               title: "Inception",
               poster_path: "/9gk7adHYeDvHkCSEqAvQNLV5Uge.jpg",
+              backdrop_path: "/s3TBrRGB1iav7gFOCNx3H31MoES.jpg",
               release_date: "2010-07-16",
               vote_average: 8.4,
               overview: "Cobb, a skilled thief who commits corporate espionage by infiltrating the subconscious of his targets is offered a chance to regain his old life as payment for a task considered to be impossible."
@@ -40,6 +41,7 @@ const CollectionPage = () => {
               id: 3,
               title: "The Dark Knight",
               poster_path: "/qJ2tW6WMUDux911r6m7haRef0WH.jpg",
+              backdrop_path: "/1T12S3pT2b8E14M8W7qZ1r4b3d8.jpg",
               release_date: "2008-07-18",
               vote_average: 8.5,
               overview: "Batman raises the stakes in his war on crime. With the help of Lt. Jim Gordon and District Attorney Harvey Dent, Batman sets out to dismantle the remaining criminal organizations that plague the streets."

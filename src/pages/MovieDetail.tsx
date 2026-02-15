@@ -167,8 +167,7 @@ const MovieDetail = () => {
 
     // Get target person (Director for movies, Creator for TV)
     const directors = creditsData?.crew?.filter((c: CrewMember) => c.job === 'Director') ?? [];
-    // safe access for created_by as it might be undefined on initial load or if not present
-    const creators = (mediaDetails as any)?.created_by ?? [];
+    const creators = mediaDetails?.created_by ?? [];
 
     const targetPerson = isMovie ? directors[0] : creators[0];
     const targetPersonId = targetPerson?.id;
@@ -471,7 +470,7 @@ const MovieDetail = () => {
                             <div className="pt-2 text-center md:text-left">
                                 <span className="text-sm text-muted-foreground">Directed by </span>
                                 <span className="text-sm font-medium text-foreground/90">
-                                    {directors.map((d: any) => d.name).join(', ')}
+                                    {directors.map((d) => d.name).join(', ')}
                                 </span>
                             </div>
                         )}
@@ -479,7 +478,7 @@ const MovieDetail = () => {
                             <div className="pt-2 text-center md:text-left">
                                 <span className="text-sm text-muted-foreground">Created by </span>
                                 <span className="text-sm font-medium text-foreground/90">
-                                    {creators.map((c: any) => c.name).join(', ')}
+                                    {creators.map((c) => c.name).join(', ')}
                                 </span>
                             </div>
                         )}
@@ -899,8 +898,8 @@ const MovieDetail = () => {
 
                             // Sort by popularity
                             uniqueWorks.sort((a, b) => {
-                                const popA = (a as any).popularity || 0;
-                                const popB = (b as any).popularity || 0;
+                                const popA = a.popularity || 0;
+                                const popB = b.popularity || 0;
                                 return popB - popA;
                             });
 

@@ -129,11 +129,6 @@ const CollectionDetail = () => {
         });
     }, [collectionDetails, moviesDetailsMap, mediaTypeFilter]);
 
-    // Reset visible items count when filter changes
-    useEffect(() => {
-        setVisibleItemsCount(ITEMS_PER_PAGE);
-    }, [mediaTypeFilter]);
-
     const currentVisibleMedia = useMemo(() => {
         return filteredMedia.slice(0, visibleItemsCount);
     }, [filteredMedia, visibleItemsCount]);
@@ -532,7 +527,10 @@ const CollectionDetail = () => {
                     <div className="flex justify-between items-center mb-4">
                         {/* Filter Dropdown */}
                         <div className='flex items-center gap-2 w-auto'>
-                            <Select value={mediaTypeFilter} onValueChange={(value) => setMediaTypeFilter(value)}>
+                            <Select value={mediaTypeFilter} onValueChange={(value) => {
+                                setMediaTypeFilter(value);
+                                setVisibleItemsCount(ITEMS_PER_PAGE);
+                            }}>
                                 <SelectTrigger className="w-full sm:w-[180px] h-9 bg-muted">
                                     <SelectValue placeholder="Filter type" />
                                 </SelectTrigger>
@@ -722,10 +720,6 @@ const AddMovieDialog: React.FC<AddMovieDialogProps> = ({ collectionId, existingM
         setSelectedMovieId(movieId);
         onAddMovie(movieId);
     };
-
-    useEffect(() => {
-        if (!isAddingMovie) { setSelectedMovieId(null); }
-    }, [isAddingMovie]);
 
     const movies = searchResultsData?.pages.flatMap(page => page.results) ?? [];
 

@@ -11,6 +11,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { useDebounce } from '@/hooks/use-debounce';
 import { searchMoviesApi, getImageUrl } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
+import { Movie } from '@/lib/types';
 
 export const Navbar = () => {
   const navigate = useNavigate();
@@ -55,7 +56,7 @@ export const Navbar = () => {
     }
   };
 
-  const handleMobileResultClick = (movie: any) => {
+  const handleMobileResultClick = (movie: Movie) => {
     const mediaType = movie.first_air_date ? 'tv' : 'movie';
     setMobileSearchOpen(false);
     setMobileSearchTerm('');

@@ -34,7 +34,7 @@ export const useAuth = () => {
     queryKey: USER_QUERY_KEY,
     queryFn: fetchCurrentUserApi,
     enabled: !!getToken(), // Only run query if token exists
-    retry: (failureCount, error: any) => {
+    retry: (failureCount, error: Error & { status?: number }) => {
       // Don't retry on 401 Unauthorized (means token is invalid/expired)
       if (error?.status === 401) {
         removeToken(); // Clear invalid token
