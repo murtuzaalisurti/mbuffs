@@ -95,9 +95,10 @@
   }
 
   .glass {
-    backdrop-filter: blur(16px) saturate(180%);
+    backdrop-filter: blur(16px) saturate(180%) !important;
     -webkit-backdrop-filter: blur(16px) saturate(180%);
     background-color: hsl(225 20% 7% / 0.75) !important;
+    transform: translateZ(0); /* GPU boost */
   }
 }
 
