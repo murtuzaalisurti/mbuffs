@@ -111,8 +111,8 @@ export const updateUserPreferencesApi = async (data: UpdateUserPreferencesInput)
 
 // --- Recommendation API Functions ---
 
-export const fetchRecommendationsApi = async (limit: number = 20): Promise<RecommendationsResponse> => {
-    return fetchBackend(`/recommendations?limit=${limit}`);
+export const fetchRecommendationsApi = async (limit: number = 20, page: number = 1): Promise<RecommendationsResponse> => {
+    return fetchBackend(`/recommendations?limit=${limit}&page=${page}`);
 };
 
 export const fetchRecommendationCollectionsApi = async (): Promise<RecommendationCollectionsResponse> => {

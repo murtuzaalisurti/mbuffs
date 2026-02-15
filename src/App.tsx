@@ -32,6 +32,7 @@ import { useToast } from "@/components/ui/use-toast"; // Import the correct useT
 import MovieDetail from './pages/MovieDetail';
 import SeasonDetail from './pages/SeasonDetail';
 import PersonDetail from './pages/PersonDetail';
+import ForYou from './pages/ForYou';
 
 // AuthProvider wrapper to initialize auth and handle token from URL
 const AuthProvider = ({ children }: { children: React.ReactNode }) => {
@@ -58,6 +59,14 @@ const App = () => (
           <Route path="/person/:personId" element={<PersonDetail />} />
 
           {/* Protected Routes */}
+          <Route
+            path="/for-you"
+            element={
+              <ProtectedRoute>
+                <ForYou />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/profile"
             element={

@@ -36,10 +36,54 @@ interface TMDBDetailsResponse {
     keywords?: { keywords?: { id: number; name: string }[]; results?: { id: number; name: string }[] };
 }
 
+interface TMDBCrewMember {
+    id: number;
+    name: string;
+    job: string;
+    department: string;
+    profile_path: string | null;
+}
+
+interface TMDBCastMember {
+    id: number;
+    name: string;
+    character: string;
+    order: number; // Billing order (0 = lead)
+    profile_path: string | null;
+}
+
+interface TMDBCreditsResponse {
+    id: number;
+    cast: TMDBCastMember[];
+    crew: TMDBCrewMember[];
+}
+
+interface TMDBDiscoverResponse {
+    page: number;
+    results: TMDBMovie[];
+    total_pages: number;
+    total_results: number;
+}
+
+interface DirectorInfo {
+    id: number;
+    name: string;
+    count: number; // How many times this director appears in source collections
+}
+
+interface ActorInfo {
+    id: number;
+    name: string;
+    count: number; // How many times this actor appears in source collections
+}
+
 interface RecommendationResult {
     results: TMDBMovie[];
     sourceCollections: { id: string; name: string }[];
     totalSourceItems: number;
+    page: number;
+    total_pages: number;
+    total_results: number;
 }
 
 /**
@@ -104,6 +148,111 @@ async function getItemDetails(movieId: number, isMovie: boolean): Promise<TMDBDe
 }
 
 /**
+ * Get credits (including directors) for a movie/TV show
+ */
+async function getItemCredits(movieId: number, isMovie: boolean): Promise<TMDBCreditsResponse | null> {
+    const mediaType = isMovie ? 'movie' : 'tv';
+    const response = await fetchTMDB<TMDBCreditsResponse>(
+        `/${mediaType}/${movieId}/credits`
+    );
+    return response;
+}
+
+/**
+ * Extract directors from credits response
+ * For movies: crew members with job "Director"
+ * For TV shows: crew members with job "Director" or department "Directing"
+ */
+function extractDirectors(credits: TMDBCreditsResponse | null, isMovie: boolean): TMDBCrewMember[] {
+    if (!credits?.crew) return [];
+    
+    if (isMovie) {
+        return credits.crew.filter(member => member.job === 'Director');
+    } else {
+        // For TV shows, include showrunners and main directors
+        return credits.crew.filter(member => 
+            member.job === 'Director' || 
+            member.department === 'Directing'
+        );
+    }
+}
+
+/**
+ * Extract top cast from credits response
+ * Returns lead actors (top 3 billed) from the cast
+ */
+function extractTopCast(credits: TMDBCreditsResponse | null): TMDBCastMember[] {
+    if (!credits?.cast) return [];
+    
+    // Get top 3 billed actors (leads)
+    return credits.cast
+        .sort((a, b) => a.order - b.order)
+        .slice(0, 3);
+}
+
+/**
+ * Discover movies/TV shows by a specific director using TMDB discover API
+ * Filters by user's preferred genres to show most relevant works
+ * Returns high-rated works by the director in the specified genres
+ */
+async function discoverByDirector(
+    directorId: number, 
+    isMovie: boolean, 
+    preferredGenreIds: number[] = []
+): Promise<TMDBMovie[]> {
+    const mediaType = isMovie ? 'movie' : 'tv';
+    
+    const params: Record<string, string> = {
+        with_crew: directorId.toString(),
+        sort_by: 'vote_average.desc',
+        'vote_count.gte': '100', // Only include well-rated works
+        page: '1'
+    };
+    
+    // Filter by preferred genres if available (use OR logic with pipe separator)
+    if (preferredGenreIds.length > 0) {
+        params.with_genres = preferredGenreIds.join('|');
+    }
+    
+    const response = await fetchTMDB<TMDBDiscoverResponse>(
+        `/discover/${mediaType}`,
+        params
+    );
+    return response?.results || [];
+}
+
+/**
+ * Discover movies/TV shows by a specific actor using TMDB discover API
+ * Filters by user's preferred genres to show most relevant works
+ * Returns popular, high-rated works featuring the actor
+ */
+async function discoverByActor(
+    actorId: number, 
+    isMovie: boolean, 
+    preferredGenreIds: number[] = []
+): Promise<TMDBMovie[]> {
+    const mediaType = isMovie ? 'movie' : 'tv';
+    
+    const params: Record<string, string> = {
+        with_cast: actorId.toString(),
+        sort_by: 'popularity.desc', // Popular works for actors
+        'vote_count.gte': '100',
+        page: '1'
+    };
+    
+    // Filter by preferred genres if available
+    if (preferredGenreIds.length > 0) {
+        params.with_genres = preferredGenreIds.join('|');
+    }
+    
+    const response = await fetchTMDB<TMDBDiscoverResponse>(
+        `/discover/${mediaType}`,
+        params
+    );
+    return response?.results || [];
+}
+
+/**
  * Parse movie ID from collection_movies format
  * Movies are stored as numeric IDs, TV shows as "12345tv"
  */
@@ -152,38 +301,52 @@ async function getMoviesFromRecommendationCollections(userId: string): Promise<C
  * 
  * Strategy:
  * 1. Get all movies/TV shows from user's recommendation source collections
- * 2. For each item, fetch TMDB recommendations and similar content
+ * 2. For each item, fetch TMDB recommendations and similar content (PRIMARY source)
  * 3. Analyze genres to build a preference profile
- * 4. Score and rank recommendations based on:
+ * 4. Analyze directors and actors to build preference profiles
+ * 5. Fetch a small number of best works from favorite directors (supplementary)
+ * 6. Fetch a small number of popular works from favorite actors (supplementary)
+ * 7. Score and rank recommendations based on:
  *    - How many times they appear (popularity across sources)
- *    - Genre match with user preferences
+ *    - Genre match with user preferences (primary factor)
  *    - TMDB rating and popularity
- * 5. Filter out items already in user's collections
- * 6. Return top recommendations
+ *    - Small boost for director/actor matches
+ * 8. Filter out items already in user's collections
+ * 9. Return top recommendations
  */
 export async function generateRecommendations(
     userId: string,
-    limit: number = 20
+    limit: number = 20,
+    page: number = 1
 ): Promise<RecommendationResult> {
+    const emptyResult: RecommendationResult = { 
+        results: [], 
+        sourceCollections: [], 
+        totalSourceItems: 0,
+        page: 1,
+        total_pages: 0,
+        total_results: 0
+    };
+
     // Check if user has recommendations enabled
     const userResult = await sql`
         SELECT recommendations_enabled FROM "user" WHERE id = ${userId}
     `;
     
     if (userResult.length === 0 || !userResult[0].recommendations_enabled) {
-        return { results: [], sourceCollections: [], totalSourceItems: 0 };
+        return emptyResult;
     }
     
     // Get source collections
     const sourceCollections = await getUserRecommendationCollections(userId);
     if (sourceCollections.length === 0) {
-        return { results: [], sourceCollections: [], totalSourceItems: 0 };
+        return emptyResult;
     }
     
     // Get all movies from recommendation source collections
     const sourceMovies = await getMoviesFromRecommendationCollections(userId);
     if (sourceMovies.length === 0) {
-        return { results: [], sourceCollections, totalSourceItems: 0 };
+        return { ...emptyResult, sourceCollections };
     }
     
     // Get all movies the user already has in ANY of their collections (to filter out)
@@ -198,9 +361,11 @@ export async function generateRecommendations(
         (existingMoviesResult as { movie_id: string }[]).map(m => m.movie_id)
     );
     
-    // Build genre preference profile
+    // Build genre, director, and actor preference profiles
     const genreScores: Map<number, number> = new Map();
-    const allRecommendations: Map<string, { item: TMDBMovie; score: number; sources: number }> = new Map();
+    const directorScores: Map<number, DirectorInfo> = new Map();
+    const actorScores: Map<number, ActorInfo> = new Map();
+    const allRecommendations: Map<string, { item: TMDBMovie; score: number; sources: number; isDirectorBased?: boolean; isActorBased?: boolean }> = new Map();
     
     // Sample a subset of source movies to avoid rate limiting (max 10 for API calls)
     const sampleSize = Math.min(sourceMovies.length, 10);
@@ -208,30 +373,61 @@ export async function generateRecommendations(
         .sort(() => Math.random() - 0.5)
         .slice(0, sampleSize);
     
-    // Fetch details and recommendations for each sampled source item
+    // Fetch details, credits, and recommendations for each sampled source item
     const fetchPromises = sampledMovies.map(async (movie) => {
         const { id, isMovie } = parseMovieId(movie.movie_id);
         
-        // Get details for genre profiling
-        const details = await getItemDetails(id, isMovie);
+        // Get details for genre profiling and credits for director profiling
+        const [details, credits, recommendations, similar] = await Promise.all([
+            getItemDetails(id, isMovie),
+            getItemCredits(id, isMovie),
+            getRecommendationsForItem(id, isMovie),
+            getSimilarForItem(id, isMovie)
+        ]);
+        
+        // Build genre profile
         if (details?.genres) {
             details.genres.forEach(genre => {
                 genreScores.set(genre.id, (genreScores.get(genre.id) || 0) + 1);
             });
         }
         
-        // Get recommendations and similar content
-        const [recommendations, similar] = await Promise.all([
-            getRecommendationsForItem(id, isMovie),
-            getSimilarForItem(id, isMovie)
-        ]);
+        // Build director profile
+        const directors = extractDirectors(credits, isMovie);
+        directors.forEach(director => {
+            const existing = directorScores.get(director.id);
+            if (existing) {
+                existing.count += 1;
+            } else {
+                directorScores.set(director.id, {
+                    id: director.id,
+                    name: director.name,
+                    count: 1
+                });
+            }
+        });
+        
+        // Build actor profile (top billed cast)
+        const topCast = extractTopCast(credits);
+        topCast.forEach(actor => {
+            const existing = actorScores.get(actor.id);
+            if (existing) {
+                existing.count += 1;
+            } else {
+                actorScores.set(actor.id, {
+                    id: actor.id,
+                    name: actor.name,
+                    count: 1
+                });
+            }
+        });
         
         return { isMovie, recommendations, similar };
     });
     
     const results = await Promise.all(fetchPromises);
     
-    // Process all recommendations
+    // Process all recommendations from TMDB recommendations/similar
     results.forEach(({ isMovie, recommendations, similar }) => {
         const allItems = [...recommendations, ...similar];
         
@@ -270,16 +466,161 @@ export async function generateRecommendations(
         });
     });
     
-    // Sort by score and return top recommendations
+    // Get top directors/writers - keep it minimal (only top 2 with multiple appearances)
+    const topDirectors = Array.from(directorScores.values())
+        .filter(d => d.count >= 2) // Only directors appearing in 2+ source items
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 2); // Limit to top 2 directors
+    
+    // Get top preferred genres (sorted by score, take top genres for filtering)
+    const topGenreIds = Array.from(genreScores.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3) // Top 3 genres only for tighter filtering
+        .map(([genreId]) => genreId);
+    
+    // Fetch a small number of best works from top directors, filtered by preferred genres
+    const directorWorkPromises = topDirectors.map(async (director) => {
+        // Fetch only movies by this director (skip TV to reduce volume)
+        const movieWorks = await discoverByDirector(director.id, true, topGenreIds);
+        
+        return {
+            director,
+            // Limit to top 3 works per director
+            movieWorks: movieWorks.slice(0, 3)
+        };
+    });
+    
+    const directorResults = await Promise.all(directorWorkPromises);
+    
+    // Process director-based recommendations (supplementary, not primary)
+    // Only add a few best works from favorite directors that match user's genres
+    directorResults.forEach(({ director, movieWorks }) => {
+        movieWorks.forEach(item => {
+            const key = `${item.id}`;
+            
+            // Skip items already in user's collections
+            if (existingMovieIds.has(key)) return;
+            
+            // Calculate genre match score
+            let genreMatchScore = 0;
+            if (item.genre_ids) {
+                item.genre_ids.forEach(genreId => {
+                    genreMatchScore += genreScores.get(genreId) || 0;
+                });
+            }
+            
+            // Skip director works that don't match any preferred genres
+            if (genreMatchScore === 0) return;
+            
+            // Genre match is primary, small director boost
+            const genreWeight = genreMatchScore * 5;
+            const directorBoost = director.count * 3;
+            const baseScore = (item.vote_average || 0) * 10;
+            const popularityScore = Math.min((item.popularity || 0) / 10, 20);
+            const combinedScore = baseScore + popularityScore + genreWeight + directorBoost;
+            
+            const existing = allRecommendations.get(key);
+            if (existing) {
+                // If already recommended via similar/recommendations, give small boost
+                existing.sources += 1;
+                existing.score = Math.max(existing.score, combinedScore) + 10;
+                existing.isDirectorBased = true;
+            } else {
+                allRecommendations.set(key, {
+                    item,
+                    score: combinedScore,
+                    sources: 1,
+                    isDirectorBased: true
+                });
+            }
+        });
+    });
+    
+    // Get top actors - keep it minimal (only top 2 with multiple appearances)
+    const topActors = Array.from(actorScores.values())
+        .filter(a => a.count >= 2) // Only actors appearing in 2+ source items
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 2); // Limit to top 2 actors
+    
+    // Fetch a small number of popular works from top actors, filtered by preferred genres
+    const actorWorkPromises = topActors.map(async (actor) => {
+        // Fetch only movies by this actor (skip TV to reduce volume)
+        const movieWorks = await discoverByActor(actor.id, true, topGenreIds);
+        
+        return {
+            actor,
+            // Limit to top 3 works per actor
+            movieWorks: movieWorks.slice(0, 3)
+        };
+    });
+    
+    const actorResults = await Promise.all(actorWorkPromises);
+    
+    // Process actor-based recommendations (supplementary, not primary)
+    // Only add a few popular works from favorite actors that match user's genres
+    actorResults.forEach(({ actor, movieWorks }) => {
+        movieWorks.forEach(item => {
+            const key = `${item.id}`;
+            
+            // Skip items already in user's collections
+            if (existingMovieIds.has(key)) return;
+            
+            // Calculate genre match score
+            let genreMatchScore = 0;
+            if (item.genre_ids) {
+                item.genre_ids.forEach(genreId => {
+                    genreMatchScore += genreScores.get(genreId) || 0;
+                });
+            }
+            
+            // Skip actor works that don't match any preferred genres
+            if (genreMatchScore === 0) return;
+            
+            // Genre match is primary, small actor boost
+            const genreWeight = genreMatchScore * 5;
+            const actorBoost = actor.count * 3;
+            const baseScore = (item.vote_average || 0) * 10;
+            const popularityScore = Math.min((item.popularity || 0) / 10, 20);
+            const combinedScore = baseScore + popularityScore + genreWeight + actorBoost;
+            
+            const existing = allRecommendations.get(key);
+            if (existing) {
+                // If already recommended via similar/recommendations, give small boost
+                existing.sources += 1;
+                existing.score = Math.max(existing.score, combinedScore) + 10;
+                existing.isActorBased = true;
+            } else {
+                allRecommendations.set(key, {
+                    item,
+                    score: combinedScore,
+                    sources: 1,
+                    isActorBased: true
+                });
+            }
+        });
+    });
+    
+    // Sort by score
     const sortedRecommendations = Array.from(allRecommendations.values())
-        .sort((a, b) => b.score - a.score)
-        .slice(0, limit)
+        .sort((a, b) => b.score - a.score);
+    
+    const totalResults = sortedRecommendations.length;
+    const totalPages = Math.ceil(totalResults / limit);
+    
+    // Paginate results
+    const startIndex = (page - 1) * limit;
+    const endIndex = startIndex + limit;
+    const paginatedResults = sortedRecommendations
+        .slice(startIndex, endIndex)
         .map(r => r.item);
     
     return {
-        results: sortedRecommendations,
+        results: paginatedResults,
         sourceCollections,
-        totalSourceItems: sourceMovies.length
+        totalSourceItems: sourceMovies.length,
+        page,
+        total_pages: totalPages,
+        total_results: totalResults
     };
 }
 

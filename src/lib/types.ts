@@ -194,6 +194,9 @@ export interface RecommendationsResponse {
   results: Movie[];
   sourceCollections: { id: string; name: string }[];
   totalSourceItems: number;
+  page: number;
+  total_pages: number;
+  total_results: number;
 }
 
 export interface RecommendationCollectionsResponse {
