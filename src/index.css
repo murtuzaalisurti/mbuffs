@@ -93,6 +93,12 @@
   ::file-selector-button {
     border-color: var(--color-gray-200, currentcolor);
   }
+
+  .glass {
+    backdrop-filter: blur(16px) saturate(180%);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    background-color: hsl(225 20% 7% / 0.75) !important;
+  }
 }
 
 @utility scrollbar-hide {
@@ -120,13 +126,6 @@
       0 8px 32px -8px hsl(196 80% 50% / 0.15),
       0 4px 16px -4px hsl(0 0% 0% / 0.3);
   }
-}
-
-@utility glass {
-  /* Glass effect */
-  backdrop-filter: blur(16px) saturate(180%);
-  -webkit-backdrop-filter: blur(16px) saturate(180%);
-  background-color: hsl(225 20% 7% / 0.75);
 }
 
 @utility animate-shimmer {
