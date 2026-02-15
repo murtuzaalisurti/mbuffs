@@ -6,14 +6,17 @@ import { MovieCard } from "./MovieCard";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface GenreRowProps {
-  genre: Genre;
+  genre?: Genre;
+  title?: string;
   movies: Movie[];
   mediaType: 'movie' | 'tv';
   isLoading?: boolean;
   limit?: number;
+  hideSeeAll?: boolean;
+  customLink?: string;
 }
 
-export function GenreRow({ genre, movies, mediaType, isLoading = false, limit = 10 }: GenreRowProps) {
+export function GenreRow({ genre, title, movies, mediaType, isLoading = false, limit = 10, hideSeeAll = false, customLink }: GenreRowProps) {
   const displayMovies = movies.slice(0, limit);
 
   if (isLoading) {
@@ -40,6 +43,10 @@ export function GenreRow({ genre, movies, mediaType, isLoading = false, limit = 
     return null;
   }
 
+  const rowTitle = title || genre?.name || "";
+  const linkTarget = customLink || (genre?.id ? `/categories/${mediaType}/${genre.id}` : null);
+  const showSeeAll = !hideSeeAll && linkTarget;
+
   return (
     <div className="space-y-4">
       {/* Header with title and See All link */}
@@ -47,16 +54,18 @@ export function GenreRow({ genre, movies, mediaType, isLoading = false, limit = 
         <div className="flex items-center gap-3">
           <div className="h-6 w-1 rounded-full bg-primary" />
           <h2 className="text-xl md:text-2xl font-semibold tracking-tight">
-            {genre.name}
+            {rowTitle}
           </h2>
         </div>
-        <Link
-          to={`/categories/${mediaType}/${genre.id}`}
-          className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors group"
-        >
-          <span>See all</span>
-          <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-        </Link>
+        {showSeeAll && (
+          <Link
+            to={linkTarget}
+            className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors group"
+          >
+            <span>See all</span>
+            <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+          </Link>
+        )}
       </div>
 
       {/* Scrollable row */}
