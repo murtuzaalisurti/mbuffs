@@ -53,8 +53,8 @@ const Index = () => {
         {/* Hero Section */}
         <section className="relative mb-12 md:mb-16">
           {/* Subtle gradient orb behind the text */}
-          <div className="absolute -top-20 -left-20 w-72 h-72 bg-primary/[0.06] rounded-full blur-3xl pointer-events-none" />
-          <div className="absolute -top-10 left-40 w-48 h-48 bg-purple-500/[0.04] rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute -top-20 -left-20 w-72 h-72 bg-primary/6 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute -top-10 left-40 w-48 h-48 bg-purple-500/4 rounded-full blur-3xl pointer-events-none" />
 
           <div className="relative">
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.1] mb-4">
@@ -85,7 +85,7 @@ const Index = () => {
                   <div className="grid grid-cols-3 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 md:gap-5">
                     {Array.from({ length: 5 }).map((_, index) => (
                       <div key={index} className="space-y-3">
-                        <Skeleton className="aspect-[2/3] w-full rounded-xl" />
+                        <Skeleton className="aspect-2/3 w-full rounded-xl" />
                         <Skeleton className="h-4 w-[75%] rounded-md" />
                         <Skeleton className="h-3 w-[45%] rounded-md" />
                       </div>
@@ -124,7 +124,7 @@ const Index = () => {
                   </div>
                 </div>
               ) : (
-                <div className="rounded-2xl bg-gradient-to-br from-primary/5 via-purple-500/5 to-transparent border border-primary/10 p-6 md:p-8">
+                <div className="rounded-2xl bg-linear-to-br from-primary/5 via-purple-500/5 to-transparent border border-primary/10 p-6 md:p-8">
                   <div className="flex flex-col md:flex-row items-start md:items-center gap-4 md:gap-6">
                     <div className="p-3 rounded-xl bg-primary/10">
                       <Sparkles className="h-6 w-6 text-primary" />
@@ -154,7 +154,7 @@ const Index = () => {
               <div className="grid grid-cols-3 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 md:gap-5">
                 {Array.from({ length: 5 }).map((_, index) => (
                   <div key={index} className="space-y-3">
-                    <Skeleton className="aspect-[2/3] w-full rounded-xl" />
+                    <Skeleton className="aspect-2/3 w-full rounded-xl" />
                     <Skeleton className="h-4 w-[75%] rounded-md" />
                     <Skeleton className="h-3 w-[45%] rounded-md" />
                   </div>

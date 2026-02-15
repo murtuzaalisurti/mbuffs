@@ -71,7 +71,7 @@ const SeasonDetail = () => {
                 <div className="flex flex-col lg:flex-row gap-8 lg:gap-12">
                     {/* Sidebar / Poster */}
                     <div className="w-full sm:w-64 lg:w-72 shrink-0 mx-auto lg:mx-0">
-                        <div className="rounded-xl overflow-hidden shadow-2xl shadow-black/50 border border-white/[0.08] aspect-[2/3]">
+                        <div className="rounded-xl overflow-hidden shadow-2xl shadow-black/50 border border-white/8 aspect-2/3">
                             {seasonDetails.poster_path ? (
                                 <img
                                     src={getImageUrl(seasonDetails.poster_path, 'w500')}
@@ -105,7 +105,7 @@ const SeasonDetail = () => {
                     {/* Episodes List */}
                     <div className="flex-1 space-y-6">
                         {seasonDetails.overview && (
-                            <div className="bg-muted/30 p-6 rounded-xl border border-white/[0.05]">
+                            <div className="bg-muted/30 p-6 rounded-xl border border-white/5">
                                 <h3 className="font-semibold mb-2 text-lg">Season Overview</h3>
                                 <p className="text-muted-foreground leading-relaxed">{seasonDetails.overview}</p>
                             </div>
@@ -120,7 +120,7 @@ const SeasonDetail = () => {
                                         className="flex flex-col md:flex-row bg-card hover:bg-accent/50 transition-colors rounded-lg overflow-hidden border border-border/50 group"
                                     >
                                         {/* Episode Still */}
-                                        <div className="w-full md:w-48 aspect-video md:aspect-[16/9] shrink-0 relative bg-muted">
+                                        <div className="w-full md:w-48 aspect-video md:aspect-video shrink-0 relative bg-muted">
                                             {episode.still_path ? (
                                                 <img
                                                     src={getImageUrl(episode.still_path, 'w300')}

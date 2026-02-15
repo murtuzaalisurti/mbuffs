@@ -76,7 +76,7 @@ export const Navbar = () => {
   return (
     <>
       <header 
-        className={`sticky top-0 z-50 flex items-center gap-4 px-8 transition-all duration-300 ${scrolled ? 'glass border-b border-white/[0.06]' : 'bg-transparent border-b border-transparent'}`}
+        className={`sticky top-0 z-50 flex items-center gap-4 px-8 transition-all duration-300 ${scrolled ? 'glass border-b border-white/6' : 'bg-transparent border-b border-transparent'}`}
         style={{ 
           height: 'calc(4rem + env(safe-area-inset-top))', 
           paddingTop: 'env(safe-area-inset-top)' 
@@ -97,7 +97,7 @@ export const Navbar = () => {
                 </linearGradient>
               </defs>
             </svg>
-            <span className="bg-gradient-to-r from-white to-white/80 bg-clip-text text-transparent">mbuffs</span>
+            <span className="bg-linear-to-r from-white to-white/80 bg-clip-text text-transparent">mbuffs</span>
           </Link>
           <Link
             to="/categories"
@@ -115,7 +115,7 @@ export const Navbar = () => {
             <Button
               variant="ghost"
               size="icon"
-              className="sm:hidden h-9 w-9 rounded-full bg-black/40 backdrop-blur-md border border-white/[0.12] hover:bg-black/50"
+              className="sm:hidden h-9 w-9 rounded-full bg-black/40 backdrop-blur-md border border-white/12 hover:bg-black/50"
               onClick={() => setMobileSearchOpen(true)}
             >
               <Search className="h-4 w-4 text-white/60" />
@@ -128,7 +128,7 @@ export const Navbar = () => {
                 <Input
                   type="text"
                   placeholder="Search movies..."
-                  className="!pl-9 !pr-4 !h-9 sm:w-48 md:w-64 lg:w-80 !bg-black/40 !backdrop-blur-md !text-white !placeholder-white/50 !rounded-xl !border-white/[0.12] !ring-offset-0 focus-visible:!ring-1 focus-visible:!ring-primary/40 focus-visible:!bg-black/50 focus-visible:!border-primary/30 transition-all"
+                  className="pl-9! pr-4! h-9! sm:w-48 md:w-64 lg:w-80 bg-black/40! backdrop-blur-md! text-white! placeholder-white/50! rounded-xl! border-white/12! ring-offset-0! focus-visible:ring-1! focus-visible:ring-primary/40! focus-visible:bg-black/50! focus-visible:border-primary/30! transition-all"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
@@ -202,7 +202,7 @@ export const Navbar = () => {
               <Input
                 type="text"
                 placeholder="Search movies & shows..."
-                className="!pl-9 !h-10 !rounded-lg !bg-white/[0.06] !border-white/[0.1] !text-white !placeholder-white/40 !ring-offset-0 focus-visible:!ring-1 focus-visible:!ring-primary/40 focus-visible:!border-primary/30"
+                className="pl-9! h-10! rounded-lg! bg-white/6! border-white/10! text-white! placeholder-white/40! ring-offset-0! focus-visible:ring-1! focus-visible:ring-primary/40! focus-visible:border-primary/30!"
                 value={mobileSearchTerm}
                 onChange={(e) => setMobileSearchTerm(e.target.value)}
                 autoFocus
@@ -233,16 +233,16 @@ export const Navbar = () => {
               {mobileResults.slice(0, 10).map((movie) => (
                 <button
                   key={movie.id}
-                  className="flex items-center gap-3 w-full p-2 rounded-lg hover:bg-white/[0.06] transition-colors text-left"
+                  className="flex items-center gap-3 w-full p-2 rounded-lg hover:bg-white/6 transition-colors text-left"
                   onClick={() => handleMobileResultClick(movie)}
                 >
                   <img
                     src={getImageUrl(movie.poster_path, 'w92')}
                     alt={movie.name || movie.title}
-                    className="h-14 w-10 rounded-md object-cover bg-muted flex-shrink-0"
+                    className="h-14 w-10 rounded-md object-cover bg-muted shrink-0"
                     onError={(e) => { (e.target as HTMLImageElement).src = '/placeholder.svg'; }}
                   />
-                  <div className="flex-grow min-w-0">
+                  <div className="grow min-w-0">
                     <p className="text-sm font-medium truncate">{movie.name || movie.title}</p>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       {(movie.release_date || movie.first_air_date) && (

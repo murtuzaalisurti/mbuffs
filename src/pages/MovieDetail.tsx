@@ -18,7 +18,7 @@ const TMDB_LOGO_BASE = 'https://image.tmdb.org/t/p/w92';
 
 function NetworkBadge({ network }: { network: Network }) {
     return (
-        <div className="flex items-center justify-center rounded-md bg-white/[0.06] border border-white/[0.08] px-2 py-1 transition-colors hover:bg-white/[0.1]" title={network.name}>
+        <div className="flex items-center justify-center rounded-md bg-white/6 border border-white/8 px-2 py-1 transition-colors hover:bg-white/10" title={network.name}>
             {network.logo_path ? (
                 <img
                     src={`${TMDB_LOGO_BASE}${network.logo_path}`}
@@ -43,7 +43,7 @@ function ProviderList({ title, providers }: { title: string, providers: WatchPro
                         <img
                             src={`${TMDB_LOGO_BASE}${p.logo_path}`}
                             alt={p.provider_name}
-                            className="w-10 h-10 rounded-md shadow-md border border-white/[0.08] transition-transform group-hover:scale-105"
+                            className="w-10 h-10 rounded-md shadow-md border border-white/8 transition-transform group-hover:scale-105"
                         />
                     </div>
                 ))}
@@ -84,9 +84,9 @@ const CollectionSection = ({ collectionId, currentMediaId }: { collectionId: num
                     <Link
                         key={part.id}
                         to={`/media/movie/${part.id}`}
-                        className="flex-shrink-0 w-36 md:w-44 snap-center group/card block"
+                        className="shrink-0 w-36 md:w-44 snap-center group/card block"
                     >
-                        <div className="aspect-[2/3] rounded-lg overflow-hidden border border-white/[0.08] bg-muted shadow-md mb-2 relative">
+                        <div className="aspect-2/3 rounded-lg overflow-hidden border border-white/8 bg-muted shadow-md mb-2 relative">
                             {part.poster_path ? (
                                 <img
                                     src={getImageUrl(part.poster_path, 'w342')}
@@ -302,18 +302,18 @@ const MovieDetail = () => {
             {/* Skeleton backdrop — matches real backdrop area */}
             <div className="-mt-16 relative w-full h-[50vh] md:h-[60vh] overflow-hidden">
                 <Skeleton className="absolute inset-0 rounded-none" />
-                <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-background/20" />
+                <div className="absolute inset-0 bg-linear-to-t from-background via-background/60 to-background/20" />
             </div>
 
             <main className="container relative z-10 -mt-40 md:-mt-48 pb-12">
                 <div className="flex flex-col md:flex-row gap-6 md:gap-8">
                     {/* Poster skeleton */}
-                    <div className="w-48 md:w-56 lg:w-64 flex-shrink-0 mx-auto md:mx-0">
-                        <Skeleton className="w-full aspect-[2/3] rounded-xl" />
+                    <div className="w-48 md:w-56 lg:w-64 shrink-0 mx-auto md:mx-0">
+                        <Skeleton className="w-full aspect-2/3 rounded-xl" />
                     </div>
 
                     {/* Details skeleton */}
-                    <div className="flex-grow flex flex-col items-center md:items-start space-y-4 pt-2 md:pt-8 w-full">
+                    <div className="grow flex flex-col items-center md:items-start space-y-4 pt-2 md:pt-8 w-full">
                         <Skeleton className="h-10 w-64 md:w-80 rounded-lg" />
                         <Skeleton className="h-5 w-48 rounded-md" />
                         <Skeleton className="h-4 w-32 rounded-md" />
@@ -350,7 +350,7 @@ const MovieDetail = () => {
             <>
                 <Navbar />
                 <main className="container py-20 text-center">
-                    <div className="rounded-2xl bg-red-500/[0.05] border border-red-500/10 p-8 max-w-lg mx-auto">
+                    <div className="rounded-2xl bg-red-500/5 border border-red-500/10 p-8 max-w-lg mx-auto">
                         <p className="text-red-500 font-medium">Error loading details: {error?.message ?? 'Unknown error'}</p>
                     </div>
                 </main>
@@ -405,27 +405,27 @@ const MovieDetail = () => {
                     </div>
                 )}
                 {/* Multi-layer gradient overlay for smooth blending */}
-                <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-background/20" />
-                <div className="absolute inset-0 bg-gradient-to-r from-background/50 to-transparent" />
+                <div className="absolute inset-0 bg-linear-to-t from-background via-background/60 to-background/20" />
+                <div className="absolute inset-0 bg-linear-to-r from-background/50 to-transparent" />
             </div>
 
             {/* Main Content — overlaps backdrop */}
             <main className="container relative z-10 -mt-40 md:-mt-48 pb-12">
                 <div className="flex flex-col md:flex-row gap-6 md:gap-8">
                     {/* Poster */}
-                    <div className="w-48 md:w-56 lg:w-64 flex-shrink-0 mx-auto md:mx-0">
-                        <div className="rounded-xl overflow-hidden shadow-2xl shadow-black/50 border border-white/[0.08]">
+                    <div className="w-48 md:w-56 lg:w-64 shrink-0 mx-auto md:mx-0">
+                        <div className="rounded-xl overflow-hidden shadow-2xl shadow-black/50 border border-white/8">
                             <img
                                 src={posterPath ? getImageUrl(posterPath, 'w500') : '/placeholder.svg'}
                                 alt={title}
-                                className="w-full h-auto aspect-[2/3] object-cover bg-muted"
+                                className="w-full h-auto aspect-2/3 object-cover bg-muted"
                                 onError={(e) => { (e.target as HTMLImageElement).src = '/placeholder.svg'; }}
                             />
                         </div>
                     </div>
 
                     {/* Details */}
-                    <div className="flex-grow space-y-4 text-center md:text-left pt-2 md:pt-8">
+                    <div className="grow space-y-4 text-center md:text-left pt-2 md:pt-8">
                         <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight leading-tight">{title}</h1>
 
                         {tagline && (
@@ -457,7 +457,7 @@ const MovieDetail = () => {
                                     <span className="hidden md:inline text-white/20">|</span>
                                     <div className="flex flex-wrap justify-center md:justify-start gap-2">
                                         {genres.map(genre => (
-                                            <Badge key={genre.id} variant="outline" className="border-white/[0.1] text-foreground/70 px-2 py-0 h-5 text-xs font-normal">
+                                            <Badge key={genre.id} variant="outline" className="border-white/10 text-foreground/70 px-2 py-0 h-5 text-xs font-normal">
                                                 {genre.name}
                                             </Badge>
                                         ))}
@@ -505,7 +505,7 @@ const MovieDetail = () => {
                                 <PopoverTrigger asChild>
                                     <Button
                                         variant="outline"
-                                        className="border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] text-foreground/90 gap-2"
+                                        className="border-white/10 bg-white/4 hover:bg-white/8 text-foreground/90 gap-2"
                                     >
                                         <Bookmark className={`h-4 w-4 ${isInAnyCollection ? 'fill-current' : ''}`} />
                                         <span>Save</span>
@@ -605,8 +605,8 @@ const MovieDetail = () => {
                             <h2 className="text-xl md:text-2xl font-semibold text-foreground/90">Trailers & Clips</h2>
                             <div className="flex overflow-x-auto gap-4 pb-4 snap-x scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
                                 {videos.map((video: Video) => (
-                                    <div key={video.key} className="flex-shrink-0 w-80 md:w-96 snap-center group/card">
-                                        <div className="relative aspect-video rounded-xl overflow-hidden border border-white/[0.08] bg-muted shadow-lg shadow-black/20">
+                                    <div key={video.key} className="shrink-0 w-80 md:w-96 snap-center group/card">
+                                        <div className="relative aspect-video rounded-xl overflow-hidden border border-white/8 bg-muted shadow-lg shadow-black/20">
                                             {playingVideoId === video.key ? (
                                                 <iframe
                                                     src={`https://www.youtube.com/embed/${video.key}?autoplay=1&rel=0`}
@@ -665,9 +665,9 @@ const MovieDetail = () => {
                                     <Link
                                         key={season.id}
                                         to={`/tv/${mediaId}/season/${season.season_number}`}
-                                        className="flex-shrink-0 w-36 md:w-44 snap-center group/card block"
+                                        className="shrink-0 w-36 md:w-44 snap-center group/card block"
                                     >
-                                        <div className="aspect-[2/3] rounded-lg overflow-hidden border border-white/[0.08] bg-muted shadow-md mb-2 relative">
+                                        <div className="aspect-2/3 rounded-lg overflow-hidden border border-white/8 bg-muted shadow-md mb-2 relative">
                                             {season.poster_path ? (
                                                 <img
                                                     src={getImageUrl(season.poster_path, 'w342')}
@@ -715,8 +715,8 @@ const MovieDetail = () => {
                                     className="flex overflow-x-auto gap-4 pb-4 snap-x scrollbar-hide px-4 pr-16"
                                 >
                                     {cast.map((member: CastMember) => (
-                                        <Link key={member.id} to={`/person/${member.id}`} className="flex-shrink-0 w-24 flex flex-col items-center text-center snap-center group">
-                                            <div className="w-20 h-20 rounded-full overflow-hidden bg-muted/30 border border-white/[0.08] mb-2 transition-transform duration-300 group-hover:scale-105">
+                                        <Link key={member.id} to={`/person/${member.id}`} className="shrink-0 w-24 flex flex-col items-center text-center snap-center group">
+                                            <div className="w-20 h-20 rounded-full overflow-hidden bg-muted/30 border border-white/8 mb-2 transition-transform duration-300 group-hover:scale-105">
                                                 {member.profile_path ? (
                                                     <img
                                                         src={getImageUrl(member.profile_path, 'w185')}
@@ -736,7 +736,7 @@ const MovieDetail = () => {
                                 </div>
                                 <button
                                     onClick={() => scrollRight(castScrollRef)}
-                                    className="absolute right-0 top-0 bottom-4 w-16 flex items-center justify-center bg-gradient-to-l from-background via-background/80 to-transparent"
+                                    className="absolute right-0 top-0 bottom-4 w-16 flex items-center justify-center bg-linear-to-l from-background via-background/80 to-transparent"
                                     aria-label="Scroll right"
                                 >
                                     <ChevronRight className="w-5 h-5 text-foreground/60" />
@@ -746,7 +746,7 @@ const MovieDetail = () => {
                             <div className="hidden md:grid grid-cols-4 lg:grid-cols-6 gap-x-6 gap-y-6">
                                 {cast.map((member: CastMember) => (
                                     <Link key={member.id} to={`/person/${member.id}`} className="flex flex-col items-center text-center group">
-                                        <div className="w-24 h-24 rounded-full overflow-hidden bg-muted/30 border border-white/[0.08] mb-2 transition-transform duration-300 group-hover:scale-105">
+                                        <div className="w-24 h-24 rounded-full overflow-hidden bg-muted/30 border border-white/8 mb-2 transition-transform duration-300 group-hover:scale-105">
                                             {member.profile_path ? (
                                                 <img
                                                     src={getImageUrl(member.profile_path, 'w185')}
@@ -811,8 +811,8 @@ const MovieDetail = () => {
                                         className="flex overflow-x-auto gap-4 pb-4 snap-x scrollbar-hide px-4 pr-16"
                                     >
                                         {uniqueCrew.map((member) => (
-                                            <Link key={member.id} to={`/person/${member.id}`} className="flex-shrink-0 w-24 flex flex-col items-center text-center snap-center group">
-                                                <div className="w-20 h-20 rounded-full overflow-hidden bg-muted/30 border border-white/[0.08] mb-2 transition-transform duration-300 group-hover:scale-105">
+                                            <Link key={member.id} to={`/person/${member.id}`} className="shrink-0 w-24 flex flex-col items-center text-center snap-center group">
+                                                <div className="w-20 h-20 rounded-full overflow-hidden bg-muted/30 border border-white/8 mb-2 transition-transform duration-300 group-hover:scale-105">
                                                     {member.profile_path ? (
                                                         <img
                                                             src={getImageUrl(member.profile_path, 'w185')}
@@ -832,7 +832,7 @@ const MovieDetail = () => {
                                     </div>
                                     <button
                                         onClick={() => scrollRight(crewScrollRef)}
-                                        className="absolute right-0 top-0 bottom-4 w-16 flex items-center justify-center bg-gradient-to-l from-background via-background/80 to-transparent"
+                                        className="absolute right-0 top-0 bottom-4 w-16 flex items-center justify-center bg-linear-to-l from-background via-background/80 to-transparent"
                                         aria-label="Scroll right"
                                     >
                                         <ChevronRight className="w-5 h-5 text-foreground/60" />
@@ -842,7 +842,7 @@ const MovieDetail = () => {
                                 <div className="hidden md:grid grid-cols-4 lg:grid-cols-6 gap-x-6 gap-y-6">
                                     {uniqueCrew.map((member) => (
                                         <Link key={member.id} to={`/person/${member.id}`} className="flex flex-col items-center text-center group">
-                                            <div className="w-24 h-24 rounded-full overflow-hidden bg-muted/30 border border-white/[0.08] mb-2 transition-transform duration-300 group-hover:scale-105">
+                                            <div className="w-24 h-24 rounded-full overflow-hidden bg-muted/30 border border-white/8 mb-2 transition-transform duration-300 group-hover:scale-105">
                                                 {member.profile_path ? (
                                                     <img
                                                         src={getImageUrl(member.profile_path, 'w185')}
@@ -918,9 +918,9 @@ const MovieDetail = () => {
                                             <Link
                                                 key={`${work.media_type}-${work.id}`}
                                                 to={`/media/${work.media_type}/${work.id}`}
-                                                className="flex-shrink-0 w-32 md:w-40 snap-center group/card block"
+                                                className="shrink-0 w-32 md:w-40 snap-center group/card block"
                                             >
-                                                <div className="aspect-[2/3] rounded-lg overflow-hidden border border-white/[0.08] bg-muted shadow-md mb-2">
+                                                <div className="aspect-2/3 rounded-lg overflow-hidden border border-white/8 bg-muted shadow-md mb-2">
                                                     <img
                                                         src={getImageUrl(work.poster_path, 'w342')}
                                                         alt={work.title || work.name}

@@ -19,11 +19,11 @@ export function MovieCard({ movie, onClick }: MovieCardProps) {
   return (
     <Link to={navLink} className="group block card-glow rounded-xl transition-transform duration-300 group-hover:scale-[1.03]">
       <div 
-        className="relative overflow-hidden rounded-xl bg-card border border-white/[0.06]"
+        className="relative overflow-hidden rounded-xl bg-card border border-white/6"
         onClick={onClick}
       >
         {/* Poster Image */}
-        <div className="aspect-[2/3] relative overflow-hidden">
+        <div className="aspect-2/3 relative overflow-hidden">
           <img
             src={getImageUrl(movie.poster_path)}
             alt={movie.name || movie.title}
@@ -32,7 +32,7 @@ export function MovieCard({ movie, onClick }: MovieCardProps) {
           />
           
           {/* Gradient overlay — always visible at bottom, intensifies on hover */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent opacity-100 transition-opacity duration-300" />
+          <div className="absolute inset-0 bg-linear-to-t from-black/90 via-black/40 to-transparent opacity-100 transition-opacity duration-300" />
 
 
           {/* Title Overlay */}

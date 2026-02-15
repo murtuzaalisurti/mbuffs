@@ -312,7 +312,7 @@ const CollectionDetail = () => {
                 {/* Header Section */}
                 <div className="mb-12">
                     <div className="flex flex-row justify-between items-start gap-4 mb-2">
-                        <div className="flex-grow min-w-0">
+                        <div className="grow min-w-0">
                             <h1 className="text-3xl font-bold flex items-center gap-2">
                                 {collection.name}
                                 {canEdit && (
@@ -354,7 +354,7 @@ const CollectionDetail = () => {
                             </h1>
                             {collection.description && (<p className="text-muted-foreground max-w-prose">{collection.description}</p>)}
                         </div>
-                        <div className="flex items-center gap-2 flex-shrink-0">
+                        <div className="flex items-center gap-2 shrink-0">
                             {isOwner && (
                                 <AlertDialog>
                                     <AlertDialogTrigger asChild>
@@ -495,7 +495,7 @@ const CollectionDetail = () => {
                                             {isOwner && (
                                                 <AlertDialog>
                                                     <AlertDialogTrigger asChild>
-                                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive flex-shrink-0" disabled={removeCollaboratorMutation.isPending && removeCollaboratorMutation.variables?.userId === c.user_id}>
+                                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0" disabled={removeCollaboratorMutation.isPending && removeCollaboratorMutation.variables?.userId === c.user_id}>
                                                             {(removeCollaboratorMutation.isPending && removeCollaboratorMutation.variables?.userId === c.user_id) ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserMinus className="h-4 w-4" />}
                                                         </Button>
                                                     </AlertDialogTrigger>
@@ -574,7 +574,7 @@ const CollectionDetail = () => {
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                             {Array.from({ length: collectionDetails.movies.length || 6 }).map((_, i) =>
                                 <div key={i} className="space-y-2">
-                                    <Skeleton className="aspect-[2/3] w-full rounded-md" />
+                                    <Skeleton className="aspect-2/3 w-full rounded-md" />
                                     <Skeleton className="h-3 w-[80%]" />
                                 </div>
                             )}
@@ -586,7 +586,7 @@ const CollectionDetail = () => {
                                     const movie = moviesDetailsMap?.[movieEntry.movie_id];
                                     if (!movie) return (
                                         <Card key={movieEntry.movie_id} className="relative group overflow-hidden">
-                                            <Skeleton className="aspect-[2/3] w-full" />
+                                            <Skeleton className="aspect-2/3 w-full" />
                                             {/* Still show remove button on skeleton if needed */}
                                             {canEdit && (
                                                 <div className="absolute top-2 right-2 z-10">
@@ -760,8 +760,8 @@ const AddMovieDialog: React.FC<AddMovieDialogProps> = ({ collectionId, existingM
                         const isCurrentMovieAdding = isAddingMovie && selectedMovieId === movieId;
                         return (
                             <div key={movie.id + i} className="flex items-center gap-4 p-2 hover:bg-muted/50 rounded">
-                                <img src={getImageUrl(movie.poster_path, 'w92')} alt={movie.name || movie.title} className="h-16 w-auto rounded aspect-[2/3] object-cover bg-muted" onError={(e) => { (e.target as HTMLImageElement).src = '/placeholder.svg'; }} />
-                                <div className="flex-grow">
+                                <img src={getImageUrl(movie.poster_path, 'w92')} alt={movie.name || movie.title} className="h-16 w-auto rounded aspect-2/3 object-cover bg-muted" onError={(e) => { (e.target as HTMLImageElement).src = '/placeholder.svg'; }} />
+                                <div className="grow">
                                     <p className="font-medium">{movie.name || movie.title}</p>
                                     <p className="text-sm text-muted-foreground">{(movie.first_air_date || movie.release_date)?.substring(0, 4)}</p>
                                 </div>

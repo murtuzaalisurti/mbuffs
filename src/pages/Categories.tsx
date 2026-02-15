@@ -20,8 +20,8 @@ const Categories = () => {
         <section className="mb-8 md:mb-12">
           <div className="relative">
             {/* Subtle gradient orb */}
-            <div className="absolute -top-20 -left-20 w-72 h-72 bg-primary/[0.06] rounded-full blur-3xl pointer-events-none" />
-            <div className="absolute -top-10 left-40 w-48 h-48 bg-purple-500/[0.04] rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute -top-20 -left-20 w-72 h-72 bg-primary/6 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute -top-10 left-40 w-48 h-48 bg-purple-500/4 rounded-full blur-3xl pointer-events-none" />
             
             <div className="relative">
               <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight leading-[1.1] mb-4">
@@ -37,12 +37,12 @@ const Categories = () => {
         {/* Tabs for Movies / TV Shows */}
         <Tabs defaultValue="movie" className="w-full">
           <div className="flex justify-start overflow-x-auto scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
-            <TabsList className="mb-8 bg-white/[0.04] border border-white/[0.08] w-max">
-              <TabsTrigger value="movie" className="data-[state=active]:bg-white/[0.1] gap-2">
+            <TabsList className="mb-8 bg-white/4 border border-white/8 w-max">
+              <TabsTrigger value="movie" className="data-[state=active]:bg-white/10 gap-2">
                 <Film className="h-4 w-4" />
                 Movies
               </TabsTrigger>
-              <TabsTrigger value="tv" className="data-[state=active]:bg-white/[0.1] gap-2">
+              <TabsTrigger value="tv" className="data-[state=active]:bg-white/10 gap-2">
                 <Tv className="h-4 w-4" />
                 TV Shows
               </TabsTrigger>
@@ -87,8 +87,8 @@ function GenreRowsContent({ mediaType, featuredGenreIds }: { mediaType: 'movie' 
             </div>
             <div className="flex gap-4 overflow-hidden">
               {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="flex-shrink-0 w-[140px] sm:w-[160px] md:w-[180px]">
-                  <Skeleton className="aspect-[2/3] w-full rounded-xl" />
+                <div key={i} className="shrink-0 w-[140px] sm:w-[160px] md:w-[180px]">
+                  <Skeleton className="aspect-2/3 w-full rounded-xl" />
                   <Skeleton className="h-4 w-[75%] mt-3 rounded-md" />
                   <Skeleton className="h-3 w-[45%] mt-2 rounded-md" />
                 </div>

@@ -12,7 +12,7 @@ export function MovieGrid({ movies, title }: MovieGridProps) {
 
   if (movies.length === 0) {
     return (
-      <div className="text-center py-16 rounded-2xl bg-white/[0.02] border border-white/[0.06]">
+      <div className="text-center py-16 rounded-2xl bg-white/2 border border-white/6">
         <h2 className="text-xl font-semibold mb-2">
           {title ? title : "No movies found"}
         </h2>
