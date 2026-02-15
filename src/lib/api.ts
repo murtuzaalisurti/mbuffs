@@ -6,7 +6,8 @@ import {
     UpdateCollaboratorInput, AddMovieResponse, VideosResponse, CreditsResponse,
     Genre, GenreListResponse, PersonCreditsResponse, SeasonDetails, TmdbCollectionDetails,
     UserPreferences, UpdateUserPreferencesInput,
-    RecommendationsResponse, RecommendationCollectionsResponse
+    RecommendationsResponse, RecommendationCollectionsResponse,
+    CombinedRatingsResponse
 } from './types';
 
 const _dayjs = dayjs();
@@ -693,5 +694,20 @@ export const fetchTvByGenreApi = async (genreId: number, page = 1): Promise<Sear
     } catch (error) {
         console.error(`Failed to fetch TV shows for genre ${genreId}:`, error);
         return defaultResult;
+    }
+};
+
+// --- Ratings & Parental Guidance API Functions ---
+
+export const fetchCombinedRatingsApi = async (
+    mediaType: 'movie' | 'tv',
+    tmdbId: number | string,
+    region = 'US'
+): Promise<CombinedRatingsResponse | null> => {
+    try {
+        return await fetchBackend(`/ratings/${mediaType}/${tmdbId}?region=${region}`);
+    } catch (error) {
+        console.error(`Failed to fetch ratings for ${mediaType} ${tmdbId}:`, error);
+        return null;
     }
 };

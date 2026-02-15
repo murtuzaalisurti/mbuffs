@@ -1,10 +1,12 @@
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchMovieDetailsApi, fetchTvDetailsApi, fetchVideosApi, fetchCreditsApi, fetchPersonCreditsApi, fetchUserCollectionsApi, fetchCollectionDetailsApi, addMovieToCollectionApi, removeMovieFromCollectionApi, getImageUrl, fetchUserRegion, fetchTmdbCollectionDetailsApi } from '@/lib/api';
-import { MovieDetails, Network, Video, CastMember, CrewMember, CollectionSummary, WatchProvider, PersonCreditsResponse, PersonCredit, VideosResponse, CreditsResponse, TmdbCollectionDetails } from '@/lib/types';
+import { fetchMovieDetailsApi, fetchTvDetailsApi, fetchVideosApi, fetchCreditsApi, fetchPersonCreditsApi, fetchUserCollectionsApi, fetchCollectionDetailsApi, addMovieToCollectionApi, removeMovieFromCollectionApi, getImageUrl, fetchUserRegion, fetchTmdbCollectionDetailsApi, fetchCombinedRatingsApi } from '@/lib/api';
+import { MovieDetails, Network, Video, CastMember, CrewMember, CollectionSummary, WatchProvider, PersonCreditsResponse, PersonCredit, VideosResponse, CreditsResponse, TmdbCollectionDetails, CombinedRatingsResponse } from '@/lib/types';
 import { Navbar } from "@/components/Navbar";
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
+import { CertificationBadge } from '@/components/CertificationBadge';
+import { ParentalGuidance } from '@/components/ParentalGuidance';
 
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -212,6 +214,14 @@ const MovieDetail = () => {
         queryKey: ['userRegion'],
         queryFn: fetchUserRegion,
         staleTime: Infinity,
+    });
+
+    // Fetch combined ratings (certification + parental guidance)
+    const { data: ratingsData, isLoading: isLoadingRatings } = useQuery<CombinedRatingsResponse | null>({
+        queryKey: [mediaType, 'ratings', mediaId, userRegion],
+        queryFn: () => fetchCombinedRatingsApi(mediaType as 'movie' | 'tv', Number(mediaId), userRegion || 'US'),
+        enabled: !!mediaId && !!mediaType && isLoggedIn,
+        // staleTime: 1000 * 60 * 60 * 24, // Cache for 24 hours
     });
 
     // Construct the media ID as stored in collections (TV shows have 'tv' suffix)
@@ -436,6 +446,13 @@ const MovieDetail = () => {
                             {releaseDate && (
                                 <span className="font-medium text-foreground/80">{new Date(releaseDate).getFullYear()}</span>
                             )}
+                            {/* Certification Badge */}
+                            {ratingsData?.certification?.certification && (
+                                <>
+                                    <span className="text-white/20">|</span>
+                                    <CertificationBadge certification={ratingsData.certification.certification} />
+                                </>
+                            )}
                             {rating && rating !== '0.0' && (
                                 <>
                                     <span className="text-white/20">|</span>
@@ -595,6 +612,16 @@ const MovieDetail = () => {
                                     </button>
                                 )}
                             </div>
+                        </section>
+                    )}
+
+                    {/* Parental Guidance Section */}
+                    {isLoggedIn && (ratingsData?.parentalGuidance || isLoadingRatings) && (
+                        <section className="max-w-2xl">
+                            <ParentalGuidance 
+                                data={ratingsData?.parentalGuidance || null}
+                                isLoading={isLoadingRatings}
+                            />
                         </section>
                     )}
 

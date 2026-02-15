@@ -332,3 +332,40 @@ export interface SeasonDetails {
   season_number: number;
   vote_average: number;
 }
+
+// --- Parental Guidance & Certification Types ---
+export type SeverityLevel = 'none' | 'mild' | 'moderate' | 'severe';
+
+export interface ParentalGuidanceData {
+  imdbId: string;
+  tmdbId: string;
+  mediaType: 'movie' | 'tv';
+  nudity: SeverityLevel | null;
+  violence: SeverityLevel | null;
+  profanity: SeverityLevel | null;
+  alcohol: SeverityLevel | null;
+  frightening: SeverityLevel | null;
+  nudityDescription: string | null;
+  violenceDescription: string | null;
+  profanityDescription: string | null;
+  alcoholDescription: string | null;
+  frighteningDescription: string | null;
+}
+
+export interface CertificationData {
+  certification: string | null;
+  region: string;
+}
+
+export interface CombinedRatingsResponse {
+  tmdbId: string;
+  mediaType: 'movie' | 'tv';
+  certification: CertificationData | null;
+  parentalGuidance: {
+    nudity: SeverityLevel | null;
+    violence: SeverityLevel | null;
+    profanity: SeverityLevel | null;
+    alcohol: SeverityLevel | null;
+    frightening: SeverityLevel | null;
+  } | null;
+}

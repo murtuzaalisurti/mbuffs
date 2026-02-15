@@ -9,6 +9,7 @@ import collectionRoutes from '../routes/collectionRoutes.js';
 import contentRoutes from '../routes/contentRoutes.js';
 import userRoutes from '../routes/userRoutes.js';
 import recommendationRoutes from '../routes/recommendationRoutes.js';
+import parentalGuidanceRoutes from '../routes/parentalGuidanceRoutes.js';
 // import { testDbConnection } from './lib/db';
 
 dotenv.config({
@@ -51,6 +52,7 @@ app.use('/api/collections', collectionRoutes);
 app.use('/api/content', contentRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/recommendations', recommendationRoutes);
+app.use('/api/ratings', parentalGuidanceRoutes);
 
 app.get('/api', (req: Request, res: Response) => {
     res.json({ message: `Welcome to the mbuffs API! ${process.env.FRONTEND_URL}` });
