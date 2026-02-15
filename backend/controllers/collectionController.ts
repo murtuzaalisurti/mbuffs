@@ -115,7 +115,7 @@ export const createCollection = async (req: Request, res: Response, next: NextFu
     try {
         const validation = createCollectionSchema.safeParse(req.body);
         if (!validation.success) {
-            res.status(400).json({ message: 'Validation failed', errors: validation.error.errors });
+            res.status(400).json({ message: 'Validation failed', errors: validation.error.issues });
             return;
         }
         const { name, description } = validation.data;
@@ -144,7 +144,7 @@ export const updateCollection = async (req: Request, res: Response, next: NextFu
     try {
         const validation = updateCollectionSchema.safeParse(req.body);
         if (!validation.success) {
-            res.status(400).json({ message: 'Validation failed', errors: validation.error.errors });
+            res.status(400).json({ message: 'Validation failed', errors: validation.error.issues });
             return;
         }
         const { name, description } = validation.data;
@@ -230,7 +230,7 @@ export const addMovieToCollection = async (req: Request, res: Response, next: Ne
     try {
         const validation = addMovieSchema.safeParse(req.body);
         if (!validation.success) {
-            res.status(400).json({ message: 'Validation failed', errors: validation.error.errors });
+            res.status(400).json({ message: 'Validation failed', errors: validation.error.issues });
             return;
         }
         const { movieId } = validation.data;
@@ -291,7 +291,7 @@ export const addCollaborator = async (req: Request, res: Response, next: NextFun
     try {
         const validation = addCollaboratorSchema.safeParse(req.body);
         if (!validation.success) {
-            res.status(400).json({ message: 'Validation failed', errors: validation.error.errors });
+            res.status(400).json({ message: 'Validation failed', errors: validation.error.issues });
             return;
         }
         const { email, permission } = validation.data;
@@ -348,7 +348,7 @@ export const updateCollaboratorPermission = async (req: Request, res: Response, 
     try {
         const validation = updateCollaboratorSchema.safeParse(req.body);
         if (!validation.success) {
-            res.status(400).json({ message: 'Validation failed', errors: validation.error.errors });
+            res.status(400).json({ message: 'Validation failed', errors: validation.error.issues });
             return;
         }
         const { permission } = validation.data;

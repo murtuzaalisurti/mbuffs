@@ -154,3 +154,45 @@ export const userRecommendationCollections = pgTable("user_recommendation_collec
 	}).onDelete("cascade"),
 	unique("user_recommendation_collections_user_collection_key").on(table.userId, table.collectionId),
 ]);
+
+// ============================================================================
+// PARENTAL GUIDANCE TABLE (scraped from IMDB)
+// ============================================================================
+export const parentalGuidance = pgTable("parental_guidance", {
+	id: text().primaryKey().notNull(),
+	imdbId: text("imdb_id").notNull(),
+	tmdbId: text("tmdb_id").notNull(),
+	mediaType: text("media_type").notNull(), // 'movie' or 'tv'
+	// Severity levels: 'none', 'mild', 'moderate', 'severe'
+	nudity: text(),
+	violence: text(),
+	profanity: text(),
+	alcohol: text(),
+	frightening: text(),
+	// Detailed descriptions for each category
+	nudityDescription: text("nudity_description"),
+	violenceDescription: text("violence_description"),
+	profanityDescription: text("profanity_description"),
+	alcoholDescription: text("alcohol_description"),
+	frighteningDescription: text("frightening_description"),
+	// Metadata
+	scrapedAt: timestamp("scraped_at", { withTimezone: true, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`),
+	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+	index("idx_parental_guidance_imdb_id").using("btree", table.imdbId.asc().nullsLast().op("text_ops")),
+	index("idx_parental_guidance_tmdb_id").using("btree", table.tmdbId.asc().nullsLast().op("text_ops")),
+	unique("parental_guidance_imdb_id_key").on(table.imdbId),
+	unique("parental_guidance_tmdb_id_media_type_key").on(table.tmdbId, table.mediaType),
+]);
+
+// ============================================================================
+// SCRAPE METADATA TABLE (tracks last scrape time)
+// ============================================================================
+export const scrapeMetadata = pgTable("scrape_metadata", {
+	id: text().primaryKey().notNull(),
+	scrapeType: text("scrape_type").notNull(), // e.g., 'parental_guidance'
+	lastScrapedAt: timestamp("last_scraped_at", { withTimezone: true, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`),
+	itemsScraped: text("items_scraped"), // JSON array of scraped items
+}, (table) => [
+	unique("scrape_metadata_type_key").on(table.scrapeType),
+]);

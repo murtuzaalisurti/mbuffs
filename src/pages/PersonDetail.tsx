@@ -64,10 +64,10 @@ export default function PersonDetail() {
                 <Navbar />
                 <main className="container pt-24 pb-12">
                     <div className="flex flex-col md:flex-row gap-8">
-                        <div className="w-48 md:w-64 flex-shrink-0 mx-auto md:mx-0">
-                            <Skeleton className="w-full aspect-[2/3] rounded-xl" />
+                        <div className="w-48 md:w-64 shrink-0 mx-auto md:mx-0">
+                            <Skeleton className="w-full aspect-2/3 rounded-xl" />
                         </div>
-                        <div className="flex-grow space-y-4">
+                        <div className="grow space-y-4">
                             <Skeleton className="h-10 w-64" />
                             <Skeleton className="h-6 w-48" />
                             <Skeleton className="h-24 w-full" />
@@ -83,7 +83,7 @@ export default function PersonDetail() {
             <>
                 <Navbar />
                 <main className="container py-20 text-center">
-                    <div className="rounded-2xl bg-red-500/[0.05] border border-red-500/10 p-8 max-w-lg mx-auto">
+                    <div className="rounded-2xl bg-red-500/5 border border-red-500/10 p-8 max-w-lg mx-auto">
                         <p className="text-red-500 font-medium">Error loading person details</p>
                     </div>
                 </main>
@@ -155,22 +155,22 @@ export default function PersonDetail() {
                 <div className="flex flex-col md:flex-row gap-4 md:gap-8">
                     {/* Mobile: Horizontal layout with small image */}
                     <div className="flex md:hidden gap-4 items-start">
-                        <div className="w-24 flex-shrink-0">
-                            <div className="rounded-lg overflow-hidden shadow-xl shadow-black/50 border border-white/[0.08]">
+                        <div className="w-24 shrink-0">
+                            <div className="rounded-lg overflow-hidden shadow-xl shadow-black/50 border border-white/8">
                                 {personDetails.profile_path ? (
                                     <img
                                         src={getImageUrl(personDetails.profile_path, 'w185')}
                                         alt={personDetails.name}
-                                        className="w-full h-auto aspect-[2/3] object-cover bg-muted"
+                                        className="w-full h-auto aspect-2/3 object-cover bg-muted"
                                     />
                                 ) : (
-                                    <div className="w-full aspect-[2/3] bg-muted/30 flex items-center justify-center">
+                                    <div className="w-full aspect-2/3 bg-muted/30 flex items-center justify-center">
                                         <User className="w-8 h-8 text-muted-foreground/30" />
                                     </div>
                                 )}
                             </div>
                         </div>
-                        <div className="flex-grow space-y-1">
+                        <div className="grow space-y-1">
                             <h1 className="text-2xl font-bold tracking-tight">{personDetails.name}</h1>
                             <p className="text-sm text-muted-foreground">{personDetails.known_for_department}</p>
                             {/* Compact details for mobile */}
@@ -200,16 +200,16 @@ export default function PersonDetail() {
                     </div>
 
                     {/* Desktop: Profile Image */}
-                    <div className="hidden md:block w-64 flex-shrink-0">
-                        <div className="rounded-xl overflow-hidden shadow-2xl shadow-black/50 border border-white/[0.08]">
+                    <div className="hidden md:block w-64 shrink-0">
+                        <div className="rounded-xl overflow-hidden shadow-2xl shadow-black/50 border border-white/8">
                             {personDetails.profile_path ? (
                                 <img
                                     src={getImageUrl(personDetails.profile_path, 'w500')}
                                     alt={personDetails.name}
-                                    className="w-full h-auto aspect-[2/3] object-cover bg-muted"
+                                    className="w-full h-auto aspect-2/3 object-cover bg-muted"
                                 />
                             ) : (
-                                <div className="w-full aspect-[2/3] bg-muted/30 flex items-center justify-center">
+                                <div className="w-full aspect-2/3 bg-muted/30 flex items-center justify-center">
                                     <User className="w-16 h-16 text-muted-foreground/30" />
                                 </div>
                             )}
@@ -217,7 +217,7 @@ export default function PersonDetail() {
                     </div>
 
                     {/* Desktop: Details */}
-                    <div className="hidden md:block flex-grow space-y-6 text-left">
+                    <div className="hidden md:block grow space-y-6 text-left">
                         <div className="space-y-2">
                             <h1 className="text-4xl lg:text-5xl font-bold tracking-tight">{personDetails.name}</h1>
                             <p className="text-lg text-muted-foreground">{personDetails.known_for_department}</p>
@@ -306,9 +306,9 @@ export default function PersonDetail() {
                                         <Link
                                             key={`${credit.id}-${credit.character}`}
                                             to={`/media/${credit.media_type}/${credit.id}`}
-                                            className="flex-shrink-0 w-32 snap-center group"
+                                            className="shrink-0 w-32 snap-center group"
                                         >
-                                            <div className="rounded-lg overflow-hidden border border-white/[0.08] bg-muted/30 mb-2 aspect-[2/3] relative">
+                                            <div className="rounded-lg overflow-hidden border border-white/8 bg-muted/30 mb-2 aspect-2/3 relative">
                                                 {credit.poster_path ? (
                                                     <img
                                                         src={getImageUrl(credit.poster_path, 'w342')}
@@ -336,7 +336,7 @@ export default function PersonDetail() {
                                 </div>
                                 <button
                                     onClick={() => scrollRight(castScrollRef)}
-                                    className="absolute right-0 top-0 bottom-4 w-16 flex items-center justify-center bg-gradient-to-l from-background via-background/80 to-transparent"
+                                    className="absolute right-0 top-0 bottom-4 w-16 flex items-center justify-center bg-linear-to-l from-background via-background/80 to-transparent"
                                     aria-label="Scroll right"
                                 >
                                     <ChevronRight className="w-5 h-5 text-foreground/60" />
@@ -350,7 +350,7 @@ export default function PersonDetail() {
                                         to={`/media/${credit.media_type}/${credit.id}`}
                                         className="group"
                                     >
-                                        <div className="rounded-lg overflow-hidden border border-white/[0.08] bg-muted/30 mb-2 aspect-[2/3] relative">
+                                        <div className="rounded-lg overflow-hidden border border-white/8 bg-muted/30 mb-2 aspect-2/3 relative">
                                             {credit.poster_path ? (
                                                 <img
                                                     src={getImageUrl(credit.poster_path, 'w342')}
@@ -393,9 +393,9 @@ export default function PersonDetail() {
                                         <Link
                                             key={`${credit.id}-${credit.jobs.join('-')}`}
                                             to={`/media/${credit.media_type}/${credit.id}`}
-                                            className="flex-shrink-0 w-32 snap-center group"
+                                            className="shrink-0 w-32 snap-center group"
                                         >
-                                            <div className="rounded-lg overflow-hidden border border-white/[0.08] bg-muted/30 mb-2 aspect-[2/3] relative">
+                                            <div className="rounded-lg overflow-hidden border border-white/8 bg-muted/30 mb-2 aspect-2/3 relative">
                                                 {credit.poster_path ? (
                                                     <img
                                                         src={getImageUrl(credit.poster_path, 'w342')}
@@ -421,7 +421,7 @@ export default function PersonDetail() {
                                 </div>
                                 <button
                                     onClick={() => scrollRight(crewScrollRef)}
-                                    className="absolute right-0 top-0 bottom-4 w-16 flex items-center justify-center bg-gradient-to-l from-background via-background/80 to-transparent"
+                                    className="absolute right-0 top-0 bottom-4 w-16 flex items-center justify-center bg-linear-to-l from-background via-background/80 to-transparent"
                                     aria-label="Scroll right"
                                 >
                                     <ChevronRight className="w-5 h-5 text-foreground/60" />
@@ -435,7 +435,7 @@ export default function PersonDetail() {
                                         to={`/media/${credit.media_type}/${credit.id}`}
                                         className="group"
                                     >
-                                        <div className="rounded-lg overflow-hidden border border-white/[0.08] bg-muted/30 mb-2 aspect-[2/3] relative">
+                                        <div className="rounded-lg overflow-hidden border border-white/8 bg-muted/30 mb-2 aspect-2/3 relative">
                                             {credit.poster_path ? (
                                                 <img
                                                     src={getImageUrl(credit.poster_path, 'w342')}

@@ -4,6 +4,7 @@ import { DatabaseUserAttributes } from "../lib/types.js";
 
 // Extend Express Request type
 declare global {
+    // eslint-disable-next-line @typescript-eslint/no-namespace
     namespace Express {
         interface Request {
             userId?: string | null;

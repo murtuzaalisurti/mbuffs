@@ -11,6 +11,7 @@ import '../middleware/authMiddleware.js';
 /**
  * GET /api/recommendations
  * Get personalized recommendations for the authenticated user
+ * Supports pagination with ?limit=20&page=1
  */
 export const getRecommendations = async (req: Request, res: Response, next: NextFunction) => {
     if (!req.userId) {
@@ -19,7 +20,8 @@ export const getRecommendations = async (req: Request, res: Response, next: Next
 
     try {
         const limit = parseInt(req.query.limit as string) || 20;
-        const recommendations = await generateRecommendations(req.userId, limit);
+        const page = parseInt(req.query.page as string) || 1;
+        const recommendations = await generateRecommendations(req.userId, limit, page);
         
         res.status(200).json(recommendations);
     } catch (error) {

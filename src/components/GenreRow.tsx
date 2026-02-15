@@ -28,8 +28,8 @@ export function GenreRow({ genre, title, movies, mediaType, isLoading = false, l
         </div>
         <div className="flex gap-4 overflow-hidden">
           {Array.from({ length: 6 }).map((_, index) => (
-            <div key={index} className="flex-shrink-0 w-[140px] sm:w-[160px] md:w-[180px]">
-              <Skeleton className="aspect-[2/3] w-full rounded-xl" />
+            <div key={index} className="shrink-0 w-[140px] sm:w-[160px] md:w-[180px]">
+              <Skeleton className="aspect-2/3 w-full rounded-xl" />
               <Skeleton className="h-4 w-[75%] mt-3 rounded-md" />
               <Skeleton className="h-3 w-[45%] mt-2 rounded-md" />
             </div>
@@ -74,7 +74,7 @@ export function GenreRow({ genre, title, movies, mediaType, isLoading = false, l
           {displayMovies.map((movie) => (
             <div
               key={movie.id}
-              className="flex-shrink-0 w-[140px] sm:w-[160px] md:w-[180px]"
+              className="shrink-0 w-[140px] sm:w-[160px] md:w-[180px]"
             >
               <MovieCard movie={movie} />
             </div>

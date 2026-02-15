@@ -37,12 +37,12 @@ const Categories = () => {
         {/* Tabs for Movies / TV Shows */}
         <Tabs defaultValue="movie" className="w-full">
           <div className="flex justify-start overflow-x-auto scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
-            <TabsList className="mb-8 bg-white/[0.04] border border-white/[0.08] w-max">
-              <TabsTrigger value="movie" className="data-[state=active]:bg-white/[0.1] gap-2">
+            <TabsList className="mb-8 bg-white/4 border border-white/8 w-max">
+              <TabsTrigger value="movie" className="data-[state=active]:bg-white/10 gap-2">
                 <Film className="h-4 w-4" />
                 Movies
               </TabsTrigger>
-              <TabsTrigger value="tv" className="data-[state=active]:bg-white/[0.1] gap-2">
+              <TabsTrigger value="tv" className="data-[state=active]:bg-white/10 gap-2">
                 <Tv className="h-4 w-4" />
                 TV Shows
               </TabsTrigger>
@@ -87,8 +87,8 @@ function GenreRowsContent({ mediaType, featuredGenreIds }: { mediaType: 'movie' 
             </div>
             <div className="flex gap-4 overflow-hidden">
               {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="flex-shrink-0 w-[140px] sm:w-[160px] md:w-[180px]">
-                  <Skeleton className="aspect-[2/3] w-full rounded-xl" />
+                <div key={i} className="shrink-0 w-[140px] sm:w-[160px] md:w-[180px]">
+                  <Skeleton className="aspect-2/3 w-full rounded-xl" />
                   <Skeleton className="h-4 w-[75%] mt-3 rounded-md" />
                   <Skeleton className="h-3 w-[45%] mt-2 rounded-md" />
                 </div>

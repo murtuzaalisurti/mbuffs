@@ -274,7 +274,7 @@ const Profile = () => {
                                                     <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                                 </Button>
                                             </PopoverTrigger>
-                                            <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                                            <PopoverContent className="w-(--radix-popover-trigger-width) p-0" align="start">
                                                 <div className="max-h-64 overflow-y-auto p-2">
                                                     {collectionsData?.collections.map((collection) => {
                                                         const isSelected = selectedCollectionIds.has(collection.id);

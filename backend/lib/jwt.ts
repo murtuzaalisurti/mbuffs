@@ -21,8 +21,7 @@ export const signToken = (payload: JwtPayload): string => {
     } 
     
     const options: SignOptions = {
-        // Cast to any as workaround if type union causes issues
-        expiresIn: expiresInValue as any 
+        expiresIn: expiresInValue as SignOptions['expiresIn']
     };
     return jwt.sign(payload, JWT_SECRET, options);
 };

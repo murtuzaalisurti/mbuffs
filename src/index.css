@@ -1,47 +1,219 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
+@plugin 'tailwindcss-animate';
+
+@custom-variant dark (&:is(.dark *));
+
+@utility container {
+  margin-inline: auto;
+  padding-inline: 2rem;
+
+  @media (width >=--theme(--breakpoint-sm)) {
+    max-width: none;
+  }
+
+  @media (width >=1400px) {
+    max-width: 1400px;
+  }
+}
+
+:root {
+  /* Deep, rich background with slight blue undertone */
+  --background: hsl(225 20% 7%);
+  --foreground: hsl(210 20% 95%);
+
+  /* Elevated surface for cards — subtle lift */
+  --card: hsl(225 18% 12%);
+  --card-foreground: hsl(210 20% 95%);
+
+  --popover: hsl(225 18% 12%);
+  --popover-foreground: hsl(210 20% 95%);
+
+  /* Primary — vibrant sky blue accent */
+  --primary: hsl(217 91% 60%);
+  --primary-foreground: hsl(210 40% 98%);
+
+  /* Secondary — muted cool gray */
+  --secondary: hsl(225 12% 18%);
+  --secondary-foreground: hsl(210 15% 80%);
+
+  --muted: hsl(225 12% 18%);
+  --muted-foreground: hsl(215 15% 55%);
+
+  --accent: hsl(225 12% 20%);
+  --accent-foreground: hsl(210 15% 85%);
+
+  /* Destructive */
+  --destructive: hsl(0 70% 50%);
+  --destructive-foreground: hsl(210 40% 98%);
+
+  /* Subtle border with slight visibility */
+  --border: hsl(225 12% 16%);
+  /* Input matching secondary */
+  --input: hsl(225 15% 14%);
+  /* Ring — muted, non-intrusive */
+  --ring: hsl(196 60% 45%);
+
+  /* Slightly larger radius for softer corners */
+  --radius: 0.75rem;
+}
+
+@theme inline {
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+
+  --color-sidebar: var(--sidebar-background);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+
+  @keyframes accordion-down {
+    from {
+      height: 0;
+    }
+
+    to {
+      height: var(--radix-accordion-content-height);
+    }
+  }
+
+  @keyframes accordion-up {
+    from {
+      height: var(--radix-accordion-content-height);
+    }
+
+    to {
+      height: 0;
+    }
+  }
+}
+
+/*
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
 @layer base {
-  :root {
-    /* Deep, rich background with slight blue undertone */
-    --background: 225 20% 7%;
-    --foreground: 210 20% 95%;
 
-    /* Elevated surface for cards — subtle lift */
-    --card: 225 18% 12%;
-    --card-foreground: 210 20% 95%;
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
 
-    --popover: 225 18% 12%;
-    --popover-foreground: 210 20% 95%;
+  .glass {
+    backdrop-filter: blur(16px) saturate(180%) !important;
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    background-color: hsl(225 20% 7% / 0.75) !important;
+    transform: translateZ(0);
+    /* GPU boost */
+  }
+}
 
-    /* Primary — vibrant sky blue accent */
-    --primary: 217 91% 60%;
-    --primary-foreground: 210 40% 98%;
+@utility scrollbar-hide {
+  /* Hide scrollbar while keeping scroll functionality */
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 
-    /* Secondary — muted cool gray */
-    --secondary: 225 12% 18%;
-    --secondary-foreground: 210 15% 80%;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
 
-    --muted: 225 12% 18%;
-    --muted-foreground: 215 15% 55%;
+@utility text-gradient {
+  /* Gradient text utility */
+  @apply bg-clip-text text-transparent;
+  background-image: linear-gradient(135deg,
+      hsl(196 80% 60%),
+      hsl(260 60% 65%));
+}
 
-    --accent: 225 12% 20%;
-    --accent-foreground: 210 15% 85%;
+@utility card-glow {
+  /* Subtle glow effect for cards on hover */
+  transition:
+    box-shadow 0.3s ease,
+    transform 0.3s ease;
 
-    /* Destructive */
-    --destructive: 0 70% 50%;
-    --destructive-foreground: 210 40% 98%;
+  &:hover {
+    box-shadow:
+      0 8px 32px -8px hsl(196 80% 50% / 0.15),
+      0 4px 16px -4px hsl(0 0% 0% / 0.3);
+  }
+}
 
-    /* Subtle border with slight visibility */
-    --border: 225 12% 16%;
-    /* Input matching secondary */
-    --input: 225 15% 14%;
-    /* Ring — muted, non-intrusive */
-    --ring: 196 60% 45%;
+@utility animate-shimmer {
+  /* Subtle shimmer for loading states */
+  background: linear-gradient(90deg,
+      transparent,
+      hsl(225 15% 20% / 0.5),
+      transparent);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
 
-    /* Slightly larger radius for softer corners */
-    --radius: 0.75rem;
+@utility animate-fade-in-up {
+  /* Fade-in animation */
+  animation: fadeInUp 0.5s ease-out forwards;
+}
+
+@utility custom-scrollbar {
+
+  /* Custom scrollbar for small containers */
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: hsl(225 12% 25%);
+    border-radius: 4px;
+  }
+
+  &::-webkit-scrollbar-thumb:hover {
+    background: hsl(225 12% 35%);
   }
 }
 
@@ -52,80 +224,32 @@
 
   body {
     @apply bg-background text-foreground antialiased;
-    font-feature-settings: "rlig" 1, "calt" 1;
+    font-feature-settings:
+      "rlig" 1,
+      "calt" 1;
   }
 }
 
 @layer utilities {
-  /* Hide scrollbar while keeping scroll functionality */
-  .scrollbar-hide {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-  }
-  .scrollbar-hide::-webkit-scrollbar {
-    display: none;
-  }
-
-  /* Gradient text utility */
-  .text-gradient {
-    @apply bg-clip-text text-transparent;
-    background-image: linear-gradient(135deg, hsl(196 80% 60%), hsl(260 60% 65%));
-  }
-
-  /* Subtle glow effect for cards on hover */
-  .card-glow {
-    transition: box-shadow 0.3s ease, transform 0.3s ease;
-  }
-  .card-glow:hover {
-    box-shadow: 0 8px 32px -8px hsl(196 80% 50% / 0.15),
-                0 4px 16px -4px hsl(0 0% 0% / 0.3);
-  }
-
-  /* Glass effect */
-  .glass {
-    backdrop-filter: blur(16px) saturate(180%);
-    -webkit-backdrop-filter: blur(16px) saturate(180%);
-    background-color: hsl(225 20% 7% / 0.75);
-  }
-
-  /* Subtle shimmer for loading states */
   @keyframes shimmer {
-    0% { background-position: -200% 0; }
-    100% { background-position: 200% 0; }
-  }
-  .animate-shimmer {
-    background: linear-gradient(90deg, transparent, hsl(225 15% 20% / 0.5), transparent);
-    background-size: 200% 100%;
-    animation: shimmer 1.5s ease-in-out infinite;
+    0% {
+      background-position: -200% 0;
+    }
+
+    100% {
+      background-position: 200% 0;
+    }
   }
 
-  /* Fade-in animation */
   @keyframes fadeInUp {
     from {
       opacity: 0;
       transform: translateY(12px);
     }
+
     to {
       opacity: 1;
       transform: translateY(0);
     }
-  }
-  .animate-fade-in-up {
-    animation: fadeInUp 0.5s ease-out forwards;
-  }
-
-  /* Custom scrollbar for small containers */
-  .custom-scrollbar::-webkit-scrollbar {
-    width: 4px;
-  }
-  .custom-scrollbar::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: hsl(225 12% 25%);
-    border-radius: 4px;
-  }
-  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: hsl(225 12% 35%);
   }
 }
