@@ -1,4 +1,4 @@
-@import 'tailwindcss';
+@import "tailwindcss";
 
 @plugin 'tailwindcss-animate';
 
@@ -7,50 +7,93 @@
 @utility container {
   margin-inline: auto;
   padding-inline: 2rem;
-  @media (width >= --theme(--breakpoint-sm)) {
+
+  @media (width >=--theme(--breakpoint-sm)) {
     max-width: none;
   }
-  @media (width >= 1400px) {
+
+  @media (width >=1400px) {
     max-width: 1400px;
   }
 }
 
-@theme {
-  --color-border: hsl(var(--border));
-  --color-input: hsl(var(--input));
-  --color-ring: hsl(var(--ring));
-  --color-background: hsl(var(--background));
-  --color-foreground: hsl(var(--foreground));
+:root {
+  /* Deep, rich background with slight blue undertone */
+  --background: hsl(225 20% 7%);
+  --foreground: hsl(210 20% 95%);
 
-  --color-primary: hsl(var(--primary));
-  --color-primary-foreground: hsl(var(--primary-foreground));
+  /* Elevated surface for cards — subtle lift */
+  --card: hsl(225 18% 12%);
+  --card-foreground: hsl(210 20% 95%);
 
-  --color-secondary: hsl(var(--secondary));
-  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --popover: hsl(225 18% 12%);
+  --popover-foreground: hsl(210 20% 95%);
 
-  --color-destructive: hsl(var(--destructive));
-  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  /* Primary — vibrant sky blue accent */
+  --primary: hsl(217 91% 60%);
+  --primary-foreground: hsl(210 40% 98%);
 
-  --color-muted: hsl(var(--muted));
-  --color-muted-foreground: hsl(var(--muted-foreground));
+  /* Secondary — muted cool gray */
+  --secondary: hsl(225 12% 18%);
+  --secondary-foreground: hsl(210 15% 80%);
 
-  --color-accent: hsl(var(--accent));
-  --color-accent-foreground: hsl(var(--accent-foreground));
+  --muted: hsl(225 12% 18%);
+  --muted-foreground: hsl(215 15% 55%);
 
-  --color-popover: hsl(var(--popover));
-  --color-popover-foreground: hsl(var(--popover-foreground));
+  --accent: hsl(225 12% 20%);
+  --accent-foreground: hsl(210 15% 85%);
 
-  --color-card: hsl(var(--card));
-  --color-card-foreground: hsl(var(--card-foreground));
+  /* Destructive */
+  --destructive: hsl(0 70% 50%);
+  --destructive-foreground: hsl(210 40% 98%);
 
-  --color-sidebar: hsl(var(--sidebar-background));
-  --color-sidebar-foreground: hsl(var(--sidebar-foreground));
-  --color-sidebar-primary: hsl(var(--sidebar-primary));
-  --color-sidebar-primary-foreground: hsl(var(--sidebar-primary-foreground));
-  --color-sidebar-accent: hsl(var(--sidebar-accent));
-  --color-sidebar-accent-foreground: hsl(var(--sidebar-accent-foreground));
-  --color-sidebar-border: hsl(var(--sidebar-border));
-  --color-sidebar-ring: hsl(var(--sidebar-ring));
+  /* Subtle border with slight visibility */
+  --border: hsl(225 12% 16%);
+  /* Input matching secondary */
+  --input: hsl(225 15% 14%);
+  /* Ring — muted, non-intrusive */
+  --ring: hsl(196 60% 45%);
+
+  /* Slightly larger radius for softer corners */
+  --radius: 0.75rem;
+}
+
+@theme inline {
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+
+  --color-sidebar: var(--sidebar-background);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
 
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
@@ -63,14 +106,17 @@
     from {
       height: 0;
     }
+
     to {
       height: var(--radix-accordion-content-height);
     }
   }
+
   @keyframes accordion-up {
     from {
       height: var(--radix-accordion-content-height);
     }
+
     to {
       height: 0;
     }
@@ -86,6 +132,7 @@
   color utility to any element that depends on these defaults.
 */
 @layer base {
+
   *,
   ::after,
   ::before,
@@ -98,7 +145,8 @@
     backdrop-filter: blur(16px) saturate(180%) !important;
     -webkit-backdrop-filter: blur(16px) saturate(180%);
     background-color: hsl(225 20% 7% / 0.75) !important;
-    transform: translateZ(0); /* GPU boost */
+    transform: translateZ(0);
+    /* GPU boost */
   }
 }
 
@@ -106,6 +154,7 @@
   /* Hide scrollbar while keeping scroll functionality */
   -ms-overflow-style: none;
   scrollbar-width: none;
+
   &::-webkit-scrollbar {
     display: none;
   }
@@ -114,7 +163,9 @@
 @utility text-gradient {
   /* Gradient text utility */
   @apply bg-clip-text text-transparent;
-  background-image: linear-gradient(135deg, hsl(196 80% 60%), hsl(260 60% 65%));
+  background-image: linear-gradient(135deg,
+      hsl(196 80% 60%),
+      hsl(260 60% 65%));
 }
 
 @utility card-glow {
@@ -122,6 +173,7 @@
   transition:
     box-shadow 0.3s ease,
     transform 0.3s ease;
+
   &:hover {
     box-shadow:
       0 8px 32px -8px hsl(196 80% 50% / 0.15),
@@ -131,12 +183,10 @@
 
 @utility animate-shimmer {
   /* Subtle shimmer for loading states */
-  background: linear-gradient(
-    90deg,
-    transparent,
-    hsl(225 15% 20% / 0.5),
-    transparent
-  );
+  background: linear-gradient(90deg,
+      transparent,
+      hsl(225 15% 20% / 0.5),
+      transparent);
   background-size: 200% 100%;
   animation: shimmer 1.5s ease-in-out infinite;
 }
@@ -147,62 +197,23 @@
 }
 
 @utility custom-scrollbar {
+
   /* Custom scrollbar for small containers */
   &::-webkit-scrollbar {
     width: 4px;
   }
+
   &::-webkit-scrollbar-track {
     background: transparent;
   }
+
   &::-webkit-scrollbar-thumb {
     background: hsl(225 12% 25%);
     border-radius: 4px;
   }
+
   &::-webkit-scrollbar-thumb:hover {
     background: hsl(225 12% 35%);
-  }
-}
-
-@layer base {
-  :root {
-    /* Deep, rich background with slight blue undertone */
-    --background: 225 20% 7%;
-    --foreground: 210 20% 95%;
-
-    /* Elevated surface for cards — subtle lift */
-    --card: 225 18% 12%;
-    --card-foreground: 210 20% 95%;
-
-    --popover: 225 18% 12%;
-    --popover-foreground: 210 20% 95%;
-
-    /* Primary — vibrant sky blue accent */
-    --primary: 217 91% 60%;
-    --primary-foreground: 210 40% 98%;
-
-    /* Secondary — muted cool gray */
-    --secondary: 225 12% 18%;
-    --secondary-foreground: 210 15% 80%;
-
-    --muted: 225 12% 18%;
-    --muted-foreground: 215 15% 55%;
-
-    --accent: 225 12% 20%;
-    --accent-foreground: 210 15% 85%;
-
-    /* Destructive */
-    --destructive: 0 70% 50%;
-    --destructive-foreground: 210 40% 98%;
-
-    /* Subtle border with slight visibility */
-    --border: 225 12% 16%;
-    /* Input matching secondary */
-    --input: 225 15% 14%;
-    /* Ring — muted, non-intrusive */
-    --ring: 196 60% 45%;
-
-    /* Slightly larger radius for softer corners */
-    --radius: 0.75rem;
   }
 }
 
@@ -213,20 +224,29 @@
 
   body {
     @apply bg-background text-foreground antialiased;
-    font-feature-settings: "rlig" 1, "calt" 1;
+    font-feature-settings:
+      "rlig" 1,
+      "calt" 1;
   }
 }
 
 @layer utilities {
   @keyframes shimmer {
-    0% { background-position: -200% 0; }
-    100% { background-position: 200% 0; }
+    0% {
+      background-position: -200% 0;
+    }
+
+    100% {
+      background-position: 200% 0;
+    }
   }
+
   @keyframes fadeInUp {
     from {
       opacity: 0;
       transform: translateY(12px);
     }
+
     to {
       opacity: 1;
       transform: translateY(0);
