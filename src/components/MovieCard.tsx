@@ -32,23 +32,25 @@ export function MovieCard({ movie, onClick }: MovieCardProps) {
           />
           
           {/* Gradient overlay — always visible at bottom, intensifies on hover */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent opacity-80 transition-opacity duration-300 group-hover:opacity-100" />
-          
-          {/* Rating badge */}
-          <div className="absolute bottom-3 left-3 flex items-center gap-1.5 bg-black/50 backdrop-blur-sm rounded-lg px-2.5 py-1">
-            <Star className="h-3.5 w-3.5 text-yellow-400" fill="currentColor" />
-            <span className="text-xs font-semibold text-white">
-              {movie.vote_average.toFixed(1)}
-            </span>
-          </div>
-        </div>
+          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent opacity-100 transition-opacity duration-300" />
 
-        {/* Info */}
-        <div className="p-3.5">
-          <h3 className="font-semibold text-sm leading-tight line-clamp-1 text-foreground group-hover:text-white transition-colors">
-            {movie.name || movie.title}
-          </h3>
-          <p className="text-xs text-muted-foreground mt-1">{releaseYear}</p>
+
+          {/* Title Overlay */}
+          <div className="absolute bottom-0 left-0 right-0 p-3 flex flex-col justify-end z-10">
+            <h3 className="font-semibold text-xs sm:text-sm leading-tight text-white line-clamp-2 drop-shadow-md shadow-black">
+              {movie.name || movie.title}
+            </h3>
+            <div className="flex items-center gap-1.5 mt-1">
+              <p className="text-[10px] text-white/70 font-medium">{releaseYear}</p>
+              <span className="text-[10px] text-white/40">•</span>
+              <div className="flex items-center gap-1">
+                <Star className="h-3 w-3 text-yellow-400" fill="currentColor" />
+                <span className="text-[10px] font-medium text-white/90">
+                  {movie.vote_average.toFixed(1)}
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </Link>

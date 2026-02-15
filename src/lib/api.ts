@@ -5,7 +5,8 @@ import {
     CreateCollectionInput, UpdateCollectionInput, AddMovieInput, AddCollaboratorInput,
     UpdateCollaboratorInput, AddMovieResponse, VideosResponse, CreditsResponse,
     Genre, GenreListResponse, PersonCreditsResponse, SeasonDetails, TmdbCollectionDetails,
-    UserPreferences, UpdateUserPreferencesInput
+    UserPreferences, UpdateUserPreferencesInput,
+    RecommendationsResponse, RecommendationCollectionsResponse
 } from './types';
 
 const _dayjs = dayjs();
@@ -105,6 +106,36 @@ export const updateUserPreferencesApi = async (data: UpdateUserPreferencesInput)
     return fetchBackend('/user/preferences', {
         method: 'PUT',
         body: JSON.stringify(data),
+    });
+};
+
+// --- Recommendation API Functions ---
+
+export const fetchRecommendationsApi = async (limit: number = 20): Promise<RecommendationsResponse> => {
+    return fetchBackend(`/recommendations?limit=${limit}`);
+};
+
+export const fetchRecommendationCollectionsApi = async (): Promise<RecommendationCollectionsResponse> => {
+    return fetchBackend('/recommendations/collections');
+};
+
+export const addRecommendationCollectionApi = async (collectionId: string): Promise<void> => {
+    await fetchBackend('/recommendations/collections', {
+        method: 'POST',
+        body: JSON.stringify({ collection_id: collectionId }),
+    });
+};
+
+export const removeRecommendationCollectionApi = async (collectionId: string): Promise<void> => {
+    await fetchBackend(`/recommendations/collections/${collectionId}`, {
+        method: 'DELETE',
+    });
+};
+
+export const setRecommendationCollectionsApi = async (collectionIds: string[]): Promise<RecommendationCollectionsResponse> => {
+    return fetchBackend('/recommendations/collections', {
+        method: 'PUT',
+        body: JSON.stringify({ collection_ids: collectionIds }),
     });
 };
 

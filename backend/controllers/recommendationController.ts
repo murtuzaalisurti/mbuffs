@@ -1,0 +1,145 @@
+import { Request, Response, NextFunction } from 'express';
+import { sql } from '../lib/db.js';
+import {
+    generateRecommendations,
+    addRecommendationCollection,
+    removeRecommendationCollection,
+    setRecommendationCollections
+} from '../services/recommendationService.js';
+import '../middleware/authMiddleware.js';
+
+/**
+ * GET /api/recommendations
+ * Get personalized recommendations for the authenticated user
+ */
+export const getRecommendations = async (req: Request, res: Response, next: NextFunction) => {
+    if (!req.userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    try {
+        const limit = parseInt(req.query.limit as string) || 20;
+        const recommendations = await generateRecommendations(req.userId, limit);
+        
+        res.status(200).json(recommendations);
+    } catch (error) {
+        console.error("Error generating recommendations:", error);
+        next(error);
+    }
+};
+
+/**
+ * GET /api/recommendations/collections
+ * Get user's recommendation source collections
+ */
+export const getRecommendationCollections = async (req: Request, res: Response, next: NextFunction) => {
+    if (!req.userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    try {
+        const result = await sql`
+            SELECT c.id, c.name, c.description, urc.added_at
+            FROM user_recommendation_collections urc
+            JOIN collections c ON urc.collection_id = c.id
+            WHERE urc.user_id = ${req.userId}
+            ORDER BY urc.added_at DESC
+        `;
+
+        res.status(200).json({ collections: result });
+    } catch (error) {
+        console.error("Error fetching recommendation collections:", error);
+        next(error);
+    }
+};
+
+/**
+ * POST /api/recommendations/collections
+ * Add a collection to user's recommendation sources
+ */
+export const addRecommendationCollectionHandler = async (req: Request, res: Response, next: NextFunction) => {
+    if (!req.userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const { collection_id } = req.body;
+
+    if (!collection_id) {
+        return res.status(400).json({ message: "collection_id is required" });
+    }
+
+    try {
+        const success = await addRecommendationCollection(req.userId, collection_id);
+        
+        if (!success) {
+            return res.status(400).json({ 
+                message: "Invalid collection: You don't have access to this collection" 
+            });
+        }
+
+        res.status(201).json({ message: "Collection added to recommendation sources" });
+    } catch (error) {
+        console.error("Error adding recommendation collection:", error);
+        next(error);
+    }
+};
+
+/**
+ * DELETE /api/recommendations/collections/:collectionId
+ * Remove a collection from user's recommendation sources
+ */
+export const removeRecommendationCollectionHandler = async (req: Request, res: Response, next: NextFunction) => {
+    if (!req.userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const { collectionId } = req.params;
+
+    try {
+        await removeRecommendationCollection(req.userId, collectionId);
+        res.status(200).json({ message: "Collection removed from recommendation sources" });
+    } catch (error) {
+        console.error("Error removing recommendation collection:", error);
+        next(error);
+    }
+};
+
+/**
+ * PUT /api/recommendations/collections
+ * Set all recommendation source collections (replaces existing)
+ */
+export const setRecommendationCollectionsHandler = async (req: Request, res: Response, next: NextFunction) => {
+    if (!req.userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const { collection_ids } = req.body;
+
+    if (!Array.isArray(collection_ids)) {
+        return res.status(400).json({ message: "collection_ids must be an array" });
+    }
+
+    try {
+        const success = await setRecommendationCollections(req.userId, collection_ids);
+        
+        if (!success) {
+            return res.status(400).json({ 
+                message: "Invalid collections: You don't have access to one or more collections" 
+            });
+        }
+
+        // Fetch and return the updated collections
+        const result = await sql`
+            SELECT c.id, c.name, c.description, urc.added_at
+            FROM user_recommendation_collections urc
+            JOIN collections c ON urc.collection_id = c.id
+            WHERE urc.user_id = ${req.userId}
+            ORDER BY urc.added_at DESC
+        `;
+
+        res.status(200).json({ collections: result });
+    } catch (error) {
+        console.error("Error setting recommendation collections:", error);
+        next(error);
+    }
+};

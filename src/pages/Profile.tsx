@@ -1,20 +1,24 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchUserCollectionsApi, updateUserPreferencesApi } from '@/lib/api';
-import { UserCollectionsResponse, UpdateUserPreferencesInput } from '@/lib/types';
+import { fetchUserCollectionsApi, updateUserPreferencesApi, fetchRecommendationCollectionsApi, setRecommendationCollectionsApi } from '@/lib/api';
+import { UserCollectionsResponse, UpdateUserPreferencesInput, RecommendationCollectionsResponse } from '@/lib/types';
 import { Navbar } from "@/components/Navbar";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useAuth } from '@/hooks/useAuth';
-import { User, Mail, Calendar, Sparkles, FolderHeart, Loader2 } from 'lucide-react';
+import { Mail, Calendar, Sparkles, FolderHeart, Loader2, X, ChevronDown } from 'lucide-react';
 import { toast } from "sonner";
 
 const COLLECTIONS_QUERY_KEY = ['collections', 'user'];
 const USER_QUERY_KEY = ['user'];
+const RECOMMENDATION_COLLECTIONS_QUERY_KEY = ['recommendations', 'collections'];
 
 const Profile = () => {
     const queryClient = useQueryClient();
@@ -28,6 +32,16 @@ const Profile = () => {
         queryKey: COLLECTIONS_QUERY_KEY,
         queryFn: fetchUserCollectionsApi,
         enabled: !!user,
+    });
+
+    // Fetch user's selected recommendation collections
+    const {
+        data: recommendationCollectionsData,
+        isLoading: isLoadingRecommendationCollections,
+    } = useQuery<RecommendationCollectionsResponse, Error>({
+        queryKey: RECOMMENDATION_COLLECTIONS_QUERY_KEY,
+        queryFn: fetchRecommendationCollectionsApi,
+        enabled: !!user && (user.recommendations_enabled ?? false),
     });
 
     // Mutation for updating preferences
@@ -53,6 +67,18 @@ const Profile = () => {
         }
     });
 
+    // Mutation for updating recommendation collections
+    const setRecommendationCollectionsMutation = useMutation({
+        mutationFn: setRecommendationCollectionsApi,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: RECOMMENDATION_COLLECTIONS_QUERY_KEY });
+            toast.success('Source collections updated');
+        },
+        onError: (error: Error) => {
+            toast.error(`Failed to update collections: ${error.message}`);
+        }
+    });
+
     const handleToggleRecommendations = (enabled: boolean) => {
         const updateData: UpdateUserPreferencesInput = {
             recommendations_enabled: enabled,
@@ -62,13 +88,30 @@ const Profile = () => {
             updateData.recommendations_collection_id = null;
         }
         updatePreferencesMutation.mutate(updateData);
+        
+        // If enabling, refetch recommendation collections
+        if (enabled) {
+            queryClient.invalidateQueries({ queryKey: RECOMMENDATION_COLLECTIONS_QUERY_KEY });
+        }
     };
 
-    const handleCollectionChange = (collectionId: string) => {
-        const value = collectionId === 'none' ? null : collectionId;
-        updatePreferencesMutation.mutate({
-            recommendations_collection_id: value,
-        });
+    const handleCollectionToggle = (collectionId: string, isChecked: boolean) => {
+        const currentIds = recommendationCollectionsData?.collections.map(c => c.id) || [];
+        let newIds: string[];
+        
+        if (isChecked) {
+            newIds = [...currentIds, collectionId];
+        } else {
+            newIds = currentIds.filter(id => id !== collectionId);
+        }
+        
+        setRecommendationCollectionsMutation.mutate(newIds);
+    };
+
+    const handleRemoveCollection = (collectionId: string) => {
+        const currentIds = recommendationCollectionsData?.collections.map(c => c.id) || [];
+        const newIds = currentIds.filter(id => id !== collectionId);
+        setRecommendationCollectionsMutation.mutate(newIds);
     };
 
     const formatDate = (dateString: string | Date | undefined) => {
@@ -113,7 +156,9 @@ const Profile = () => {
     }
 
     const recommendationsEnabled = user.recommendations_enabled ?? false;
-    const selectedCollectionId = user.recommendations_collection_id ?? 'none';
+    const selectedCollectionIds = new Set(recommendationCollectionsData?.collections.map(c => c.id) || []);
+    const isLoading = isLoadingCollections || isLoadingRecommendationCollections;
+    const isMutating = updatePreferencesMutation.isPending || setRecommendationCollectionsMutation.isPending;
 
     return (
         <>
@@ -182,7 +227,7 @@ const Profile = () => {
                                 id="recommendations-toggle"
                                 checked={recommendationsEnabled}
                                 onCheckedChange={handleToggleRecommendations}
-                                disabled={updatePreferencesMutation.isPending}
+                                disabled={isMutating}
                             />
                         </div>
 
@@ -190,52 +235,104 @@ const Profile = () => {
                             <>
                                 <Separator />
 
-                                {/* Collection Selector */}
+                                {/* Collection Multi-Select Dropdown */}
                                 <div className="space-y-3">
                                     <div className="space-y-0.5">
-                                        <Label htmlFor="collection-select" className="text-base flex items-center gap-2">
+                                        <Label className="text-base flex items-center gap-2">
                                             <FolderHeart className="h-4 w-4" />
-                                            Source Collection
+                                            Source Collections
                                         </Label>
                                         <p className="text-sm text-muted-foreground">
-                                            Choose a collection to base your recommendations on
+                                            Select one or more collections to base your recommendations on
                                         </p>
                                     </div>
 
-                                    {isLoadingCollections ? (
+                                    {isLoading ? (
                                         <Skeleton className="h-10 w-full" />
-                                    ) : (
-                                        <Select
-                                            value={selectedCollectionId}
-                                            onValueChange={handleCollectionChange}
-                                            disabled={updatePreferencesMutation.isPending}
-                                        >
-                                            <SelectTrigger id="collection-select" className="w-full">
-                                                <SelectValue placeholder="Select a collection" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="none">
-                                                    <span className="text-muted-foreground">No collection selected</span>
-                                                </SelectItem>
-                                                {collectionsData?.collections.map((collection) => (
-                                                    <SelectItem key={collection.id} value={collection.id}>
-                                                        {collection.name}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    )}
-
-                                    {collectionsData?.collections.length === 0 && (
-                                        <p className="text-sm text-muted-foreground">
+                                    ) : collectionsData?.collections.length === 0 ? (
+                                        <p className="text-sm text-muted-foreground py-4">
                                             You don't have any collections yet. Create one to enable personalized recommendations.
                                         </p>
+                                    ) : (
+                                        <Popover>
+                                            <PopoverTrigger asChild>
+                                                <Button
+                                                    variant="outline"
+                                                    role="combobox"
+                                                    className="w-full justify-between h-auto min-h-10 py-2"
+                                                    disabled={isMutating}
+                                                >
+                                                    <span className="flex flex-wrap gap-1 text-left">
+                                                        {selectedCollectionIds.size === 0 ? (
+                                                            <span className="text-muted-foreground">Select collections...</span>
+                                                        ) : (
+                                                            <span className="text-sm">
+                                                                {selectedCollectionIds.size} collection{selectedCollectionIds.size !== 1 ? 's' : ''} selected
+                                                            </span>
+                                                        )}
+                                                    </span>
+                                                    <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                                </Button>
+                                            </PopoverTrigger>
+                                            <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                                                <div className="max-h-64 overflow-y-auto p-2">
+                                                    {collectionsData?.collections.map((collection) => {
+                                                        const isSelected = selectedCollectionIds.has(collection.id);
+                                                        return (
+                                                            <div
+                                                                key={collection.id}
+                                                                className="flex items-center space-x-3 py-2 px-2 rounded-md hover:bg-muted/50 transition-colors cursor-pointer"
+                                                                onClick={() => handleCollectionToggle(collection.id, !isSelected)}
+                                                            >
+                                                                <Checkbox
+                                                                    id={`collection-${collection.id}`}
+                                                                    checked={isSelected}
+                                                                    onCheckedChange={(checked) =>
+                                                                        handleCollectionToggle(collection.id, checked === true)
+                                                                    }
+                                                                    disabled={isMutating}
+                                                                    onClick={(e) => e.stopPropagation()}
+                                                                />
+                                                                <label
+                                                                    htmlFor={`collection-${collection.id}`}
+                                                                    className="flex-1 text-sm font-medium cursor-pointer select-none"
+                                                                >
+                                                                    {collection.name}
+                                                                </label>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </PopoverContent>
+                                        </Popover>
+                                    )}
+
+                                    {/* Selected Collections Display */}
+                                    {selectedCollectionIds.size > 0 && (
+                                        <div className="flex flex-wrap gap-2">
+                                            {recommendationCollectionsData?.collections.map((collection) => (
+                                                <Badge
+                                                    key={collection.id}
+                                                    variant="secondary"
+                                                    className="flex items-center gap-1 pr-1"
+                                                >
+                                                    {collection.name}
+                                                    <button
+                                                        onClick={() => handleRemoveCollection(collection.id)}
+                                                        className="ml-1 rounded-full p-0.5 hover:bg-muted-foreground/20 transition-colors"
+                                                        disabled={isMutating}
+                                                    >
+                                                        <X className="h-3 w-3" />
+                                                    </button>
+                                                </Badge>
+                                            ))}
+                                        </div>
                                     )}
                                 </div>
                             </>
                         )}
 
-                        {updatePreferencesMutation.isPending && (
+                        {isMutating && (
                             <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                 <Loader2 className="h-4 w-4 animate-spin" />
                                 Saving...

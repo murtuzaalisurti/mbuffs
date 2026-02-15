@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm/relations";
-import { user, collections, collectionCollaborators, collectionMovies, session, oauthAccount } from "./schema";
+import { user, collections, collectionCollaborators, collectionMovies, session, oauthAccount, userRecommendationCollections } from "./schema";
 
 export const collectionsRelations = relations(collections, ({one, many}) => ({
 	user: one(user, {
@@ -12,6 +12,7 @@ export const collectionsRelations = relations(collections, ({one, many}) => ({
 	users: many(user, {
 		relationName: "user_recommendationsCollectionId_collections_id"
 	}),
+	userRecommendationCollections: many(userRecommendationCollections),
 }));
 
 export const userRelations = relations(user, ({one, many}) => ({
@@ -27,6 +28,7 @@ export const userRelations = relations(user, ({one, many}) => ({
 		relationName: "user_recommendationsCollectionId_collections_id"
 	}),
 	oauthAccounts: many(oauthAccount),
+	recommendationCollections: many(userRecommendationCollections),
 }));
 
 export const collectionCollaboratorsRelations = relations(collectionCollaborators, ({one}) => ({
@@ -62,5 +64,16 @@ export const oauthAccountRelations = relations(oauthAccount, ({one}) => ({
 	user: one(user, {
 		fields: [oauthAccount.userId],
 		references: [user.id]
+	}),
+}));
+
+export const userRecommendationCollectionsRelations = relations(userRecommendationCollections, ({one}) => ({
+	user: one(user, {
+		fields: [userRecommendationCollections.userId],
+		references: [user.id]
+	}),
+	collection: one(collections, {
+		fields: [userRecommendationCollections.collectionId],
+		references: [collections.id]
 	}),
 }));

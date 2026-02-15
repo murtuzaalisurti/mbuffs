@@ -173,11 +173,31 @@ export interface User {
 export interface UserPreferences {
   recommendations_enabled: boolean;
   recommendations_collection_id: string | null;
+  // New: multiple recommendation collections
+  recommendations_collection_ids?: string[];
 }
 
 export interface UpdateUserPreferencesInput {
   recommendations_enabled?: boolean;
   recommendations_collection_id?: string | null;
+}
+
+// --- Recommendation Types ---
+export interface RecommendationCollection {
+  id: string;
+  name: string;
+  description: string | null;
+  added_at: string;
+}
+
+export interface RecommendationsResponse {
+  results: Movie[];
+  sourceCollections: { id: string; name: string }[];
+  totalSourceItems: number;
+}
+
+export interface RecommendationCollectionsResponse {
+  collections: RecommendationCollection[];
 }
 
 // --- Backend Collection Types ---

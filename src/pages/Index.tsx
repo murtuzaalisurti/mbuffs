@@ -1,12 +1,20 @@
 import { useQuery } from '@tanstack/react-query';
 import { MovieGrid } from "@/components/MovieGrid";
-import { fetchTrendingContentApi, fetchUserRegion } from "@/lib/api";
+import { MovieCard } from "@/components/MovieCard";
+import { fetchTrendingContentApi, fetchUserRegion, fetchRecommendationsApi } from "@/lib/api";
 import { Navbar } from "@/components/Navbar";
 import { Skeleton } from '@/components/ui/skeleton';
+import { useAuth } from '@/hooks/useAuth';
+import { Sparkles, Settings } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
 
 const TRENDING_CONTENT_QUERY_KEY = ['content', 'trending'];
+const RECOMMENDATIONS_QUERY_KEY = ['recommendations'];
 
 const Index = () => {
+  const { user, isLoadingUser } = useAuth();
+  
   // Fetch user's region via IP for accurate location detection
   const { data: userRegion } = useQuery({
     queryKey: ['userRegion'],
@@ -23,7 +31,20 @@ const Index = () => {
     staleTime: 1000 * 60 * 10, // Cache for 10 minutes to reduce API calls
   });
 
+  // Fetch personalized recommendations for logged in users with recommendations enabled
+  const {
+    data: recommendationsData,
+    isLoading: isRecommendationsLoading,
+  } = useQuery({
+    queryKey: RECOMMENDATIONS_QUERY_KEY,
+    queryFn: () => fetchRecommendationsApi(20),
+    staleTime: 1000 * 60 * 5, // Cache for 5 minutes
+    enabled: !!user && (user.recommendations_enabled ?? false),
+  });
+
   const trendingContent = trendingContentData?.results?.slice(0, 50) || [];
+  const recommendations = recommendationsData?.results || [];
+  const hasRecommendations = user?.recommendations_enabled && recommendations.length > 0;
 
   return (
     <>
@@ -49,6 +70,83 @@ const Index = () => {
 
         {/* Content Section */}
         <div className="space-y-16">
+          {/* For You Section - Personalized Recommendations */}
+          {user && user.recommendations_enabled && (
+            <section>
+              {isRecommendationsLoading ? (
+                <div className="space-y-6">
+                  <div className="flex items-center gap-3">
+                    <div className="h-6 w-1 rounded-full bg-primary" />
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="h-5 w-5 text-primary" />
+                      <Skeleton className="h-7 w-32 rounded-lg" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 md:gap-5">
+                    {Array.from({ length: 5 }).map((_, index) => (
+                      <div key={index} className="space-y-3">
+                        <Skeleton className="aspect-[2/3] w-full rounded-xl" />
+                        <Skeleton className="h-4 w-[75%] rounded-md" />
+                        <Skeleton className="h-3 w-[45%] rounded-md" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : hasRecommendations ? (
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="h-6 w-1 rounded-full bg-primary" />
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="h-5 w-5 text-primary" />
+                        <h2 className="text-xl md:text-2xl font-semibold tracking-tight">For You</h2>
+                      </div>
+                      <span className="text-xs font-medium bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                        Beta
+                      </span>
+                    </div>
+                    <Link to="/profile">
+                      <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
+                        <Settings className="h-4 w-4 mr-1" />
+                        Customize
+                      </Button>
+                    </Link>
+                  </div>
+                  <p className="text-sm text-muted-foreground -mt-3">
+                    Based on {recommendationsData?.totalSourceItems || 0} items from {recommendationsData?.sourceCollections?.length || 0} collection{(recommendationsData?.sourceCollections?.length || 0) !== 1 ? 's' : ''}
+                  </p>
+                  <div className="grid grid-cols-3 gap-2 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 md:gap-5 lg:grid-cols-5">
+                    {recommendations.map((movie) => (
+                      <div key={movie.id}>
+                        <MovieCard movie={movie} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-2xl bg-gradient-to-br from-primary/5 via-purple-500/5 to-transparent border border-primary/10 p-6 md:p-8">
+                  <div className="flex flex-col md:flex-row items-start md:items-center gap-4 md:gap-6">
+                    <div className="p-3 rounded-xl bg-primary/10">
+                      <Sparkles className="h-6 w-6 text-primary" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold mb-1">Get Personalized Recommendations</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Select source collections in your profile settings to see recommendations tailored to your taste.
+                      </p>
+                    </div>
+                    <Link to="/profile">
+                      <Button variant="outline" className="whitespace-nowrap">
+                        <Settings className="h-4 w-4 mr-2" />
+                        Set Up Now
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+              )}
+            </section>
+          )}
+
           {/* Trending Content */}
           {isTrendingContentLoading ? (
             <div className="space-y-6">
