@@ -170,10 +170,14 @@ export function ParentalGuidance({ data, isLoading, className }: ParentalGuidanc
         iconColor: string;
     }>;
 
-    // Filter to only show severe and moderate categories in badges
-    const highlightedCategories = categories.filter(
+    // Filter to show severe and moderate categories in badges
+    // If none exist, fall back to showing mild categories
+    const severeOrModerate = categories.filter(
         cat => cat.severity === 'severe' || cat.severity === 'moderate'
     );
+    const highlightedCategories = severeOrModerate.length > 0 
+        ? severeOrModerate 
+        : categories.filter(cat => cat.severity === 'mild');
 
     return (
         <div className={cn("flex flex-wrap justify-center md:justify-start items-center gap-2", className)}>
