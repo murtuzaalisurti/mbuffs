@@ -1,7 +1,7 @@
 import * as cheerio from 'cheerio';
 import type { Element } from 'domhandler';
 import { sql } from '../lib/db.js';
-import { generateId } from 'lucia';
+import { generateId } from '../lib/utils.js';
 
 // Types
 export interface ParentalGuidanceData {

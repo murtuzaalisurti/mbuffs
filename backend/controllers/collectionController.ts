@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { sql } from '../lib/db.js';
-import { generateId } from 'lucia';
+import { generateId } from '../lib/utils.js';
 import { z } from 'zod';
 import {
     createCollectionSchema,

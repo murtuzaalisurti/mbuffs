@@ -156,17 +156,22 @@ export interface SearchResults {
   total_results: number;
 }
 
-// --- Backend User Type (from Lucia) ---
+// --- Backend User Type (Better Auth compatible) ---
 export interface User {
   id: string;
-  username: string | null;
-  email: string | null;
-  avatarUrl: string | null; // Matches Lucia attributes
-  avatar_url?: string | null;
-  createdAt?: Date | string; // From Lucia attributes
-  updatedAt?: Date | string; // From Lucia attributes
-  recommendations_enabled?: boolean;
-  recommendations_collection_id?: string | null;
+  name: string;
+  email: string;
+  emailVerified: boolean;
+  image?: string | null;
+  // Legacy fields for backward compatibility
+  username?: string | null;
+  avatarUrl?: string | null;
+  // Timestamps
+  createdAt?: Date | string;
+  updatedAt?: Date | string;
+  // Custom fields
+  recommendationsEnabled?: boolean;
+  recommendationsCollectionId?: string | null;
 }
 
 // --- User Preferences Types ---

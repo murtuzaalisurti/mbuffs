@@ -2,20 +2,32 @@ import { useQuery } from '@tanstack/react-query';
 import { useRef } from 'react';
 import { MovieGrid } from "@/components/MovieGrid";
 import { MovieCard } from "@/components/MovieCard";
-import { fetchTrendingContentApi, fetchUserRegion, fetchRecommendationsApi } from "@/lib/api";
+import { fetchTrendingContentApi, fetchUserRegion, fetchRecommendationsApi, fetchUserPreferencesApi } from "@/lib/api";
 import { Navbar } from "@/components/Navbar";
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { Sparkles, Settings, ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { UserPreferences } from '@/lib/types';
 
 const TRENDING_CONTENT_QUERY_KEY = ['content', 'trending'];
 const RECOMMENDATIONS_QUERY_KEY = ['recommendations'];
+const PREFERENCES_QUERY_KEY = ['user', 'preferences'];
 
 const Index = () => {
   const { user, isLoadingUser } = useAuth();
   
+  // Fetch user preferences separately
+  const { data: preferencesData } = useQuery<{ preferences: UserPreferences }, Error>({
+    queryKey: PREFERENCES_QUERY_KEY,
+    queryFn: fetchUserPreferencesApi,
+    enabled: !!user,
+    staleTime: 1000 * 60 * 5, // Cache for 5 minutes
+  });
+
+  const recommendationsEnabled = preferencesData?.preferences?.recommendations_enabled ?? false;
+
   // Fetch user's region via IP for accurate location detection
   const { data: userRegion } = useQuery({
     queryKey: ['userRegion'],
@@ -40,12 +52,12 @@ const Index = () => {
     queryKey: RECOMMENDATIONS_QUERY_KEY,
     queryFn: () => fetchRecommendationsApi(20),
     staleTime: 1000 * 60 * 5, // Cache for 5 minutes
-    enabled: !!user && (user.recommendations_enabled ?? false),
+    enabled: !!user && recommendationsEnabled,
   });
 
   const trendingContent = trendingContentData?.results?.slice(0, 50) || [];
   const recommendations = recommendationsData?.results || [];
-  const hasRecommendations = user?.recommendations_enabled && recommendations.length > 0;
+  const hasRecommendations = recommendationsEnabled && recommendations.length > 0;
 
   // For You scroll functionality
   const forYouScrollRef = useRef<HTMLDivElement>(null);
@@ -81,7 +93,7 @@ const Index = () => {
         {/* Content Section */}
         <div className="space-y-16">
           {/* For You Section - Personalized Recommendations */}
-          {user && user.recommendations_enabled && (
+          {user && recommendationsEnabled && (
             <section>
               {isRecommendationsLoading ? (
                 <div className="space-y-4">

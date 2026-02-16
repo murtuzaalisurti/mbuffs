@@ -10,7 +10,6 @@ import contentRoutes from '../routes/contentRoutes.js';
 import userRoutes from '../routes/userRoutes.js';
 import recommendationRoutes from '../routes/recommendationRoutes.js';
 import parentalGuidanceRoutes from '../routes/parentalGuidanceRoutes.js';
-// import { testDbConnection } from './lib/db';
 
 dotenv.config({
     path: './.env'
@@ -22,10 +21,9 @@ const port = process.env.PORT || 5001;
 // --- CORS Setup --- 
 const corsOptions = {
     origin: process.env.FRONTEND_URL || 'http://localhost:8080',
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE', // Explicitly allow common methods
-    allowedHeaders: ['Content-Type', 'Authorization'], // Allow Authorization header
-    // credentials: true, // REMOVED - Not needed for Authorization header
-    // preflightContinue: true, // Generally not needed unless complex routing depends on it
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true, // Required for Better Auth cookies
 };
 
 console.log("CORS Options:", corsOptions);
@@ -33,21 +31,19 @@ console.log("CORS Options:", corsOptions);
 // Apply CORS globally
 app.use(cors(corsOptions));
 
-// REMOVED app.options block - handled by global cors middleware now
+app.use(cookieParser());
 
-// REMOVED app.all block that manually set Access-Control-Allow-Credentials
+// IMPORTANT: Better Auth routes must be mounted BEFORE express.json()
+// Better Auth handles its own body parsing
+app.use('/api/auth', oauthRoutes);
 
-app.use(cookieParser()); // Keep if any other cookies are used, otherwise potentially removable
+// Apply JSON middleware for other routes
 app.use(express.json());
 
-// Attach userId info from JWT to req if available
+// Attach userId info from session to req if available
 app.use(deserializeUser);
 
-// Optional: Test DB connection on startup
-// testDbConnection();
-
 // --- API Routes ---
-app.use('/api/auth', oauthRoutes);
 app.use('/api/collections', collectionRoutes);
 app.use('/api/content', contentRoutes);
 app.use('/api/user', userRoutes);
@@ -70,8 +66,6 @@ const globalErrorHandler: ErrorRequestHandler = (err, req, res, next) => {
         statusCode = 400; // Bad Request
         message = err.issues.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
     }
-    // Add more specific error type handling here if needed
-    // else if (err instanceof SomeCustomError) { ... }
 
     // Send a JSON response
     res.status(statusCode).json({
