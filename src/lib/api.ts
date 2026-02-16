@@ -571,6 +571,20 @@ export const fetchPersonDetailsApi = async (personId: number): Promise<import('.
     }
 };
 
+export const fetchPersonExternalIdsApi = async (personId: number): Promise<import('./types').PersonExternalIds | null> => {
+    try {
+        return await fetchBackend(`/content`, {
+            method: 'POST',
+            body: JSON.stringify({
+                endpoint: `/person/${personId}/external_ids`,
+            }),
+        });
+    } catch (error) {
+        console.error(`Failed to fetch external IDs for person ${personId}:`, error);
+        return null;
+    }
+};
+
 export const searchMoviesApi = async (query: string, page = 1): Promise<SearchResults> => {
     const defaultResult: SearchResults = { page: 0, results: [], total_pages: 0, total_results: 0 };
     if (!query) return defaultResult;

@@ -1,9 +1,10 @@
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { fetchPersonDetailsApi, fetchPersonCreditsApi, getImageUrl } from '@/lib/api';
-import { PersonDetails, PersonCreditsResponse, PersonCredit } from '@/lib/types';
+import { fetchPersonDetailsApi, fetchPersonCreditsApi, fetchPersonExternalIdsApi, getImageUrl } from '@/lib/api';
+import { PersonDetails, PersonCreditsResponse, PersonCredit, PersonExternalIds } from '@/lib/types';
 import { Navbar } from "@/components/Navbar";
 import { Skeleton } from '@/components/ui/skeleton';
+import { SocialMediaLinks } from '@/components/SocialMediaLinks';
 import { User, Star, ImageOff, ChevronRight } from 'lucide-react';
 import { useState, useRef } from 'react';
 
@@ -31,6 +32,12 @@ export default function PersonDetail() {
     const { data: creditsData, isLoading: isLoadingCredits } = useQuery<PersonCreditsResponse | null>({
         queryKey: ['personCredits', personId],
         queryFn: () => fetchPersonCreditsApi(Number(personId)),
+        enabled: !!personId,
+    });
+
+    const { data: externalIds } = useQuery<PersonExternalIds | null>({
+        queryKey: ['personExternalIds', personId],
+        queryFn: () => fetchPersonExternalIdsApi(Number(personId)),
         enabled: !!personId,
     });
 
@@ -196,6 +203,8 @@ export default function PersonDetail() {
                             {personDetails.place_of_birth && (
                                 <p className="text-xs text-foreground/70">{personDetails.place_of_birth}</p>
                             )}
+                            {/* Social Media Links - Mobile */}
+                            <SocialMediaLinks externalIds={externalIds || null} className="pt-2" />
                         </div>
                     </div>
 
@@ -249,6 +258,9 @@ export default function PersonDetail() {
                                 </>
                             )}
                         </div>
+
+                        {/* Social Media Links */}
+                        <SocialMediaLinks externalIds={externalIds || null} />
 
                         {/* Biography - Desktop only in header */}
                         {personDetails.biography && (
