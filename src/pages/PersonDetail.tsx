@@ -5,21 +5,30 @@ import { PersonDetails, PersonCreditsResponse, PersonCredit, PersonExternalIds }
 import { Navbar } from "@/components/Navbar";
 import { Skeleton } from '@/components/ui/skeleton';
 import { SocialMediaLinks } from '@/components/SocialMediaLinks';
-import { User, Star, ImageOff, ChevronRight } from 'lucide-react';
+import { User, Star, ImageOff, ChevronRight, ChevronLeft, ChevronDown, ChevronUp } from 'lucide-react';
 import { useState, useRef } from 'react';
 
 const BIO_CHAR_LIMIT_MOBILE = 150;
 const BIO_CHAR_LIMIT_DESKTOP = 300;
+const INITIAL_ITEMS_TO_SHOW = 6; // Show roughly one row on large screens
 
 export default function PersonDetail() {
     const { personId } = useParams<{ personId: string }>();
     const [bioExpanded, setBioExpanded] = useState(false);
+    const [isCastExpanded, setIsCastExpanded] = useState(false);
+    const [isCrewExpanded, setIsCrewExpanded] = useState(false);
     const castScrollRef = useRef<HTMLDivElement>(null);
     const crewScrollRef = useRef<HTMLDivElement>(null);
 
     const scrollRight = (ref: React.RefObject<HTMLDivElement | null>) => {
         if (ref.current) {
             ref.current.scrollBy({ left: 200, behavior: 'smooth' });
+        }
+    };
+
+    const scrollLeft = (ref: React.RefObject<HTMLDivElement | null>) => {
+        if (ref.current) {
+            ref.current.scrollBy({ left: -200, behavior: 'smooth' });
         }
     };
 
@@ -115,11 +124,11 @@ export default function PersonDetail() {
     const sortByRating = (a: PersonCredit, b: PersonCredit) => {
         const aQualifies = (a.vote_count || 0) >= 1000;
         const bQualifies = (b.vote_count || 0) >= 1000;
-        
+
         // Prioritize titles with 1000+ votes
         if (aQualifies && !bQualifies) return -1;
         if (!aQualifies && bQualifies) return 1;
-        
+
         // Both qualify or both don't - sort by vote_average
         return (b.vote_average || 0) - (a.vote_average || 0);
     };
@@ -153,6 +162,9 @@ export default function PersonDetail() {
     const crewCredits = Array.from(crewCreditsMap.values())
         .sort(sortByRating)
         .slice(0, 20);
+
+    const visibleCastCredits = isCastExpanded ? castCredits : castCredits.slice(0, INITIAL_ITEMS_TO_SHOW);
+    const visibleCrewCredits = isCrewExpanded ? crewCredits : crewCredits.slice(0, INITIAL_ITEMS_TO_SHOW);
 
     return (
         <>
@@ -307,86 +319,124 @@ export default function PersonDetail() {
                     {/* Acting Credits - only show if they have acting credits */}
                     {castCredits.length > 0 && (
                         <section className="space-y-6">
-                            <h2 className="text-xl md:text-2xl font-semibold text-foreground/90">Known For</h2>
-                            {/* Mobile: horizontal scroll */}
-                            <div className="md:hidden relative -mx-4">
-                                <div
-                                    ref={castScrollRef}
-                                    className="flex overflow-x-auto gap-4 pb-4 snap-x scrollbar-hide px-4 pr-16"
-                                >
-                                    {castCredits.map((credit: PersonCredit) => (
-                                        <Link
-                                            key={`${credit.id}-${credit.character}`}
-                                            to={`/media/${credit.media_type}/${credit.id}`}
-                                            className="shrink-0 w-32 snap-center group"
-                                        >
-                                            <div className="rounded-lg overflow-hidden border border-white/8 bg-muted/30 mb-2 aspect-2/3 relative">
-                                                {credit.poster_path ? (
-                                                    <img
-                                                        src={getImageUrl(credit.poster_path, 'w342')}
-                                                        alt={credit.title || credit.name}
-                                                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                                                    />
-                                                ) : (
-                                                    <div className="w-full h-full flex items-center justify-center">
-                                                        <ImageOff className="w-8 h-8 text-muted-foreground/30" />
-                                                    </div>
-                                                )}
-                                                {credit.vote_average > 0 && (
-                                                    <div className="absolute top-2 right-2 flex items-center gap-1 bg-black/70 backdrop-blur-sm px-1.5 py-0.5 rounded text-xs">
-                                                        <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />
-                                                        <span>{credit.vote_average.toFixed(1)}</span>
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <p className="text-sm font-medium text-foreground/90 line-clamp-1">{credit.title || credit.name}</p>
-                                            {credit.character && (
-                                                <p className="text-xs text-muted-foreground line-clamp-1">as {credit.character}</p>
-                                            )}
-                                        </Link>
-                                    ))}
-                                </div>
+                            <div className="flex items-center justify-between">
                                 <button
-                                    onClick={() => scrollRight(castScrollRef)}
-                                    className="absolute right-0 top-0 bottom-4 w-16 flex items-center justify-center bg-linear-to-l from-background via-background/80 to-transparent"
-                                    aria-label="Scroll right"
+                                    onClick={() => setIsCastExpanded(!isCastExpanded)}
+                                    className="flex items-center gap-2 group cursor-pointer hover:opacity-80 transition-opacity"
                                 >
-                                    <ChevronRight className="w-5 h-5 text-foreground/60" />
+                                    <h2 className="text-xl md:text-2xl font-semibold text-foreground/90">Known For</h2>
+                                    {isCastExpanded ? (
+                                        <ChevronDown className="w-5 h-5 md:w-6 md:h-6 text-foreground/70 group-hover:text-foreground transition-colors" />
+                                    ) : (
+                                        <ChevronRight className="w-5 h-5 md:w-6 md:h-6 text-foreground/70 group-hover:text-foreground transition-colors" />
+                                    )}
                                 </button>
                             </div>
-                            {/* Desktop: grid */}
-                            <div className="hidden md:grid grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
-                                {castCredits.map((credit: PersonCredit) => (
-                                    <Link
-                                        key={`${credit.id}-${credit.character}`}
-                                        to={`/media/${credit.media_type}/${credit.id}`}
-                                        className="group"
-                                    >
-                                        <div className="rounded-lg overflow-hidden border border-white/8 bg-muted/30 mb-2 aspect-2/3 relative">
-                                            {credit.poster_path ? (
-                                                <img
-                                                    src={getImageUrl(credit.poster_path, 'w342')}
-                                                    alt={credit.title || credit.name}
-                                                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                                                />
-                                            ) : (
-                                                <div className="w-full h-full flex items-center justify-center">
-                                                    <ImageOff className="w-8 h-8 text-muted-foreground/30" />
-                                                </div>
-                                            )}
-                                            {credit.vote_average > 0 && (
-                                                <div className="absolute top-2 right-2 flex items-center gap-1 bg-black/70 backdrop-blur-sm px-1.5 py-0.5 rounded text-xs">
-                                                    <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />
-                                                    <span>{credit.vote_average.toFixed(1)}</span>
-                                                </div>
-                                            )}
+
+                            {/* Desktop/Mobile Unified View: Scrollable when collapsed, Grid when expanded */}
+                            <div className="relative group/section">
+                                {!isCastExpanded ? (
+                                    // Scrollable View (Collapsed)
+                                    <div className="relative -mx-4 md:mx-0">
+                                        <div
+                                            ref={castScrollRef}
+                                            className="flex overflow-x-auto gap-4 pb-4 snap-x scrollbar-hide px-4 md:px-0"
+                                        >
+                                            {castCredits.map((credit: PersonCredit) => (
+                                                <Link
+                                                    key={`${credit.id}-${credit.character}`}
+                                                    to={`/media/${credit.media_type}/${credit.id}`}
+                                                    className="shrink-0 w-32 md:w-40 snap-center group"
+                                                >
+                                                    <div className="rounded-lg overflow-hidden border border-white/8 bg-muted/30 mb-2 aspect-2/3 relative">
+                                                        {credit.poster_path ? (
+                                                            <img
+                                                                src={getImageUrl(credit.poster_path, 'w342')}
+                                                                alt={credit.title || credit.name}
+                                                                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                                            />
+                                                        ) : (
+                                                            <div className="w-full h-full flex items-center justify-center">
+                                                                <ImageOff className="w-8 h-8 text-muted-foreground/30" />
+                                                            </div>
+                                                        )}
+                                                        {credit.vote_average > 0 && (
+                                                            <div className="absolute top-2 right-2 flex items-center gap-1 bg-black/70 backdrop-blur-sm px-1.5 py-0.5 rounded text-xs">
+                                                                <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />
+                                                                <span>{credit.vote_average.toFixed(1)}</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <p className="text-sm font-medium text-foreground/90 line-clamp-1">{credit.title || credit.name}</p>
+                                                    {credit.character && (
+                                                        <p className="text-xs text-muted-foreground line-clamp-1">as {credit.character}</p>
+                                                    )}
+                                                </Link>
+                                            ))}
                                         </div>
-                                        <p className="text-sm font-medium text-foreground/90 line-clamp-1">{credit.title || credit.name}</p>
-                                        {credit.character && (
-                                            <p className="text-xs text-muted-foreground line-clamp-1">as {credit.character}</p>
-                                        )}
-                                    </Link>
-                                ))}
+                                        {/* Scroll Left Button (Desktop Only) */}
+                                        <button
+                                            onClick={() => scrollLeft(castScrollRef)}
+                                            className="hidden md:flex absolute left-0 top-0 bottom-4 w-12 items-center justify-center bg-linear-to-r from-background via-background/80 to-transparent opacity-0 group-hover/section:opacity-100 transition-opacity pointer-events-none hover:pointer-events-auto"
+                                            aria-label="Scroll left"
+                                        >
+                                            <ChevronLeft className="w-6 h-6 text-foreground/80 pointer-events-auto cursor-pointer" />
+                                        </button>
+
+                                        {/* Scroll Right Button (Desktop Only) */}
+                                        <button
+                                            onClick={() => scrollRight(castScrollRef)}
+                                            className="hidden md:flex absolute right-0 top-0 bottom-4 w-12 items-center justify-center bg-linear-to-l from-background via-background/80 to-transparent opacity-0 group-hover/section:opacity-100 transition-opacity pointer-events-none hover:pointer-events-auto"
+                                            aria-label="Scroll right"
+                                        >
+                                            <ChevronRight className="w-6 h-6 text-foreground/80 pointer-events-auto cursor-pointer" />
+                                        </button>
+
+                                        {/* Mobile Right Hint Button */}
+                                        <button
+                                            onClick={() => scrollRight(castScrollRef)}
+                                            className="md:hidden absolute right-0 top-0 bottom-4 w-16 flex items-center justify-center bg-linear-to-l from-background via-background/80 to-transparent"
+                                            aria-label="Scroll right"
+                                        >
+                                            <ChevronRight className="w-5 h-5 text-foreground/60" />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    // Grid View (Expanded - Mobile & Desktop)
+                                    <div className="grid grid-cols-2 xs:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4 animate-in fade-in zoom-in-95 duration-200">
+                                        {castCredits.map((credit: PersonCredit) => (
+                                            <Link
+                                                key={`${credit.id}-${credit.character}`}
+                                                to={`/media/${credit.media_type}/${credit.id}`}
+                                                className="group"
+                                            >
+                                                <div className="rounded-lg overflow-hidden border border-white/8 bg-muted/30 mb-2 aspect-2/3 relative">
+                                                    {credit.poster_path ? (
+                                                        <img
+                                                            src={getImageUrl(credit.poster_path, 'w342')}
+                                                            alt={credit.title || credit.name}
+                                                            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                                        />
+                                                    ) : (
+                                                        <div className="w-full h-full flex items-center justify-center">
+                                                            <ImageOff className="w-8 h-8 text-muted-foreground/30" />
+                                                        </div>
+                                                    )}
+                                                    {credit.vote_average > 0 && (
+                                                        <div className="absolute top-2 right-2 flex items-center gap-1 bg-black/70 backdrop-blur-sm px-1.5 py-0.5 rounded text-xs">
+                                                            <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />
+                                                            <span>{credit.vote_average.toFixed(1)}</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <p className="text-sm font-medium text-foreground/90 line-clamp-1">{credit.title || credit.name}</p>
+                                                {credit.character && (
+                                                    <p className="text-xs text-muted-foreground line-clamp-1">as {credit.character}</p>
+                                                )}
+                                            </Link>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         </section>
                     )}
@@ -394,82 +444,184 @@ export default function PersonDetail() {
                     {/* Crew Credits - only show if they have crew credits AND are not primarily an actor (to avoid duplicate sections) */}
                     {crewCredits.length > 0 && personDetails.known_for_department !== 'Acting' && (
                         <section className="space-y-6">
-                            <h2 className="text-xl md:text-2xl font-semibold text-foreground/90">Also Known For</h2>
-                            {/* Mobile: horizontal scroll */}
-                            <div className="md:hidden relative -mx-4">
-                                <div
-                                    ref={crewScrollRef}
-                                    className="flex overflow-x-auto gap-4 pb-4 snap-x scrollbar-hide px-4 pr-16"
-                                >
-                                    {crewCredits.map((credit) => (
-                                        <Link
-                                            key={`${credit.id}-${credit.jobs.join('-')}`}
-                                            to={`/media/${credit.media_type}/${credit.id}`}
-                                            className="shrink-0 w-32 snap-center group"
-                                        >
-                                            <div className="rounded-lg overflow-hidden border border-white/8 bg-muted/30 mb-2 aspect-2/3 relative">
-                                                {credit.poster_path ? (
-                                                    <img
-                                                        src={getImageUrl(credit.poster_path, 'w342')}
-                                                        alt={credit.title || credit.name}
-                                                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                                                    />
-                                                ) : (
-                                                    <div className="w-full h-full flex items-center justify-center">
-                                                        <ImageOff className="w-8 h-8 text-muted-foreground/30" />
-                                                    </div>
-                                                )}
-                                                {credit.vote_average > 0 && (
-                                                    <div className="absolute top-2 right-2 flex items-center gap-1 bg-black/70 backdrop-blur-sm px-1.5 py-0.5 rounded text-xs">
-                                                        <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />
-                                                        <span>{credit.vote_average.toFixed(1)}</span>
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <p className="text-sm font-medium text-foreground/90 line-clamp-1">{credit.title || credit.name}</p>
-                                            <p className="text-xs text-muted-foreground line-clamp-1">{credit.jobs.join(', ')}</p>
-                                        </Link>
-                                    ))}
-                                </div>
+                            <div className="flex items-center justify-between">
                                 <button
-                                    onClick={() => scrollRight(crewScrollRef)}
-                                    className="absolute right-0 top-0 bottom-4 w-16 flex items-center justify-center bg-linear-to-l from-background via-background/80 to-transparent"
-                                    aria-label="Scroll right"
+                                    onClick={() => setIsCrewExpanded(!isCrewExpanded)}
+                                    className="flex items-center gap-2 group cursor-pointer hover:opacity-80 transition-opacity"
                                 >
-                                    <ChevronRight className="w-5 h-5 text-foreground/60" />
+                                    <h2 className="text-xl md:text-2xl font-semibold text-foreground/90">Also Known For</h2>
+                                    {isCrewExpanded ? (
+                                        <ChevronDown className="w-5 h-5 md:w-6 md:h-6 text-foreground/70 group-hover:text-foreground transition-colors" />
+                                    ) : (
+                                        <ChevronRight className="w-5 h-5 md:w-6 md:h-6 text-foreground/70 group-hover:text-foreground transition-colors" />
+                                    )}
                                 </button>
                             </div>
-                            {/* Desktop: grid */}
-                            <div className="hidden md:grid grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
-                                {crewCredits.map((credit) => (
-                                    <Link
-                                        key={`${credit.id}-${credit.jobs.join('-')}`}
-                                        to={`/media/${credit.media_type}/${credit.id}`}
-                                        className="group"
-                                    >
-                                        <div className="rounded-lg overflow-hidden border border-white/8 bg-muted/30 mb-2 aspect-2/3 relative">
-                                            {credit.poster_path ? (
-                                                <img
-                                                    src={getImageUrl(credit.poster_path, 'w342')}
-                                                    alt={credit.title || credit.name}
-                                                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                                                />
-                                            ) : (
-                                                <div className="w-full h-full flex items-center justify-center">
-                                                    <ImageOff className="w-8 h-8 text-muted-foreground/30" />
-                                                </div>
-                                            )}
-                                            {credit.vote_average > 0 && (
-                                                <div className="absolute top-2 right-2 flex items-center gap-1 bg-black/70 backdrop-blur-sm px-1.5 py-0.5 rounded text-xs">
-                                                    <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />
-                                                    <span>{credit.vote_average.toFixed(1)}</span>
-                                                </div>
-                                            )}
+
+                            {/* Desktop/Mobile Unified View: Scrollable when collapsed, Grid when expanded */}
+                            <div className="relative group/section">
+                                {!isCrewExpanded ? (
+                                    // Scrollable View (Collapsed)
+                                    <div className="relative -mx-4 md:mx-0">
+                                        <div
+                                            ref={crewScrollRef}
+                                            className="flex overflow-x-auto gap-4 pb-4 snap-x scrollbar-hide px-4 md:px-0"
+                                        >
+                                            {crewCredits.map((credit) => (
+                                                <Link
+                                                    key={`${credit.id}-${credit.jobs.join('-')}`}
+                                                    to={`/media/${credit.media_type}/${credit.id}`}
+                                                    className="shrink-0 w-32 md:w-40 snap-center group"
+                                                >
+                                                    <div className="rounded-lg overflow-hidden border border-white/8 bg-muted/30 mb-2 aspect-2/3 relative">
+                                                        {credit.poster_path ? (
+                                                            <img
+                                                                src={getImageUrl(credit.poster_path, 'w342')}
+                                                                alt={credit.title || credit.name}
+                                                                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                                            />
+                                                        ) : (
+                                                            <div className="w-full h-full flex items-center justify-center">
+                                                                <ImageOff className="w-8 h-8 text-muted-foreground/30" />
+                                                            </div>
+                                                        )}
+                                                        {credit.vote_average > 0 && (
+                                                            <div className="absolute top-2 right-2 flex items-center gap-1 bg-black/70 backdrop-blur-sm px-1.5 py-0.5 rounded text-xs">
+                                                                <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />
+                                                                <span>{credit.vote_average.toFixed(1)}</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <p className="text-sm font-medium text-foreground/90 line-clamp-1">{credit.title || credit.name}</p>
+                                                    <p className="text-xs text-muted-foreground line-clamp-1">{credit.jobs.join(', ')}</p>
+                                                </Link>
+                                            ))}
                                         </div>
-                                        <p className="text-sm font-medium text-foreground/90 line-clamp-1">{credit.title || credit.name}</p>
-                                        <p className="text-xs text-muted-foreground line-clamp-1">{credit.jobs.join(', ')}</p>
-                                    </Link>
-                                ))}
+                                        {/* Scroll Left Button (Desktop Only) */}
+                                        <button
+                                            onClick={() => scrollLeft(crewScrollRef)}
+                                            className="hidden md:flex absolute left-0 top-0 bottom-4 w-12 items-center justify-center bg-linear-to-r from-background via-background/80 to-transparent opacity-0 group-hover/section:opacity-100 transition-opacity pointer-events-none hover:pointer-events-auto"
+                                            aria-label="Scroll left"
+                                        >
+                                            <ChevronLeft className="w-6 h-6 text-foreground/80 pointer-events-auto cursor-pointer" />
+                                        </button>
+
+                                        {/* Scroll Right Button (Desktop Only) */}
+                                        <button
+                                            onClick={() => scrollRight(crewScrollRef)}
+                                            className="hidden md:flex absolute right-0 top-0 bottom-4 w-12 items-center justify-center bg-linear-to-l from-background via-background/80 to-transparent opacity-0 group-hover/section:opacity-100 transition-opacity pointer-events-none hover:pointer-events-auto"
+                                            aria-label="Scroll right"
+                                        >
+                                            <ChevronRight className="w-6 h-6 text-foreground/80 pointer-events-auto cursor-pointer" />
+                                        </button>
+
+                                        {/* Mobile Right Hint Button */}
+                                        <button
+                                            onClick={() => scrollRight(crewScrollRef)}
+                                            className="md:hidden absolute right-0 top-0 bottom-4 w-16 flex items-center justify-center bg-linear-to-l from-background via-background/80 to-transparent"
+                                            aria-label="Scroll right"
+                                        >
+                                            <ChevronRight className="w-5 h-5 text-foreground/60" />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    // Grid View (Expanded - Mobile & Desktop)
+                                    <div className="grid grid-cols-2 xs:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4 animate-in fade-in zoom-in-95 duration-200">
+                                        {crewCredits.map((credit) => (
+                                            <Link
+                                                key={`${credit.id}-${credit.jobs.join('-')}`}
+                                                to={`/media/${credit.media_type}/${credit.id}`}
+                                                className="group"
+                                            >
+                                                <div className="rounded-lg overflow-hidden border border-white/8 bg-muted/30 mb-2 aspect-2/3 relative">
+                                                    {credit.poster_path ? (
+                                                        <img
+                                                            src={getImageUrl(credit.poster_path, 'w342')}
+                                                            alt={credit.title || credit.name}
+                                                            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                                        />
+                                                    ) : (
+                                                        <div className="w-full h-full flex items-center justify-center">
+                                                            <ImageOff className="w-8 h-8 text-muted-foreground/30" />
+                                                        </div>
+                                                    )}
+                                                    {credit.vote_average > 0 && (
+                                                        <div className="absolute top-2 right-2 flex items-center gap-1 bg-black/70 backdrop-blur-sm px-1.5 py-0.5 rounded text-xs">
+                                                            <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />
+                                                            <span>{credit.vote_average.toFixed(1)}</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <p className="text-sm font-medium text-foreground/90 line-clamp-1">{credit.title || credit.name}</p>
+                                                <p className="text-xs text-muted-foreground line-clamp-1">{credit.jobs.join(', ')}</p>
+                                            </Link>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </section>
+                    )}
+
+                    {/* Timeline Section - Shows all credits chronologically */}
+                    {(creditsData?.cast?.length > 0 || creditsData?.crew?.length > 0) && (
+                        <section className="space-y-6 pt-4">
+                            <h2 className="text-xl md:text-2xl font-semibold text-foreground/90">Timeline</h2>
+                            <div className="relative border-l border-white/10 ml-3 md:ml-4 space-y-8 pb-4">
+                                {(() => {
+                                    // Combine cast and crew into a unified structure
+                                    const allCredits = [
+                                        ...(creditsData?.cast || []).map(c => ({
+                                            ...c,
+                                            role: c.character ? `as ${c.character}` : 'Actor',
+                                            year: c.release_date || c.first_air_date ? new Date(c.release_date || c.first_air_date || '').getFullYear() : null,
+                                            date: c.release_date || c.first_air_date
+                                        })),
+                                        ...(creditsData?.crew || []).map(c => ({
+                                            ...c,
+                                            role: c.job || c.department || 'Crew',
+                                            year: c.release_date || c.first_air_date ? new Date(c.release_date || c.first_air_date || '').getFullYear() : null,
+                                            date: c.release_date || c.first_air_date
+                                        }))
+                                    ]
+                                        .filter(c => c.date) // Only show items with a release date
+                                        .sort((a, b) => new Date(b.date || '').getTime() - new Date(a.date || '').getTime());
+
+                                    return allCredits.map((credit, index) => (
+                                        <div key={`${credit.id}-${credit.role}-${index}`} className="relative pl-6 md:pl-8 group">
+                                            {/* Timeline Dot */}
+                                            <div className="absolute -left-[5px] top-2 w-2.5 h-2.5 rounded-full bg-white border border-black ring-4 ring-background" />
+
+                                            <Link
+                                                to={`/media/${credit.media_type}/${credit.id}`}
+                                                className="flex justify-between items-start gap-4 hover:bg-white/5 p-2 -ml-2 rounded-lg transition-colors"
+                                            >
+                                                <div className="space-y-1">
+                                                    <h3 className="text-base md:text-lg font-medium text-foreground">
+                                                        {credit.title || credit.name}
+                                                        <span className="text-muted-foreground font-normal ml-2">({credit.year})</span>
+                                                    </h3>
+                                                    <p className="text-sm text-muted-foreground/80">{credit.role}</p>
+                                                </div>
+
+                                                {/* Optional: Show poster on the right for visual context (like reference) */}
+                                                <div className="shrink-0 w-16 md:w-20 aspect-2/3 rounded overflow-hidden bg-muted/20 border border-white/10">
+                                                    {credit.poster_path ? (
+                                                        <img
+                                                            src={getImageUrl(credit.poster_path, 'w92')}
+                                                            alt={credit.title || credit.name}
+                                                            className="w-full h-full object-cover"
+                                                            loading="lazy"
+                                                        />
+                                                    ) : (
+                                                        <div className="w-full h-full flex items-center justify-center">
+                                                            <ImageOff className="w-4 h-4 text-muted-foreground/30" />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </Link>
+                                        </div>
+                                    ));
+                                })()}
                             </div>
                         </section>
                     )}
