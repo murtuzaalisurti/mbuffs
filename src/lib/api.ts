@@ -13,8 +13,7 @@ import {
 const _dayjs = dayjs();
 
 // --- Backend API Configuration ---
-const BACKEND_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-const JWT_TOKEN_KEY = 'authToken'; // Key for localStorage
+const BACKEND_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5001';
 
 const interleaveArrays = <T>(arr1: T[], arr2: T[]): T[] => {
     const maxLength = Math.max(arr1.length, arr2.length);
@@ -35,16 +34,12 @@ const interleaveArrays = <T>(arr1: T[], arr2: T[]): T[] => {
 // Helper function for backend fetch requests
 export const fetchBackend = async (endpoint: string, options: RequestInit = {}) => {
     const url = `${BACKEND_BASE_URL}/api${endpoint}`;
-    const token = localStorage.getItem(JWT_TOKEN_KEY);
 
     const headers = new Headers(options.headers || {});
     headers.set('Content-Type', 'application/json');
-    if (token) {
-        headers.set('Authorization', `Bearer ${token}`);
-    }
 
     const requestOptions: RequestInit = {
-        // Remove credentials: 'include' if using Authorization header, unless CORS requires it
+        credentials: 'include', // Required for Better Auth cookies
         headers: headers,
         ...options,
     };
@@ -572,6 +567,20 @@ export const fetchPersonDetailsApi = async (personId: number): Promise<import('.
         });
     } catch (error) {
         console.error(`Failed to fetch details for person ${personId}:`, error);
+        return null;
+    }
+};
+
+export const fetchPersonExternalIdsApi = async (personId: number): Promise<import('./types').PersonExternalIds | null> => {
+    try {
+        return await fetchBackend(`/content`, {
+            method: 'POST',
+            body: JSON.stringify({
+                endpoint: `/person/${personId}/external_ids`,
+            }),
+        });
+    } catch (error) {
+        console.error(`Failed to fetch external IDs for person ${personId}:`, error);
         return null;
     }
 };

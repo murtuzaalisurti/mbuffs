@@ -1,18 +1,30 @@
 import { Link } from "react-router-dom";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useCallback } from "react";
 import { Navbar } from "@/components/Navbar";
 import { MovieCard } from "@/components/MovieCard";
-import { fetchRecommendationsApi } from "@/lib/api";
+import { fetchRecommendationsApi, fetchUserPreferencesApi } from "@/lib/api";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, Loader2, Sparkles, Settings } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { UserPreferences } from "@/lib/types";
 
 const ITEMS_PER_PAGE = 20;
+const PREFERENCES_QUERY_KEY = ['user', 'preferences'];
 
 const ForYou = () => {
   const { user } = useAuth();
+
+  // Fetch user preferences separately
+  const { data: preferencesData } = useQuery<{ preferences: UserPreferences }, Error>({
+    queryKey: PREFERENCES_QUERY_KEY,
+    queryFn: fetchUserPreferencesApi,
+    enabled: !!user,
+    staleTime: 1000 * 60 * 5, // Cache for 5 minutes
+  });
+
+  const recommendationsEnabled = preferencesData?.preferences?.recommendations_enabled ?? false;
 
   // Infinite query for paginated recommendations
   const {
@@ -32,7 +44,7 @@ const ForYou = () => {
       return undefined;
     },
     staleTime: 1000 * 60 * 5, // Cache for 5 minutes
-    enabled: !!user?.recommendations_enabled,
+    enabled: !!user && recommendationsEnabled,
   });
 
   const allMovies = data?.pages.flatMap(page => page.results) || [];
@@ -72,7 +84,7 @@ const ForYou = () => {
   }, []);
 
   // Show message if recommendations are not enabled
-  if (user && !user.recommendations_enabled) {
+  if (user && !recommendationsEnabled) {
     return (
       <>
         <Navbar />

@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchUserCollectionsApi, updateUserPreferencesApi, fetchRecommendationCollectionsApi, setRecommendationCollectionsApi } from '@/lib/api';
-import { UserCollectionsResponse, UpdateUserPreferencesInput, RecommendationCollectionsResponse } from '@/lib/types';
+import { fetchUserCollectionsApi, updateUserPreferencesApi, fetchRecommendationCollectionsApi, setRecommendationCollectionsApi, fetchUserPreferencesApi } from '@/lib/api';
+import { UserCollectionsResponse, UpdateUserPreferencesInput, RecommendationCollectionsResponse, UserPreferences } from '@/lib/types';
 import { Navbar } from "@/components/Navbar";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -19,10 +19,21 @@ import { toast } from "sonner";
 const COLLECTIONS_QUERY_KEY = ['collections', 'user'];
 const USER_QUERY_KEY = ['user'];
 const RECOMMENDATION_COLLECTIONS_QUERY_KEY = ['recommendations', 'collections'];
+const PREFERENCES_QUERY_KEY = ['user', 'preferences'];
 
 const Profile = () => {
     const queryClient = useQueryClient();
     const { user, isLoadingUser } = useAuth();
+
+    // Fetch user preferences separately (not from session)
+    const {
+        data: preferencesData,
+        isLoading: isLoadingPreferences,
+    } = useQuery<{ preferences: UserPreferences }, Error>({
+        queryKey: PREFERENCES_QUERY_KEY,
+        queryFn: fetchUserPreferencesApi,
+        enabled: !!user,
+    });
 
     // Fetch user's collections for the recommendation source selector
     const {
@@ -41,25 +52,15 @@ const Profile = () => {
     } = useQuery<RecommendationCollectionsResponse, Error>({
         queryKey: RECOMMENDATION_COLLECTIONS_QUERY_KEY,
         queryFn: fetchRecommendationCollectionsApi,
-        enabled: !!user && (user.recommendations_enabled ?? false),
+        enabled: !!user && (preferencesData?.preferences?.recommendations_enabled ?? false),
     });
 
     // Mutation for updating preferences
     const updatePreferencesMutation = useMutation({
         mutationFn: updateUserPreferencesApi,
         onSuccess: (data) => {
-            // Update the user data in the cache
-            queryClient.setQueryData(USER_QUERY_KEY, (oldData: { user: typeof user } | undefined) => {
-                if (!oldData) return oldData;
-                return {
-                    ...oldData,
-                    user: {
-                        ...oldData.user,
-                        recommendations_enabled: data.preferences.recommendations_enabled,
-                        recommendations_collection_id: data.preferences.recommendations_collection_id,
-                    }
-                };
-            });
+            // Update the preferences data in the cache
+            queryClient.setQueryData(PREFERENCES_QUERY_KEY, { preferences: data.preferences });
             toast.success('Preferences updated');
         },
         onError: (error: Error) => {
@@ -155,9 +156,9 @@ const Profile = () => {
         );
     }
 
-    const recommendationsEnabled = user.recommendations_enabled ?? false;
+    const recommendationsEnabled = preferencesData?.preferences?.recommendations_enabled ?? false;
     const selectedCollectionIds = new Set(recommendationCollectionsData?.collections.map(c => c.id) || []);
-    const isLoading = isLoadingCollections || isLoadingRecommendationCollections;
+    const isLoading = isLoadingCollections || isLoadingRecommendationCollections || isLoadingPreferences;
     const isMutating = updatePreferencesMutation.isPending || setRecommendationCollectionsMutation.isPending;
 
     return (
@@ -172,8 +173,8 @@ const Profile = () => {
                         <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4">
                             <Avatar className="h-20 w-20 shrink-0">
                                 <AvatarImage
-                                    src={user.avatar_url || user.avatarUrl || undefined}
-                                    alt={user.username || 'User'}
+                                    src={user.avatarUrl || user.image || undefined}
+                                    alt={user.username || user.name || 'User'}
                                 />
                                 <AvatarFallback className="text-lg">
                                     {getInitials(user.username)}

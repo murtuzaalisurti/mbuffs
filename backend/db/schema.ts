@@ -4,18 +4,24 @@ import { sql } from "drizzle-orm"
 export const migrationsIdSeq = pgSequence("_migrations_id_seq", { startWith: "1", increment: "1", minValue: "1", maxValue: "2147483647", cache: "1", cycle: false })
 
 // ============================================================================
-// USER TABLE
+// USER TABLE (Better Auth compatible)
 // Note: Foreign key to collections.id for recommendations_collection_id exists in DB
 // but is omitted here to avoid circular reference issues. See relations.ts for the relationship.
 // ============================================================================
 export const user = pgTable("user", {
 	id: text().primaryKey().notNull(),
+	name: text().notNull(), // Better Auth required field
+	email: text().notNull(),
+	emailVerified: boolean("email_verified").default(false).notNull(),
+	image: text(), // Better Auth field (profile picture)
+	// Legacy fields - keep for backward compatibility
 	username: text(),
-	email: text(),
-	hashedPassword: text("hashed_password"),
 	avatarUrl: text("avatar_url"),
-	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`),
-	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`),
+	hashedPassword: text("hashed_password"),
+	// Timestamps
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	// Custom fields
 	recommendationsEnabled: boolean("recommendations_enabled").default(false),
 	recommendationsCollectionId: text("recommendations_collection_id"),
 }, (table) => [
@@ -25,22 +31,68 @@ export const user = pgTable("user", {
 ]);
 
 // ============================================================================
-// SESSION TABLE
+// SESSION TABLE (Better Auth compatible)
 // ============================================================================
 export const session = pgTable("session", {
 	id: text().primaryKey().notNull(),
-	expiresAt: timestamp("expires_at", { withTimezone: true, mode: 'string' }).notNull(),
 	userId: text("user_id").notNull(),
+	token: text().notNull(),
+	expiresAt: timestamp("expires_at", { withTimezone: true, mode: 'string' }).notNull(),
+	ipAddress: text("ip_address"),
+	userAgent: text("user_agent"),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 }, (table) => [
 	foreignKey({
 		columns: [table.userId],
 		foreignColumns: [user.id],
 		name: "session_user_id_fkey"
 	}).onDelete("cascade"),
+	unique("session_token_unique").on(table.token),
 ]);
 
 // ============================================================================
-// OAUTH ACCOUNT TABLE
+// ACCOUNT TABLE (Better Auth - replaces oauth_account)
+// ============================================================================
+export const account = pgTable("account", {
+	id: text().primaryKey().notNull(),
+	userId: text("user_id").notNull(),
+	accountId: text("account_id").notNull(),
+	providerId: text("provider_id").notNull(),
+	accessToken: text("access_token"),
+	refreshToken: text("refresh_token"),
+	accessTokenExpiresAt: timestamp("access_token_expires_at", { withTimezone: true, mode: 'string' }),
+	refreshTokenExpiresAt: timestamp("refresh_token_expires_at", { withTimezone: true, mode: 'string' }),
+	scope: text(),
+	idToken: text("id_token"),
+	password: text(),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+	foreignKey({
+		columns: [table.userId],
+		foreignColumns: [user.id],
+		name: "account_user_id_fkey"
+	}).onDelete("cascade"),
+	index("idx_account_user_id").using("btree", table.userId.asc().nullsLast().op("text_ops")),
+]);
+
+// ============================================================================
+// VERIFICATION TABLE (Better Auth - for email verification, password reset, etc.)
+// ============================================================================
+export const verification = pgTable("verification", {
+	id: text().primaryKey().notNull(),
+	identifier: text().notNull(),
+	value: text().notNull(),
+	expiresAt: timestamp("expires_at", { withTimezone: true, mode: 'string' }).notNull(),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`),
+	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+	index("idx_verification_identifier").using("btree", table.identifier.asc().nullsLast().op("text_ops")),
+]);
+
+// ============================================================================
+// LEGACY: OAUTH ACCOUNT TABLE (kept for migration purposes)
 // ============================================================================
 export const oauthAccount = pgTable("oauth_account", {
 	providerId: text("provider_id").notNull(),
