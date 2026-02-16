@@ -439,7 +439,7 @@ const CollectionDetail = () => {
                                                         <Button 
                                                             variant="secondary" 
                                                             size="icon" 
-                                                            className="h-7 w-7 rounded-full bg-black/60 backdrop-blur-sm border-0 hover:bg-black/80 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                                                            className="h-7 w-7 rounded-full bg-black/60 backdrop-blur-sm border-0 hover:bg-black/80 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity"
                                                             onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
                                                         >
                                                             <MoreVertical className="h-4 w-4 text-white" />
