@@ -44,6 +44,46 @@ const CATEGORY_MAPPING: Record<string, keyof Omit<ParentalGuidanceData, 'imdbId'
 };
 
 /**
+ * Fetch release date from TMDB API for a given movie/tv show
+ * Returns the release_date for movies or first_air_date for TV shows
+ */
+export async function getReleaseDateFromTmdb(tmdbId: string, mediaType: 'movie' | 'tv'): Promise<Date | null> {
+    const TMDB_API_KEY = process.env.TMDB_API_KEY;
+    const TMDB_BASE_URL = process.env.TMDB_BASE_URL;
+
+    if (!TMDB_API_KEY || !TMDB_BASE_URL) {
+        console.error('TMDB API key or base URL not configured');
+        return null;
+    }
+
+    try {
+        const endpoint = mediaType === 'movie' 
+            ? `${TMDB_BASE_URL}/movie/${tmdbId}`
+            : `${TMDB_BASE_URL}/tv/${tmdbId}`;
+
+        const url = new URL(endpoint);
+        url.searchParams.append('api_key', TMDB_API_KEY);
+
+        const response = await fetch(url.toString());
+        if (!response.ok) {
+            console.error(`Failed to fetch release date for ${mediaType} ${tmdbId}: ${response.status}`);
+            return null;
+        }
+
+        const data = await response.json() as { release_date?: string; first_air_date?: string };
+        const dateStr = mediaType === 'movie' ? data.release_date : data.first_air_date;
+        
+        if (!dateStr) return null;
+        
+        const date = new Date(dateStr);
+        return isNaN(date.getTime()) ? null : date;
+    } catch (error) {
+        console.error(`Error fetching release date for ${mediaType} ${tmdbId}:`, error);
+        return null;
+    }
+}
+
+/**
  * Fetch IMDB ID from TMDB API for a given movie/tv show
  */
 export async function getImdbIdFromTmdb(tmdbId: string, mediaType: 'movie' | 'tv'): Promise<string | null> {
@@ -417,38 +457,89 @@ export async function isScrapeNeeded(scrapeType: string): Promise<boolean> {
     return daysSinceLastScrape >= 7;
 }
 
+// Re-scrape thresholds based on content age
+const RESCRAPE_THRESHOLD_NEW_CONTENT_DAYS = 7;      // 7 days for content < 6 months old
+const NEW_CONTENT_AGE_THRESHOLD_DAYS = 180;         // Content is "new" if released within 6 months
+
 /**
- * Check if data needs to be re-scraped (older than 7 days)
+ * Check if data needs to be re-scraped based on content age
+ * - New releases (< 6 months old): re-scrape every 7 days
+ * - Older releases (>= 6 months old): never re-scrape, trust existing data
  */
-function needsRescrape(scrapedAt: string | null | undefined): boolean {
+function needsRescrape(scrapedAt: string | null | undefined, releaseDate: Date | null): boolean {
     if (!scrapedAt) return true;
     
-    const lastScraped = new Date(scrapedAt);
     const now = new Date();
+    
+    // Determine if content is "new" based on release date
+    let isNewContent = true; // Default to treating as new if no release date
+    if (releaseDate) {
+        const daysSinceRelease = (now.getTime() - releaseDate.getTime()) / (1000 * 60 * 60 * 24);
+        isNewContent = daysSinceRelease < NEW_CONTENT_AGE_THRESHOLD_DAYS;
+    }
+    
+    // Old content: never re-scrape, trust existing data
+    if (!isNewContent) {
+        return false;
+    }
+    
+    // New content: re-scrape if data is older than threshold
+    const lastScraped = new Date(scrapedAt);
     const daysSinceLastScrape = (now.getTime() - lastScraped.getTime()) / (1000 * 60 * 60 * 24);
     
-    return daysSinceLastScrape >= 7;
+    return daysSinceLastScrape >= RESCRAPE_THRESHOLD_NEW_CONTENT_DAYS;
+}
+
+/**
+ * Count how many categories have data
+ */
+function countFilledCategories(data: Partial<ParentalGuidanceData> | null): number {
+    if (!data) return 0;
+    const categories = [data.nudity, data.violence, data.profanity, data.alcohol, data.frightening];
+    return categories.filter(c => c !== null && c !== undefined).length;
 }
 
 /**
  * Check if parental guidance data is complete (has multiple categories)
  */
 function isDataComplete(data: ParentalGuidanceData | null): boolean {
-    if (!data) return false;
-    
-    // Count how many categories have data
-    const categories = [data.nudity, data.violence, data.profanity, data.alcohol, data.frightening];
-    const filledCategories = categories.filter(c => c !== null).length;
-    
     // Consider data complete if at least 3 categories are filled
     // (some movies may legitimately have fewer categories rated)
-    return filledCategories >= 3;
+    return countFilledCategories(data) >= 3;
+}
+
+/**
+ * Merge scraped data with existing data, preserving existing non-null values
+ * Only overwrites null fields with new data, never overwrites good data with nulls
+ */
+function mergeParentalGuidanceData(
+    existing: ParentalGuidanceData | null,
+    newData: Omit<ParentalGuidanceData, 'tmdbId' | 'mediaType'>
+): Omit<ParentalGuidanceData, 'tmdbId' | 'mediaType'> {
+    if (!existing) return newData;
+    
+    return {
+        imdbId: newData.imdbId || existing.imdbId,
+        // Only use new value if it's not null, otherwise keep existing
+        nudity: newData.nudity ?? existing.nudity,
+        violence: newData.violence ?? existing.violence,
+        profanity: newData.profanity ?? existing.profanity,
+        alcohol: newData.alcohol ?? existing.alcohol,
+        frightening: newData.frightening ?? existing.frightening,
+        nudityDescription: newData.nudityDescription ?? existing.nudityDescription,
+        violenceDescription: newData.violenceDescription ?? existing.violenceDescription,
+        profanityDescription: newData.profanityDescription ?? existing.profanityDescription,
+        alcoholDescription: newData.alcoholDescription ?? existing.alcoholDescription,
+        frighteningDescription: newData.frighteningDescription ?? existing.frighteningDescription,
+    };
 }
 
 /**
  * Scrape and save parental guidance for a specific item
- * - Returns cached data if available, complete, and less than 7 days old
- * - Re-scrapes if data is incomplete, older than 7 days, or doesn't exist
+ * - Returns cached data if available, complete, and within re-scrape threshold
+ * - Re-scrape threshold depends on content age:
+ *   - New releases (< 6 months old): re-scrape every 7 days
+ *   - Older releases (>= 6 months old): re-scrape every 6 months
  */
 export async function scrapeAndSaveParentalGuidance(
     tmdbId: string,
@@ -457,18 +548,24 @@ export async function scrapeAndSaveParentalGuidance(
     // Check if we have cached data
     const existing = await getParentalGuidanceFromDb(tmdbId, mediaType);
     
-    // If cached data exists, is complete, and is less than 7 days old, return it
-    if (existing && isDataComplete(existing) && !needsRescrape(existing.scrapedAt)) {
-        console.log(`Using cached parental guidance for ${mediaType} ${tmdbId} (scraped ${existing.scrapedAt})`);
+    // Fetch release date to determine re-scrape threshold
+    const releaseDate = await getReleaseDateFromTmdb(tmdbId, mediaType);
+    
+    // If cached data exists, is complete, and within re-scrape threshold, return it
+    if (existing && isDataComplete(existing) && !needsRescrape(existing.scrapedAt, releaseDate)) {
+        const contentAge = releaseDate 
+            ? `released ${Math.floor((Date.now() - releaseDate.getTime()) / (1000 * 60 * 60 * 24))} days ago`
+            : 'unknown release date';
+        console.log(`Using cached parental guidance for ${mediaType} ${tmdbId} (scraped ${existing.scrapedAt}, ${contentAge})`);
         return existing;
     }
     
-    // Need to scrape - either no data, data is stale (>7 days old), or data is incomplete
+    // Need to scrape - either no data, data is stale, or data is incomplete
     if (existing) {
         if (!isDataComplete(existing)) {
             console.log(`Cached data for ${mediaType} ${tmdbId} is incomplete, re-scraping...`);
         } else {
-            console.log(`Cached data for ${mediaType} ${tmdbId} is stale, re-scraping...`);
+            console.log(`Cached data for ${mediaType} ${tmdbId} is stale (threshold: ${RESCRAPE_THRESHOLD_NEW_CONTENT_DAYS} days), re-scraping...`);
         }
     }
     
@@ -490,22 +587,34 @@ export async function scrapeAndSaveParentalGuidance(
     
     if (!scrapedData) {
         console.log(`Failed to scrape parental guidance for ${imdbId}`);
-        return null;
+        // Return existing data if scrape fails, better than nothing
+        return existing;
     }
     
-    // Combine with metadata
+    // Merge scraped data with existing data
+    // This preserves existing non-null values and only fills in nulls with new data
+    const mergedData = mergeParentalGuidanceData(existing, scrapedData);
+    
     const fullData: ParentalGuidanceData = {
-        ...scrapedData,
+        ...mergedData,
         tmdbId,
         mediaType,
     };
     
-    // Save to database
-    const saved = await saveParentalGuidance(fullData);
+    // Only save if we have new data to add (avoid unnecessary DB writes)
+    const existingCount = countFilledCategories(existing);
+    const mergedCount = countFilledCategories(fullData);
     
-    if (!saved) {
-        console.error(`Failed to save parental guidance for ${imdbId}`);
-        return null;
+    if (mergedCount > existingCount || !existing) {
+        const saved = await saveParentalGuidance(fullData);
+        
+        if (!saved) {
+            console.error(`Failed to save parental guidance for ${imdbId}`);
+            return existing; // Return existing data instead of null
+        }
+        console.log(`Saved parental guidance for ${imdbId} (${existingCount} -> ${mergedCount} categories)`);
+    } else {
+        console.log(`No new data to save for ${imdbId}, keeping existing (${existingCount} categories)`);
     }
     
     return fullData;

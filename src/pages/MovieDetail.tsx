@@ -598,7 +598,7 @@ const MovieDetail = () => {
                         <section className="space-y-4">
                             <h2 className="text-xl md:text-2xl font-semibold text-foreground/90 text-center md:text-left">Overview</h2>
                             <div className="flex flex-col items-center md:items-start text-center md:text-left">
-                                <p className="text-base leading-relaxed text-foreground/80 max-w-2xl">
+                                <p className="text-base leading-relaxed text-foreground/80 max-w-3xl">
                                     {overview.length > OVERVIEW_CHAR_LIMIT && !overviewExpanded
                                         ? overview.slice(0, OVERVIEW_CHAR_LIMIT).trimEnd() + '...'
                                         : overview}
@@ -612,12 +612,21 @@ const MovieDetail = () => {
                                     </button>
                                 )}
                             </div>
+                            
+                            {/* Parental Guidance Badges */}
+                            {isLoggedIn && (ratingsData?.parentalGuidance || isLoadingRatings) && (
+                                <ParentalGuidance 
+                                    data={ratingsData?.parentalGuidance || null}
+                                    isLoading={isLoadingRatings}
+                                    className="mt-6"
+                                />
+                            )}
                         </section>
                     )}
-
-                    {/* Parental Guidance Section */}
-                    {isLoggedIn && (ratingsData?.parentalGuidance || isLoadingRatings) && (
-                        <section className="max-w-2xl">
+                    
+                    {/* Parental Guidance (when no overview) */}
+                    {!overview && isLoggedIn && (ratingsData?.parentalGuidance || isLoadingRatings) && (
+                        <section>
                             <ParentalGuidance 
                                 data={ratingsData?.parentalGuidance || null}
                                 isLoading={isLoadingRatings}
