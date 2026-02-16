@@ -254,35 +254,69 @@ const MovieDetail = () => {
     // Check if movie is in at least one collection
     const isInAnyCollection = movieStatusMap ? Object.values(movieStatusMap).some(Boolean) : false;
 
-    // Add movie to collection mutation
+    // Add movie to collection mutation with optimistic updates
     const addToCollectionMutation = useMutation({
         mutationFn: ({ collectionId }: { collectionId: string }) =>
             addMovieToCollectionApi(collectionId, { movieId: collectionMediaId as unknown as number }), // API expects number but handles string with 'tv' suffix
+        onMutate: async ({ collectionId }) => {
+            // Cancel outgoing refetches
+            await queryClient.cancelQueries({ queryKey: movieStatusQueryKey });
+            
+            // Snapshot previous value
+            const previousStatus = queryClient.getQueryData<Record<string, boolean>>(movieStatusQueryKey);
+            
+            // Optimistically update
+            queryClient.setQueryData(movieStatusQueryKey, (old: Record<string, boolean> | undefined) => ({
+                ...old,
+                [collectionId]: true,
+            }));
+            
+            return { previousStatus };
+        },
         onSuccess: (_, { collectionId }) => {
-            toast.success('Added to collection');
-            refetchMovieStatus();
             queryClient.invalidateQueries({ queryKey: ['collection', collectionId] });
         },
-        onError: (error: Error & { data?: { message?: string } }) => {
+        onError: (error: Error & { data?: { message?: string } }, _, context) => {
+            // Rollback on error
+            if (context?.previousStatus) {
+                queryClient.setQueryData(movieStatusQueryKey, context.previousStatus);
+            }
             if (error?.data?.message?.includes('already exists')) {
-                toast.warning('Already in this collection');
+                toast.error('Already in this collection');
             } else {
-                toast.error(`Failed to add: ${error.message}`);
+                toast.error(`Failed to add to collection`);
             }
         },
     });
 
-    // Remove movie from collection mutation
+    // Remove movie from collection mutation with optimistic updates
     const removeFromCollectionMutation = useMutation({
         mutationFn: ({ collectionId }: { collectionId: string }) =>
             removeMovieFromCollectionApi(collectionId, collectionMediaId!),
+        onMutate: async ({ collectionId }) => {
+            // Cancel outgoing refetches
+            await queryClient.cancelQueries({ queryKey: movieStatusQueryKey });
+            
+            // Snapshot previous value
+            const previousStatus = queryClient.getQueryData<Record<string, boolean>>(movieStatusQueryKey);
+            
+            // Optimistically update
+            queryClient.setQueryData(movieStatusQueryKey, (old: Record<string, boolean> | undefined) => ({
+                ...old,
+                [collectionId]: false,
+            }));
+            
+            return { previousStatus };
+        },
         onSuccess: (_, { collectionId }) => {
-            toast.success('Removed from collection');
-            refetchMovieStatus();
             queryClient.invalidateQueries({ queryKey: ['collection', collectionId] });
         },
-        onError: (error: Error) => {
-            toast.error(`Failed to remove: ${error.message}`);
+        onError: (error: Error, _, context) => {
+            // Rollback on error
+            if (context?.previousStatus) {
+                queryClient.setQueryData(movieStatusQueryKey, context.previousStatus);
+            }
+            toast.error(`Failed to remove from collection`);
         },
     });
 
@@ -562,17 +596,15 @@ const MovieDetail = () => {
                                         ) : (
                                             collectionsData?.collections?.map((collection: CollectionSummary) => {
                                                 const isInCollection = movieStatusMap?.[collection.id] ?? false;
-                                                const isPending = addToCollectionMutation.isPending || removeFromCollectionMutation.isPending;
 
                                                 return (
                                                     <div
                                                         key={collection.id}
                                                         className="flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-accent/50 cursor-pointer transition-all group"
-                                                        onClick={() => !isPending && handleCollectionToggle(collection.id, isInCollection)}
+                                                        onClick={() => handleCollectionToggle(collection.id, isInCollection)}
                                                     >
                                                         <Checkbox
                                                             checked={isInCollection}
-                                                            disabled={isPending}
                                                             onCheckedChange={() => handleCollectionToggle(collection.id, isInCollection)}
                                                             className="pointer-events-none rounded-full w-5 h-5 border-muted-foreground/30 data-[state=checked]:bg-primary data-[state=checked]:border-primary transition-all group-hover:border-muted-foreground/50"
                                                         />

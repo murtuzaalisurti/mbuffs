@@ -32,13 +32,29 @@ export const getUserCollections = async (req: Request, res: Response, next: Next
         return;
     }
     try {
+        // Get collections with preview movie IDs (up to 4 per collection)
+        // Using a subquery approach to avoid DISTINCT issues with JSON
         const collections = await sql`
-            SELECT DISTINCT c.id, c.name, c.description, c.owner_id, c.created_at, c.updated_at,
-                   u.username as owner_username, u.avatar_url as owner_avatar
+            SELECT c.id, c.name, c.description, c.owner_id, c.created_at, c.updated_at,
+                   u.username as owner_username, u.avatar_url as owner_avatar,
+                   (
+                       SELECT COALESCE(json_agg(movie_id), '[]'::json)
+                       FROM (
+                           SELECT movie_id
+                           FROM collection_movies
+                           WHERE collection_id = c.id
+                           ORDER BY added_at DESC
+                           LIMIT 4
+                       ) sub
+                   ) as preview_movie_ids
             FROM collections c
             JOIN "user" u ON c.owner_id = u.id
-            LEFT JOIN collection_collaborators cc ON c.id = cc.collection_id
-            WHERE c.owner_id = ${userId} OR cc.user_id = ${userId}
+            WHERE c.id IN (
+                SELECT DISTINCT col.id
+                FROM collections col
+                LEFT JOIN collection_collaborators cc ON col.id = cc.collection_id
+                WHERE col.owner_id = ${userId} OR cc.user_id = ${userId}
+            )
             ORDER BY c.updated_at DESC
         `;
         res.status(200).json({ collections: collections });
