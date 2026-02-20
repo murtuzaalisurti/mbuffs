@@ -1,11 +1,11 @@
 import { Link } from "react-router-dom";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Sparkles } from "lucide-react";
 import { Movie, Genre } from "@/lib/types";
 import { getImageUrl } from "@/lib/api";
 import { MovieCard } from "./MovieCard";
 import { Skeleton } from "@/components/ui/skeleton";
 
-interface GenreRowProps {
+export interface GenreRowProps {
   genre?: Genre;
   title?: string;
   movies: Movie[];
@@ -14,9 +14,10 @@ interface GenreRowProps {
   limit?: number;
   hideSeeAll?: boolean;
   customLink?: string;
+  isPersonalized?: boolean;
 }
 
-export function GenreRow({ genre, title, movies, mediaType, isLoading = false, limit = 10, hideSeeAll = false, customLink }: GenreRowProps) {
+export function GenreRow({ genre, title, movies, mediaType, isLoading = false, limit = 10, hideSeeAll = false, customLink, isPersonalized = false }: GenreRowProps) {
   const displayMovies = movies.slice(0, limit);
 
   if (isLoading) {
@@ -52,9 +53,12 @@ export function GenreRow({ genre, title, movies, mediaType, isLoading = false, l
       {/* Header with title and See All link */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="h-6 w-1 rounded-full bg-primary" />
-          <h2 className="text-xl md:text-2xl font-semibold tracking-tight">
+          <div className={`h-6 w-1 rounded-full ${isPersonalized ? 'bg-gradient-to-b from-primary to-purple-500' : 'bg-primary'}`} />
+          <h2 className="text-xl md:text-2xl font-semibold tracking-tight flex items-center gap-2">
             {rowTitle}
+            {isPersonalized && (
+              <Sparkles className="h-4 w-4 text-primary" />
+            )}
           </h2>
         </div>
         {showSeeAll && (

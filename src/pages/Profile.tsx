@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useAuth } from '@/hooks/useAuth';
-import { Mail, Calendar, Sparkles, FolderHeart, X, ChevronDown } from 'lucide-react';
+import { Mail, Calendar, Sparkles, FolderHeart, X, ChevronDown, Grid3X3 } from 'lucide-react';
 import { toast } from "sonner";
 
 const COLLECTIONS_QUERY_KEY = ['collections', 'user'];
@@ -118,9 +118,13 @@ const Profile = () => {
         const updateData: UpdateUserPreferencesInput = {
             recommendations_enabled: enabled,
         };
-        // If disabling, also clear the collection
+        // If disabling, also clear the collection and disable category recommendations
         if (!enabled) {
             updateData.recommendations_collection_id = null;
+            updateData.category_recommendations_enabled = false;
+        } else {
+            // Auto-enable category recommendations when enabling main recommendations
+            updateData.category_recommendations_enabled = true;
         }
         updatePreferencesMutation.mutate(updateData);
         
@@ -128,6 +132,12 @@ const Profile = () => {
         if (enabled) {
             queryClient.invalidateQueries({ queryKey: RECOMMENDATION_COLLECTIONS_QUERY_KEY });
         }
+    };
+
+    const handleToggleCategoryRecommendations = (enabled: boolean) => {
+        updatePreferencesMutation.mutate({
+            category_recommendations_enabled: enabled,
+        });
     };
 
     const handleCollectionToggle = (collectionId: string, isChecked: boolean) => {
@@ -191,6 +201,7 @@ const Profile = () => {
     }
 
     const recommendationsEnabled = preferencesData?.preferences?.recommendations_enabled ?? false;
+    const categoryRecommendationsEnabled = preferencesData?.preferences?.category_recommendations_enabled ?? false;
     const selectedCollectionIds = new Set(recommendationCollectionsData?.collections.map(c => c.id) || []);
     const isLoading = isLoadingCollections || isLoadingRecommendationCollections || isLoadingPreferences;
 
@@ -359,6 +370,32 @@ const Profile = () => {
                                         </div>
                                     )}
                                 </div>
+
+                                <Separator />
+
+                                {/* Category Recommendations Toggle */}
+                                <div className="flex items-center justify-between">
+                                    <div className="space-y-0.5">
+                                        <Label htmlFor="category-recommendations-toggle" className="text-base flex items-center gap-2">
+                                            <Grid3X3 className="h-4 w-4" />
+                                            Personalized Categories
+                                        </Label>
+                                        <p className="text-sm text-muted-foreground">
+                                            Show personalized recommendations on the Categories page based on your taste
+                                        </p>
+                                    </div>
+                                    <Switch
+                                        id="category-recommendations-toggle"
+                                        checked={categoryRecommendationsEnabled}
+                                        onCheckedChange={handleToggleCategoryRecommendations}
+                                        disabled={selectedCollectionIds.size === 0}
+                                    />
+                                </div>
+                                {selectedCollectionIds.size === 0 && (
+                                    <p className="text-xs text-muted-foreground">
+                                        Select at least one source collection to enable personalized categories
+                                    </p>
+                                )}
                             </>
                         )}
 

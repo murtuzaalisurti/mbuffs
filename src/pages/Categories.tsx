@@ -1,17 +1,34 @@
 import { useQuery } from "@tanstack/react-query";
 import { Navbar } from "@/components/Navbar";
 import { GenreRow } from "@/components/GenreRow";
-import { fetchGenreListApi, fetchMoviesByGenreApi, fetchTvByGenreApi, fetchNowPlayingMoviesApi } from "@/lib/api";
-import { Genre } from "@/lib/types";
+import { fetchGenreListApi, fetchMoviesByGenreApi, fetchTvByGenreApi, fetchNowPlayingMoviesApi, fetchCategoryRecommendationsApi, fetchUserPreferencesApi } from "@/lib/api";
+import { Genre, CategoryRecommendationsResponse } from "@/lib/types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Film, Tv } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Film, Tv, Sparkles } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { Link } from "react-router-dom";
 
 // Popular genres to feature (subset for better UX)
 const FEATURED_MOVIE_GENRE_IDS = [27, 53, 18, 878, 16, 28, 35, 10749]; // Horror, Thriller, Drama, Sci-Fi, Animation, Action, Comedy, Romance
 const FEATURED_TV_GENRE_IDS = [9648, 18, 10765, 16, 10759, 35, 80, 10751]; // Mystery (closest to Horror/Thriller), Drama, Sci-Fi & Fantasy, Animation, Action & Adventure, Comedy, Crime, Family
 
 const Categories = () => {
+  const { user } = useAuth();
+
+  // Fetch user preferences to check if category recommendations are enabled
+  const { data: preferencesData } = useQuery({
+    queryKey: ['user', 'preferences'],
+    queryFn: fetchUserPreferencesApi,
+    enabled: !!user,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  });
+
+  const categoryRecommendationsEnabled = preferencesData?.preferences?.category_recommendations_enabled ?? false;
+  const recommendationsEnabled = preferencesData?.preferences?.recommendations_enabled ?? false;
+  const showPersonalized = user && categoryRecommendationsEnabled && recommendationsEnabled;
+
   return (
     <>
       <Navbar />
@@ -24,12 +41,30 @@ const Categories = () => {
             <div className="absolute -top-10 left-40 w-48 h-48 bg-purple-500/[0.04] rounded-full blur-3xl pointer-events-none" />
 
             <div className="relative">
-              <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight leading-[1.1] mb-4">
-                Browse by <span className="text-gradient">Category</span>
-              </h1>
+              <div className="flex items-center gap-3 mb-4">
+                <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight leading-[1.1]">
+                  Browse by <span className="text-gradient">Category</span>
+                </h1>
+                {showPersonalized && (
+                  <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20 gap-1">
+                    <Sparkles className="h-3 w-3" />
+                    Personalized
+                  </Badge>
+                )}
+              </div>
               <p className="text-lg text-muted-foreground max-w-md">
-                Discover movies and TV shows organized by genre.
+                {showPersonalized 
+                  ? "Categories tailored to your taste based on your collections."
+                  : "Discover movies and TV shows organized by genre."}
               </p>
+              {!showPersonalized && user && (
+                <p className="text-sm text-muted-foreground mt-2">
+                  <Link to="/profile" className="text-primary hover:underline">
+                    Enable personalized categories
+                  </Link>{" "}
+                  in your profile settings.
+                </p>
+              )}
             </div>
           </div>
         </section>
@@ -50,17 +85,90 @@ const Categories = () => {
           </div>
 
           <TabsContent value="movie">
-            <GenreRowsContent mediaType="movie" featuredGenreIds={FEATURED_MOVIE_GENRE_IDS} />
+            {showPersonalized ? (
+              <PersonalizedCategoriesContent mediaType="movie" />
+            ) : (
+              <GenreRowsContent mediaType="movie" featuredGenreIds={FEATURED_MOVIE_GENRE_IDS} />
+            )}
           </TabsContent>
 
           <TabsContent value="tv">
-            <GenreRowsContent mediaType="tv" featuredGenreIds={FEATURED_TV_GENRE_IDS} />
+            {showPersonalized ? (
+              <PersonalizedCategoriesContent mediaType="tv" />
+            ) : (
+              <GenreRowsContent mediaType="tv" featuredGenreIds={FEATURED_TV_GENRE_IDS} />
+            )}
           </TabsContent>
         </Tabs>
       </main>
     </>
   );
 };
+
+// Loading skeleton for categories
+function CategoriesLoadingSkeleton() {
+  return (
+    <div className="space-y-12">
+      {Array.from({ length: 4 }).map((_, index) => (
+        <div key={index} className="space-y-4">
+          <div className="flex items-center justify-between">
+            <Skeleton className="h-7 w-32 rounded-lg" />
+            <Skeleton className="h-5 w-16 rounded-md" />
+          </div>
+          <div className="flex gap-4 overflow-hidden">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="shrink-0 w-[140px] sm:w-[160px] md:w-[180px]">
+                <Skeleton className="aspect-2/3 w-full rounded-xl" />
+                <Skeleton className="h-4 w-[75%] mt-3 rounded-md" />
+                <Skeleton className="h-3 w-[45%] mt-2 rounded-md" />
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Component to render personalized category recommendations
+function PersonalizedCategoriesContent({ mediaType }: { mediaType: 'movie' | 'tv' }) {
+  const { data, isLoading, isError } = useQuery<CategoryRecommendationsResponse>({
+    queryKey: ['recommendations', 'categories', mediaType],
+    queryFn: () => fetchCategoryRecommendationsApi(mediaType, 10),
+    staleTime: 1000 * 60 * 10, // Cache for 10 minutes
+  });
+
+  if (isLoading) {
+    return <CategoriesLoadingSkeleton />;
+  }
+
+  if (isError || !data || data.categories.length === 0) {
+    // Fallback to default categories if personalized fails or is empty
+    return (
+      <GenreRowsContent 
+        mediaType={mediaType} 
+        featuredGenreIds={mediaType === 'movie' ? FEATURED_MOVIE_GENRE_IDS : FEATURED_TV_GENRE_IDS} 
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-12">
+      {mediaType === 'movie' && <TheatricalReleasesRow />}
+      {data.categories.map((category) => (
+        <GenreRow
+          key={`personalized-${mediaType}-${category.genre.id}`}
+          genre={category.genre}
+          movies={category.results}
+          mediaType={mediaType}
+          isLoading={false}
+          limit={10}
+          isPersonalized
+        />
+      ))}
+    </div>
+  );
+}
 
 // Component to render genre rows for a specific media type
 function GenreRowsContent({ mediaType, featuredGenreIds }: { mediaType: 'movie' | 'tv'; featuredGenreIds: number[] }) {
@@ -77,27 +185,7 @@ function GenreRowsContent({ mediaType, featuredGenreIds }: { mediaType: 'movie' 
     .filter((g): g is Genre => g !== undefined);
 
   if (isLoadingGenres) {
-    return (
-      <div className="space-y-12">
-        {Array.from({ length: 4 }).map((_, index) => (
-          <div key={index} className="space-y-4">
-            <div className="flex items-center justify-between">
-              <Skeleton className="h-7 w-32 rounded-lg" />
-              <Skeleton className="h-5 w-16 rounded-md" />
-            </div>
-            <div className="flex gap-4 overflow-hidden">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="shrink-0 w-[140px] sm:w-[160px] md:w-[180px]">
-                  <Skeleton className="aspect-2/3 w-full rounded-xl" />
-                  <Skeleton className="h-4 w-[75%] mt-3 rounded-md" />
-                  <Skeleton className="h-3 w-[45%] mt-2 rounded-md" />
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    );
+    return <CategoriesLoadingSkeleton />;
   }
 
   return (

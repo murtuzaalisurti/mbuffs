@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { sql } from '../lib/db.js';
 import {
     generateRecommendations,
+    generateCategoryRecommendations,
     addRecommendationCollection,
     removeRecommendationCollection,
     setRecommendationCollections
@@ -26,6 +27,33 @@ export const getRecommendations = async (req: Request, res: Response, next: Next
         res.status(200).json(recommendations);
     } catch (error) {
         console.error("Error generating recommendations:", error);
+        next(error);
+    }
+};
+
+/**
+ * GET /api/recommendations/categories
+ * Get personalized category-based recommendations for the authenticated user
+ * Supports ?mediaType=movie|tv&limit=10
+ */
+export const getCategoryRecommendations = async (req: Request, res: Response, next: NextFunction) => {
+    if (!req.userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    try {
+        const mediaType = (req.query.mediaType as 'movie' | 'tv') || 'movie';
+        const limit = parseInt(req.query.limit as string) || 10;
+        
+        if (mediaType !== 'movie' && mediaType !== 'tv') {
+            return res.status(400).json({ message: "mediaType must be 'movie' or 'tv'" });
+        }
+
+        const recommendations = await generateCategoryRecommendations(req.userId, mediaType, limit);
+        
+        res.status(200).json(recommendations);
+    } catch (error) {
+        console.error("Error generating category recommendations:", error);
         next(error);
     }
 };

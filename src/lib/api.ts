@@ -6,7 +6,7 @@ import {
     UpdateCollaboratorInput, AddMovieResponse, VideosResponse, CreditsResponse,
     Genre, GenreListResponse, PersonCreditsResponse, SeasonDetails, TmdbCollectionDetails,
     UserPreferences, UpdateUserPreferencesInput,
-    RecommendationsResponse, RecommendationCollectionsResponse,
+    RecommendationsResponse, RecommendationCollectionsResponse, CategoryRecommendationsResponse,
     CombinedRatingsResponse
 } from './types';
 
@@ -133,6 +133,13 @@ export const setRecommendationCollectionsApi = async (collectionIds: string[]): 
         method: 'PUT',
         body: JSON.stringify({ collection_ids: collectionIds }),
     });
+};
+
+export const fetchCategoryRecommendationsApi = async (
+    mediaType: 'movie' | 'tv' = 'movie',
+    limit: number = 10
+): Promise<CategoryRecommendationsResponse> => {
+    return fetchBackend(`/recommendations/categories?mediaType=${mediaType}&limit=${limit}`);
 };
 
 // --- Collection API Functions (No changes needed, use fetchBackend) ---

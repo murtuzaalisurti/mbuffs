@@ -16,11 +16,14 @@ export interface UserPreferences {
     recommendations_collection_id: string | null;
     // New: support for multiple recommendation collections
     recommendations_collection_ids?: string[];
+    // Category recommendations toggle
+    category_recommendations_enabled: boolean;
 }
 
 export interface UpdateUserPreferencesInput {
     recommendations_enabled?: boolean;
     recommendations_collection_id?: string | null;
+    category_recommendations_enabled?: boolean;
 }
 
 // --- Recommendation Types ---

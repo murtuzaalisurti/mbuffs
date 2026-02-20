@@ -11,7 +11,7 @@ export const getUserPreferences = async (req: Request, res: Response, next: Next
 
     try {
         const result = await sql`
-            SELECT recommendations_enabled, recommendations_collection_id 
+            SELECT recommendations_enabled, recommendations_collection_id, category_recommendations_enabled 
             FROM "user" 
             WHERE id = ${req.userId}
         `;
@@ -24,6 +24,7 @@ export const getUserPreferences = async (req: Request, res: Response, next: Next
         const preferences: UserPreferences = {
             recommendations_enabled: user.recommendations_enabled ?? false,
             recommendations_collection_id: user.recommendations_collection_id ?? null,
+            category_recommendations_enabled: user.category_recommendations_enabled ?? false,
         };
 
         res.status(200).json({ preferences });
@@ -38,7 +39,7 @@ export const updateUserPreferences = async (req: Request, res: Response, next: N
         return res.status(401).json({ message: "Unauthorized" });
     }
 
-    const { recommendations_enabled, recommendations_collection_id } = req.body as UpdateUserPreferencesInput;
+    const { recommendations_enabled, recommendations_collection_id, category_recommendations_enabled } = req.body as UpdateUserPreferencesInput;
 
     try {
         // If a collection ID is provided, verify the user owns it or has access
@@ -58,52 +59,43 @@ export const updateUserPreferences = async (req: Request, res: Response, next: N
             }
         }
 
-        // Build the update query dynamically
-        const updates: string[] = [];
-        const values: (boolean | string | null)[] = [];
+        // Check if any valid field is provided
+        const hasRecommendationsEnabled = recommendations_enabled !== undefined;
+        const hasCollectionId = recommendations_collection_id !== undefined;
+        const hasCategoryRecommendations = category_recommendations_enabled !== undefined;
 
-        if (recommendations_enabled !== undefined) {
-            updates.push('recommendations_enabled');
-            values.push(recommendations_enabled);
-        }
-
-        if (recommendations_collection_id !== undefined) {
-            updates.push('recommendations_collection_id');
-            values.push(recommendations_collection_id);
-        }
-
-        if (updates.length === 0) {
+        if (!hasRecommendationsEnabled && !hasCollectionId && !hasCategoryRecommendations) {
             return res.status(400).json({ message: "No valid fields to update" });
         }
 
-        // Execute the update
-        let result;
-        if (updates.length === 2) {
-            result = await sql`
-                UPDATE "user" 
-                SET recommendations_enabled = ${values[0] as boolean},
-                    recommendations_collection_id = ${values[1] as string | null},
-                    updated_at = NOW()
-                WHERE id = ${req.userId}
-                RETURNING recommendations_enabled, recommendations_collection_id
-            `;
-        } else if (updates[0] === 'recommendations_enabled') {
-            result = await sql`
-                UPDATE "user" 
-                SET recommendations_enabled = ${values[0] as boolean},
-                    updated_at = NOW()
-                WHERE id = ${req.userId}
-                RETURNING recommendations_enabled, recommendations_collection_id
-            `;
-        } else {
-            result = await sql`
-                UPDATE "user" 
-                SET recommendations_collection_id = ${values[0] as string | null},
-                    updated_at = NOW()
-                WHERE id = ${req.userId}
-                RETURNING recommendations_enabled, recommendations_collection_id
-            `;
+        // Get current values first
+        const currentResult = await sql`
+            SELECT recommendations_enabled, recommendations_collection_id, category_recommendations_enabled 
+            FROM "user" 
+            WHERE id = ${req.userId}
+        `;
+
+        if (currentResult.length === 0) {
+            return res.status(404).json({ message: "User not found" });
         }
+
+        const current = currentResult[0];
+
+        // Merge current values with updates
+        const newRecommendationsEnabled = hasRecommendationsEnabled ? recommendations_enabled : current.recommendations_enabled;
+        const newCollectionId = hasCollectionId ? recommendations_collection_id : current.recommendations_collection_id;
+        const newCategoryRecommendations = hasCategoryRecommendations ? category_recommendations_enabled : current.category_recommendations_enabled;
+
+        // Update all fields
+        const result = await sql`
+            UPDATE "user" 
+            SET recommendations_enabled = ${newRecommendationsEnabled},
+                recommendations_collection_id = ${newCollectionId},
+                category_recommendations_enabled = ${newCategoryRecommendations},
+                updated_at = NOW()
+            WHERE id = ${req.userId}
+            RETURNING recommendations_enabled, recommendations_collection_id, category_recommendations_enabled
+        `;
 
         if (result.length === 0) {
             return res.status(404).json({ message: "User not found" });
@@ -113,6 +105,7 @@ export const updateUserPreferences = async (req: Request, res: Response, next: N
         const preferences: UserPreferences = {
             recommendations_enabled: updatedUser.recommendations_enabled ?? false,
             recommendations_collection_id: updatedUser.recommendations_collection_id ?? null,
+            category_recommendations_enabled: updatedUser.category_recommendations_enabled ?? false,
         };
 
         res.status(200).json({ preferences });

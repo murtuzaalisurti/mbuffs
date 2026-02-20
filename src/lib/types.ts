@@ -191,11 +191,14 @@ export interface UserPreferences {
   recommendations_collection_id: string | null;
   // New: multiple recommendation collections
   recommendations_collection_ids?: string[];
+  // Category recommendations toggle
+  category_recommendations_enabled: boolean;
 }
 
 export interface UpdateUserPreferencesInput {
   recommendations_enabled?: boolean;
   recommendations_collection_id?: string | null;
+  category_recommendations_enabled?: boolean;
 }
 
 // --- Recommendation Types ---
@@ -217,6 +220,20 @@ export interface RecommendationsResponse {
 
 export interface RecommendationCollectionsResponse {
   collections: RecommendationCollection[];
+}
+
+// Category Recommendations Types
+export interface CategoryRecommendation {
+  genre: Genre;
+  results: Movie[];
+  total_results: number;
+}
+
+export interface CategoryRecommendationsResponse {
+  categories: CategoryRecommendation[];
+  mediaType: 'movie' | 'tv';
+  sourceCollections: { id: string; name: string }[];
+  totalSourceItems: number;
 }
 
 // --- Backend Collection Types ---

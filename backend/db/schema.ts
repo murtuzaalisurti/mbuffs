@@ -24,6 +24,7 @@ export const user = pgTable("user", {
 	// Custom fields
 	recommendationsEnabled: boolean("recommendations_enabled").default(false),
 	recommendationsCollectionId: text("recommendations_collection_id"),
+	categoryRecommendationsEnabled: boolean("category_recommendations_enabled").default(true),
 }, (table) => [
 	index("idx_user_email").using("btree", table.email.asc().nullsLast().op("text_ops")),
 	unique("user_username_key").on(table.username),

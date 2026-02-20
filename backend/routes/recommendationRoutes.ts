@@ -1,6 +1,7 @@
 import express, { RequestHandler } from 'express';
 import {
     getRecommendations,
+    getCategoryRecommendations,
     getRecommendationCollections,
     addRecommendationCollectionHandler,
     removeRecommendationCollectionHandler,
@@ -12,6 +13,9 @@ const router = express.Router();
 
 // GET /api/recommendations - Get personalized recommendations
 router.get('/', requireAuth as RequestHandler, getRecommendations as RequestHandler);
+
+// GET /api/recommendations/categories - Get personalized category-based recommendations
+router.get('/categories', requireAuth as RequestHandler, getCategoryRecommendations as RequestHandler);
 
 // GET /api/recommendations/collections - Get user's recommendation source collections
 router.get('/collections', requireAuth as RequestHandler, getRecommendationCollections as RequestHandler);

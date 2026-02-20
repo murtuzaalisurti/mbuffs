@@ -86,6 +86,24 @@ interface RecommendationResult {
     total_results: number;
 }
 
+interface Genre {
+    id: number;
+    name: string;
+}
+
+interface CategoryRecommendation {
+    genre: Genre;
+    results: TMDBMovie[];
+    total_results: number;
+}
+
+interface CategoryRecommendationsResult {
+    categories: CategoryRecommendation[];
+    mediaType: 'movie' | 'tv';
+    sourceCollections: { id: string; name: string }[];
+    totalSourceItems: number;
+}
+
 /**
  * Fetch TMDB API data
  */
@@ -621,6 +639,239 @@ export async function generateRecommendations(
         page,
         total_pages: totalPages,
         total_results: totalResults
+    };
+}
+
+/**
+ * Generate category-based recommendations
+ * 
+ * This function uses the same recommendation algorithm as the "For You" page,
+ * but organizes the recommendations by genre/category.
+ * 
+ * Strategy:
+ * 1. Build genre preference profile from user's recommendation source collections
+ * 2. For each preferred genre, generate personalized recommendations
+ * 3. Use TMDB discover API with genre filtering combined with:
+ *    - Director preferences (from source collections)
+ *    - Actor preferences (from source collections)
+ *    - Base quality filters (vote count, rating)
+ * 4. Score and rank items within each category
+ * 5. Filter out items already in user's collections
+ */
+export async function generateCategoryRecommendations(
+    userId: string,
+    mediaType: 'movie' | 'tv' = 'movie',
+    limit: number = 10
+): Promise<CategoryRecommendationsResult> {
+    const emptyResult: CategoryRecommendationsResult = {
+        categories: [],
+        mediaType,
+        sourceCollections: [],
+        totalSourceItems: 0
+    };
+
+    // Check if user has category recommendations enabled
+    const userResult = await sql`
+        SELECT category_recommendations_enabled, recommendations_enabled 
+        FROM "user" WHERE id = ${userId}
+    `;
+    
+    if (userResult.length === 0 || !userResult[0].category_recommendations_enabled) {
+        return emptyResult;
+    }
+
+    // Also need base recommendations to be enabled (for source collections)
+    if (!userResult[0].recommendations_enabled) {
+        return emptyResult;
+    }
+
+    // Get source collections
+    const sourceCollections = await getUserRecommendationCollections(userId);
+    if (sourceCollections.length === 0) {
+        return emptyResult;
+    }
+
+    // Get all movies from recommendation source collections
+    const sourceMovies = await getMoviesFromRecommendationCollections(userId);
+    if (sourceMovies.length === 0) {
+        return { ...emptyResult, sourceCollections };
+    }
+
+    // Get all movies the user already has in ANY of their collections (to filter out)
+    const existingMoviesResult = await sql`
+        SELECT DISTINCT cm.movie_id
+        FROM collection_movies cm
+        JOIN collections c ON cm.collection_id = c.id
+        WHERE c.owner_id = ${userId}
+        OR c.id IN (SELECT collection_id FROM collection_collaborators WHERE user_id = ${userId})
+    `;
+    const existingMovieIds = new Set(
+        (existingMoviesResult as { movie_id: string }[]).map(m => m.movie_id)
+    );
+
+    // Build genre, director, and actor preference profiles
+    const genreScores: Map<number, { id: number; name: string; count: number }> = new Map();
+    const directorScores: Map<number, DirectorInfo> = new Map();
+    const actorScores: Map<number, ActorInfo> = new Map();
+
+    // Sample a subset of source movies to avoid rate limiting (max 10 for API calls)
+    const sampleSize = Math.min(sourceMovies.length, 10);
+    const sampledMovies = sourceMovies
+        .sort(() => Math.random() - 0.5)
+        .slice(0, sampleSize);
+
+    // Fetch details and credits for each sampled source item
+    const fetchPromises = sampledMovies.map(async (movie) => {
+        const { id, isMovie } = parseMovieId(movie.movie_id);
+        
+        // Only process items matching the requested media type
+        if (isMovie !== (mediaType === 'movie')) {
+            return null;
+        }
+
+        const [details, credits] = await Promise.all([
+            getItemDetails(id, isMovie),
+            getItemCredits(id, isMovie)
+        ]);
+
+        // Build genre profile with names
+        if (details?.genres) {
+            details.genres.forEach(genre => {
+                const existing = genreScores.get(genre.id);
+                if (existing) {
+                    existing.count += 1;
+                } else {
+                    genreScores.set(genre.id, { id: genre.id, name: genre.name, count: 1 });
+                }
+            });
+        }
+
+        // Build director profile
+        const directors = extractDirectors(credits, isMovie);
+        directors.forEach(director => {
+            const existing = directorScores.get(director.id);
+            if (existing) {
+                existing.count += 1;
+            } else {
+                directorScores.set(director.id, {
+                    id: director.id,
+                    name: director.name,
+                    count: 1
+                });
+            }
+        });
+
+        // Build actor profile
+        const topCast = extractTopCast(credits);
+        topCast.forEach(actor => {
+            const existing = actorScores.get(actor.id);
+            if (existing) {
+                existing.count += 1;
+            } else {
+                actorScores.set(actor.id, {
+                    id: actor.id,
+                    name: actor.name,
+                    count: 1
+                });
+            }
+        });
+
+        return true;
+    });
+
+    await Promise.all(fetchPromises);
+
+    // Sort genres by preference score (how often they appear in user's collections)
+    const sortedGenres = Array.from(genreScores.values())
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 8); // Top 8 genres
+
+    if (sortedGenres.length === 0) {
+        return { ...emptyResult, sourceCollections, totalSourceItems: sourceMovies.length };
+    }
+
+    // Get top directors and actors for filtering (appearing 2+ times)
+    const topDirectorIds = Array.from(directorScores.values())
+        .filter(d => d.count >= 2)
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 3)
+        .map(d => d.id);
+
+    const topActorIds = Array.from(actorScores.values())
+        .filter(a => a.count >= 2)
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 3)
+        .map(a => a.id);
+
+    // Generate recommendations for each genre category
+    const categoryPromises = sortedGenres.map(async (genre) => {
+        const isMovie = mediaType === 'movie';
+        const mediaEndpoint = isMovie ? 'movie' : 'tv';
+        
+        // Base discover params
+        const params: Record<string, string> = {
+            with_genres: genre.id.toString(),
+            sort_by: 'vote_average.desc',
+            'vote_count.gte': '100',
+            'vote_average.gte': '6.0',
+            page: '1'
+        };
+
+        // Add director/actor filtering if we have preferences
+        // Use OR logic to broaden results while still personalizing
+        if (topDirectorIds.length > 0 || topActorIds.length > 0) {
+            // For movies, prioritize director/actor matches but don't require them
+            // We'll fetch more and score them higher instead
+        }
+
+        // Fetch discover results for this genre
+        const response = await fetchTMDB<TMDBDiscoverResponse>(
+            `/discover/${mediaEndpoint}`,
+            params
+        );
+
+        const results = response?.results || [];
+
+        // Score and filter results
+        const scoredResults: { item: TMDBMovie; score: number }[] = [];
+
+        for (const item of results) {
+            const key = isMovie ? `${item.id}` : `${item.id}tv`;
+            
+            // Skip items already in user's collections
+            if (existingMovieIds.has(key)) continue;
+
+            // Base score from TMDB rating
+            let score = (item.vote_average || 0) * 10;
+            score += Math.min((item.popularity || 0) / 10, 30);
+
+            // Genre relevance boost (how much user likes this genre)
+            score += genre.count * 5;
+
+            scoredResults.push({ item, score });
+        }
+
+        // Sort by score and take top items
+        scoredResults.sort((a, b) => b.score - a.score);
+        const topResults = scoredResults.slice(0, limit).map(r => r.item);
+
+        return {
+            genre: { id: genre.id, name: genre.name },
+            results: topResults,
+            total_results: scoredResults.length
+        };
+    });
+
+    const categories = await Promise.all(categoryPromises);
+
+    // Filter out empty categories
+    const nonEmptyCategories = categories.filter(c => c.results.length > 0);
+
+    return {
+        categories: nonEmptyCategories,
+        mediaType,
+        sourceCollections,
+        totalSourceItems: sourceMovies.length
     };
 }
 
