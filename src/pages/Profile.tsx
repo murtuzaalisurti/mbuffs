@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useAuth } from '@/hooks/useAuth';
-import { Mail, Calendar, Sparkles, FolderHeart, Loader2, X, ChevronDown } from 'lucide-react';
+import { Mail, Calendar, Sparkles, FolderHeart, X, ChevronDown } from 'lucide-react';
 import { toast } from "sonner";
 
 const COLLECTIONS_QUERY_KEY = ['collections', 'user'];
@@ -55,29 +55,63 @@ const Profile = () => {
         enabled: !!user && (preferencesData?.preferences?.recommendations_enabled ?? false),
     });
 
-    // Mutation for updating preferences
+    // Mutation for updating preferences with optimistic updates
     const updatePreferencesMutation = useMutation({
         mutationFn: updateUserPreferencesApi,
-        onSuccess: (data) => {
-            // Update the preferences data in the cache
-            queryClient.setQueryData(PREFERENCES_QUERY_KEY, { preferences: data.preferences });
-            toast.success('Preferences updated');
+        onMutate: async (newPreferences) => {
+            // Cancel outgoing refetches
+            await queryClient.cancelQueries({ queryKey: PREFERENCES_QUERY_KEY });
+            
+            // Snapshot previous value
+            const previousPreferences = queryClient.getQueryData<{ preferences: UserPreferences }>(PREFERENCES_QUERY_KEY);
+            
+            // Optimistically update
+            queryClient.setQueryData(PREFERENCES_QUERY_KEY, (old: { preferences: UserPreferences } | undefined) => ({
+                preferences: {
+                    ...old?.preferences,
+                    ...newPreferences,
+                }
+            }));
+            
+            return { previousPreferences };
         },
-        onError: (error: Error) => {
-            toast.error(`Failed to update preferences: ${error.message}`);
-        }
+        onError: (error: Error, _, context) => {
+            // Rollback on error
+            if (context?.previousPreferences) {
+                queryClient.setQueryData(PREFERENCES_QUERY_KEY, context.previousPreferences);
+            }
+            toast.error(`Failed to update preferences`);
+        },
     });
 
-    // Mutation for updating recommendation collections
+    // Mutation for updating recommendation collections with optimistic updates
     const setRecommendationCollectionsMutation = useMutation({
         mutationFn: setRecommendationCollectionsApi,
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: RECOMMENDATION_COLLECTIONS_QUERY_KEY });
-            toast.success('Source collections updated');
+        onMutate: async (newCollectionIds: string[]) => {
+            // Cancel outgoing refetches
+            await queryClient.cancelQueries({ queryKey: RECOMMENDATION_COLLECTIONS_QUERY_KEY });
+            
+            // Snapshot previous value
+            const previousCollections = queryClient.getQueryData<RecommendationCollectionsResponse>(RECOMMENDATION_COLLECTIONS_QUERY_KEY);
+            
+            // Optimistically update - we need to construct the new collections array
+            // We'll use the collectionsData to get the collection details
+            const allCollections = collectionsData?.collections || [];
+            const newCollections = allCollections.filter(c => newCollectionIds.includes(c.id));
+            
+            queryClient.setQueryData(RECOMMENDATION_COLLECTIONS_QUERY_KEY, {
+                collections: newCollections
+            });
+            
+            return { previousCollections };
         },
-        onError: (error: Error) => {
-            toast.error(`Failed to update collections: ${error.message}`);
-        }
+        onError: (error: Error, _, context) => {
+            // Rollback on error
+            if (context?.previousCollections) {
+                queryClient.setQueryData(RECOMMENDATION_COLLECTIONS_QUERY_KEY, context.previousCollections);
+            }
+            toast.error(`Failed to update collections`);
+        },
     });
 
     const handleToggleRecommendations = (enabled: boolean) => {
@@ -159,7 +193,6 @@ const Profile = () => {
     const recommendationsEnabled = preferencesData?.preferences?.recommendations_enabled ?? false;
     const selectedCollectionIds = new Set(recommendationCollectionsData?.collections.map(c => c.id) || []);
     const isLoading = isLoadingCollections || isLoadingRecommendationCollections || isLoadingPreferences;
-    const isMutating = updatePreferencesMutation.isPending || setRecommendationCollectionsMutation.isPending;
 
     return (
         <>
@@ -228,7 +261,6 @@ const Profile = () => {
                                 id="recommendations-toggle"
                                 checked={recommendationsEnabled}
                                 onCheckedChange={handleToggleRecommendations}
-                                disabled={isMutating}
                             />
                         </div>
 
@@ -261,7 +293,6 @@ const Profile = () => {
                                                     variant="outline"
                                                     role="combobox"
                                                     className="w-full justify-between h-auto min-h-10 py-2"
-                                                    disabled={isMutating}
                                                 >
                                                     <span className="flex flex-wrap gap-1 text-left">
                                                         {selectedCollectionIds.size === 0 ? (
@@ -291,7 +322,6 @@ const Profile = () => {
                                                                     onCheckedChange={(checked) =>
                                                                         handleCollectionToggle(collection.id, checked === true)
                                                                     }
-                                                                    disabled={isMutating}
                                                                     onClick={(e) => e.stopPropagation()}
                                                                 />
                                                                 <label
@@ -321,7 +351,6 @@ const Profile = () => {
                                                     <button
                                                         onClick={() => handleRemoveCollection(collection.id)}
                                                         className="ml-1 rounded-full p-0.5 hover:bg-muted-foreground/20 transition-colors"
-                                                        disabled={isMutating}
                                                     >
                                                         <X className="h-3 w-3" />
                                                     </button>
@@ -333,12 +362,7 @@ const Profile = () => {
                             </>
                         )}
 
-                        {isMutating && (
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                                Saving...
-                            </div>
-                        )}
+
                     </CardContent>
                 </Card>
             </main>

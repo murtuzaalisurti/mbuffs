@@ -1,19 +1,16 @@
-
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
 import {
     fetchCollectionDetailsApi,
-    fetchMovieDetailsApi, // To get details for movies in the collection
-    searchMoviesApi, // For searching movies to add
-    addMovieToCollectionApi, // To add the movie
+    fetchMovieDetailsApi,
+    searchMoviesApi,
+    addMovieToCollectionApi,
     removeMovieFromCollectionApi,
     addCollaboratorApi,
     removeCollaboratorApi,
-    deleteCollectionApi,
-    updateCollectionApi,
     fetchTvDetailsApi
 } from '@/lib/api';
-import { CollectionDetails, MovieDetails, CollectionCollaborator, AddCollaboratorInput, UpdateCollectionInput, Movie, SearchResults, AddMovieInput } from '@/lib/types';
+import { CollectionDetails, MovieDetails, CollectionCollaborator, AddCollaboratorInput, SearchResults, AddMovieInput } from '@/lib/types';
 import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -22,52 +19,40 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getImageUrl } from "@/lib/api";
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/useAuth';
-import { Users, Film, Trash2, Edit, UserPlus, X, Loader2, Check, UserMinus, Copy, PlusCircle, Search as SearchIcon, Clapperboard, Tv, MoreVertical } from 'lucide-react';
+import { Film, Trash2, UserPlus, Loader2, Check, UserMinus, Plus, Search as SearchIcon, MoreVertical } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger, DialogClose } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import React, { useState, useEffect, useCallback, useMemo, Fragment } from 'react';
+import React, { useState, useMemo, Fragment } from 'react';
 import { toast } from "sonner";
-import { ScrollArea } from '@/components/ui/scroll-area'; // For scrollable search results
-import { useDebounce } from '@/hooks/use-debounce'; // Import the actual hook
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { useDebounce } from '@/hooks/use-debounce';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
-// **Important**: Copy/paste Zod schemas or share
 const frontendAddCollaboratorSchema = z.object({
     email: z.string().email("Invalid email address"),
 });
 type FrontendAddCollaboratorInput = z.infer<typeof frontendAddCollaboratorSchema>;
 
-const frontendUpdateCollectionSchema = z.object({
-    name: z.string().min(1, "Collection name cannot be empty").max(255),
-    description: z.string().max(1000).optional().nullable(),
-});
-type FrontendUpdateCollectionInput = z.infer<typeof frontendUpdateCollectionSchema>;
-
-// REMOVED the inline useDebounce definition
-const ITEMS_PER_PAGE = 30; // Define how many items to load at a time
+const ITEMS_PER_PAGE = 30;
 
 const CollectionDetail = () => {
     const { collectionId } = useParams<{ collectionId: string }>();
     const { user: currentUser, isLoggedIn } = useAuth();
     const queryClient = useQueryClient();
-    const navigate = useNavigate();
     const [isAddCollabOpen, setIsAddCollabOpen] = useState(false);
-    const [isEditCollabOpen, setIsEditCollabOpen] = useState(false);
     const [isAddMovieOpen, setIsAddMovieOpen] = useState(false);
     const [isCollabListOpen, setIsCollabListOpen] = useState(false);
-    const [mediaTypeFilter, setMediaTypeFilter] = useState('all'); // State for the filter
-    const [visibleItemsCount, setVisibleItemsCount] = useState(ITEMS_PER_PAGE); // State for visible items
+    const [mediaTypeFilter, setMediaTypeFilter] = useState('all');
+    const [visibleItemsCount, setVisibleItemsCount] = useState(ITEMS_PER_PAGE);
 
     const collectionQueryKey = ['collection', collectionId];
 
-    // Fetch collection details
     const {
         data: collectionDetails,
         isLoading: isLoadingCollection,
@@ -79,7 +64,6 @@ const CollectionDetail = () => {
         enabled: !!collectionId && isLoggedIn,
     });
 
-    // Fetch details for movies within the collection
     const movieIds = collectionDetails?.movies.map(m => m.movie_id) ?? [];
     const {
         data: moviesDetailsMap,
@@ -91,7 +75,6 @@ const CollectionDetail = () => {
             const promises = movieIds.map((id) => {
                 const idStr = String(id);
                 if (idStr.includes('tv')) {
-                    // Strip 'tv' suffix to get numeric ID for API call
                     const numericId = parseInt(idStr.replace('tv', ''), 10);
                     return fetchTvDetailsApi(numericId);
                 } else {
@@ -107,24 +90,19 @@ const CollectionDetail = () => {
         staleTime: 1000 * 60 * 60,
     });
 
-    // Filtered Movies/TV Shows based on selection
     const filteredMedia = useMemo(() => {
         if (!collectionDetails || !moviesDetailsMap) return [];
-
         return collectionDetails.movies.filter(entry => {
             const media = moviesDetailsMap[entry.movie_id];
-            if (!media) return false; // Don't show if details haven't loaded or failed
-
+            if (!media) return false;
             switch (mediaTypeFilter) {
                 case 'movie':
-                    // Check if it's a movie (has release_date, not first_air_date)
                     return 'release_date' in media && media.release_date !== undefined;
                 case 'tv':
-                    // Check if it's a TV show (has first_air_date)
                     return 'first_air_date' in media && media.first_air_date !== undefined;
                 case 'all':
                 default:
-                    return true; // Show all loaded items
+                    return true;
             }
         });
     }, [collectionDetails, moviesDetailsMap, mediaTypeFilter]);
@@ -133,104 +111,54 @@ const CollectionDetail = () => {
         return filteredMedia.slice(0, visibleItemsCount);
     }, [filteredMedia, visibleItemsCount]);
 
-    // --- Mutations ---
-
-    // Delete Collection
-    const deleteCollectionMutation = useMutation<void, Error, string>({
-        mutationFn: deleteCollectionApi,
-        onSuccess: () => {
-            toast.success("Collection deleted successfully!");
-            queryClient.invalidateQueries({ queryKey: ['collections', 'user'] });
-            navigate('/collections');
-        }, onError: (error) => { toast.error(`Failed to delete collection: ${error.message}`); }
-    });
-
-    // Remove Movie
+    // Mutations
     const removeMovieMutation = useMutation<void, Error, { collectionId: string; movieId: number | string }>({
         mutationFn: ({ collectionId, movieId }) => removeMovieFromCollectionApi(collectionId, movieId),
         onSuccess: (_, { movieId }) => {
             toast.success("Removed from collection.");
             queryClient.invalidateQueries({ queryKey: collectionQueryKey });
-            // Also invalidate movie status query used in MovieDetail page
             queryClient.invalidateQueries({ queryKey: ['collections', 'movie-status', String(movieId)] });
-        }, onError: (error) => { toast.error(`Failed to remove: ${error.message}`); }
+        },
+        onError: (error) => { toast.error(`Failed to remove: ${error.message}`); }
     });
 
-    // Add Collaborator
     const { register: registerCollab, handleSubmit: handleSubmitCollab, reset: resetCollab, formState: { errors: collabErrors } } = useForm<FrontendAddCollaboratorInput>({
         resolver: zodResolver(frontendAddCollaboratorSchema),
     });
+    
     const addCollaboratorMutation = useMutation<{ collaborator: CollectionCollaborator }, Error, { collectionId: string; data: AddCollaboratorInput }>({
         mutationFn: ({ collectionId, data }) => addCollaboratorApi(collectionId, data),
         onSuccess: (data) => {
-            toast.success(`Collaborator ${data.collaborator.username || data.collaborator.email} added.`);
+            toast.success(`${data.collaborator.username || data.collaborator.email} added.`);
             queryClient.invalidateQueries({ queryKey: collectionQueryKey });
-            resetCollab(); setIsAddCollabOpen(false);
-        }, onError: (error) => { toast.error(`Failed to add collaborator: ${error.message}`); }
+            resetCollab();
+            setIsAddCollabOpen(false);
+        },
+        onError: (error) => { toast.error(`Failed to add: ${error.message}`); }
     });
+    
     const onAddCollaborator = (formData: FrontendAddCollaboratorInput) => {
         if (!collectionId) return;
         addCollaboratorMutation.mutate({ collectionId, data: { email: formData.email, permission: 'edit' } });
     };
 
-    // Remove Collaborator
     const removeCollaboratorMutation = useMutation<void, Error, { collectionId: string; userId: string }>({
         mutationFn: ({ collectionId, userId }) => removeCollaboratorApi(collectionId, userId),
         onSuccess: () => {
             toast.success("Collaborator removed.");
             queryClient.invalidateQueries({ queryKey: collectionQueryKey });
-        }, onError: (error) => { toast.error(`Failed to remove collaborator: ${error.message}`); }
-    });
-
-    // Edit Collection
-    const { register: registerEdit, handleSubmit: handleSubmitEdit, reset: resetEdit, setValue: setEditValue, formState: { errors: editErrors } } = useForm<FrontendUpdateCollectionInput>({
-        resolver: zodResolver(frontendUpdateCollectionSchema),
-    });
-    const editCollectionMutation = useMutation<{ collection: CollectionDetails }, Error, { collectionId: string; data: UpdateCollectionInput }>({
-        // Ensure the mutation function returns the expected type
-        mutationFn: async ({ collectionId, data }): Promise<{ collection: CollectionDetails }> => {
-            // The API function might return CollectionSummary, but we need CollectionDetails here
-            // It's safer to invalidate and let the main query refetch for full details
-            await updateCollectionApi(collectionId, data);
-            // Invalidate and refetch to get full details including collaborators/movies
-            const updatedDetails = await queryClient.invalidateQueries({ queryKey: collectionQueryKey });
-            // We might not get the data back immediately from invalidateQueries, 
-            // rely on the main useQuery to update.
-            // For optimistic updates, the structure must match exactly.
-            // Here we prioritize consistency via refetch.
-            return {} as { collection: CollectionDetails }; // Return dummy structure, real update via refetch
         },
-        onSuccess: (data) => { // Data might be dummy structure here due to above
-            toast.success("Collection updated.");
-            // Rely on invalidation already called in mutationFn or call it here again
-            // queryClient.invalidateQueries({ queryKey: collectionQueryKey }); 
-            queryClient.invalidateQueries({ queryKey: ['collections', 'user'] }); // Invalidate list view
-            setIsEditCollabOpen(false);
-        }, onError: (error) => { toast.error(`Failed to update collection: ${error.message}`); }
+        onError: (error) => { toast.error(`Failed to remove: ${error.message}`); }
     });
-    const onEditCollection = (formData: FrontendUpdateCollectionInput) => {
-        if (!collectionId) return;
-        const dataToSend = { ...formData, description: formData.description || null };
-        editCollectionMutation.mutate({ collectionId, data: dataToSend });
-    };
-    const handleEditCollectionOpen = () => {
-        if (collectionDetails) {
-            setEditValue("name", collectionDetails.collection.name);
-            setEditValue("description", collectionDetails.collection.description ?? ''); // Handle null description
-            setIsEditCollabOpen(true);
-        }
-    };
 
-    // Add Movie Mutation
-    const addMovieMutation = useMutation<any, Error, { collectionId: string; data: AddMovieInput }>({ // eslint-disable-line @typescript-eslint/no-explicit-any
+    const addMovieMutation = useMutation<any, Error, { collectionId: string; data: AddMovieInput }>({
         mutationFn: ({ collectionId, data }) => addMovieToCollectionApi(collectionId, data),
         onSuccess: (data, variables) => {
             toast.success(`Added to collection.`);
             queryClient.invalidateQueries({ queryKey: collectionQueryKey });
-            // Also invalidate movie status query used in MovieDetail page
             queryClient.invalidateQueries({ queryKey: ['collections', 'movie-status', String(variables.data.movieId)] });
         },
-        onError: (error: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+        onError: (error: any) => {
             if (error?.data?.message?.includes('already exists')) {
                 toast.warning("Already in this collection.");
             } else {
@@ -239,13 +167,10 @@ const CollectionDetail = () => {
         }
     });
 
-    // --- Derived State & Permissions ---
     const collection = collectionDetails?.collection;
     const isOwner = collection?.owner_id === currentUser?.id;
     const canEdit = isOwner || collectionDetails?.collaborators.some(c => c.user_id === currentUser?.id && c.permission === 'edit');
 
-    // --- Render Logic ---
-    // Use optional chaining more carefully
     const isLoading = isLoadingCollection;
     const isError = isCollectionError;
     const error = collectionError;
@@ -254,10 +179,14 @@ const CollectionDetail = () => {
         return (
             <>
                 <Navbar />
-                <main className="container py-8">
-                    <Skeleton className="h-10 w-3/4 mb-4" />
-                    <Skeleton className="h-6 w-1/2 mb-8" />
-                    <Skeleton className="h-96 w-full" />
+                <main className="container py-10 max-w-6xl mx-auto">
+                    <Skeleton className="h-10 w-1/3 mb-2" />
+                    <Skeleton className="h-5 w-1/2 mb-8" />
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                        {Array.from({ length: 12 }).map((_, i) => (
+                            <Skeleton key={i} className="aspect-[2/3] rounded-lg" />
+                        ))}
+                    </div>
                 </main>
             </>
         );
@@ -267,20 +196,19 @@ const CollectionDetail = () => {
         return (
             <>
                 <Navbar />
-                <main className="container py-8 text-red-500 text-center">
-                    Error loading collection: {error?.message ?? 'Unknown error'}
+                <main className="container py-10 max-w-6xl mx-auto text-center">
+                    <p className="text-destructive">Error: {error?.message ?? 'Unknown error'}</p>
                 </main>
             </>
         );
     }
 
     if (!collection) {
-        // This case might be covered by isLoading or isError, but good for safety
         return (
             <>
                 <Navbar />
-                <main className="container py-8 text-center">
-                    Collection not found or you might not have permission to view it.
+                <main className="container py-10 max-w-6xl mx-auto text-center">
+                    <p className="text-muted-foreground">Collection not found or you don't have permission to view it.</p>
                 </main>
             </>
         );
@@ -290,393 +218,279 @@ const CollectionDetail = () => {
         return name?.split(' ').map(n => n[0]).join('').toUpperCase() || '';
     }
 
-    const copyInviteLink = () => {
-        const link = `${window.location.origin}/collection/${collectionId}`;
-        navigator.clipboard.writeText(link).then(() => {
-            toast.success("Collection link copied to clipboard!");
-        }, (err) => {
-            toast.error("Failed to copy link.");
-            console.error('Could not copy text: ', err);
-        });
-    }
+    const totalCollaborators = collectionDetails.collaborators.length + 1;
 
     return (
         <>
             <Navbar />
-            <main className="container py-8">
-                {/* Header Section */}
-                <div className="mb-12">
-                    <div className="flex flex-row justify-between items-start gap-4 mb-2">
-                        <div className="grow min-w-0">
-                            <h1 className="text-3xl font-bold flex items-center gap-2">
-                                {collection.name}
-                                {canEdit && (
-                                    <Dialog open={isEditCollabOpen} onOpenChange={setIsEditCollabOpen}>
-                                        <DialogTrigger asChild>
-                                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleEditCollectionOpen}>
-                                                <Edit className="h-4 w-4" />
-                                            </Button>
-                                        </DialogTrigger>
-                                        <DialogContent className="w-[90%] sm:max-w-[425px] rounded-lg">
-                                            <form onSubmit={handleSubmitEdit(onEditCollection)}>
-                                                <DialogHeader>
-                                                    <DialogTitle>Edit Collection</DialogTitle>
-                                                    <DialogDescription>Update name and description.</DialogDescription>
-                                                </DialogHeader>
-                                                <div className="grid gap-4 py-4">
-                                                    {/* Name Input */}
-                                                    <div className="grid w-full items-center gap-1.5">
-                                                        <Label htmlFor="edit-name" className="text-sm text-muted-foreground">Name</Label>
-                                                        <Input id="edit-name" className="bg-muted" {...registerEdit("name")} aria-invalid={editErrors.name ? "true" : "false"} />
-                                                        {editErrors.name && <p className="text-red-500 text-sm">{editErrors.name.message}</p>}
-                                                    </div>
-                                                    {/* Description Input */}
-                                                    <div className="grid w-full items-center gap-1.5">
-                                                        <Label htmlFor="edit-description" className="text-sm text-muted-foreground">Description</Label>
-                                                        <Textarea id="edit-description" className="bg-muted" {...registerEdit("description")} aria-invalid={editErrors.description ? "true" : "false"} />
-                                                        {editErrors.description && <p className="text-red-500 text-sm">{editErrors.description.message}</p>}
-                                                    </div>
-                                                </div>
-                                                <DialogFooter>
-                                                    <Button type="submit" disabled={editCollectionMutation.isPending}>
-                                                        {editCollectionMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Save Changes
-                                                    </Button>
-                                                </DialogFooter>
-                                            </form>
-                                        </DialogContent>
-                                    </Dialog>
-                                )}
-                            </h1>
-                            {collection.description && (<p className="text-muted-foreground max-w-prose">{collection.description}</p>)}
+            <main className="container py-10 max-w-6xl mx-auto">
+                {/* Header */}
+                <div className="mb-10">
+                    <h1 className="text-4xl font-semibold tracking-tight mb-2">{collection.name}</h1>
+                    {collection.description && (
+                        <p className="text-muted-foreground text-lg mb-4 max-w-2xl">{collection.description}</p>
+                    )}
+                    
+                    {/* Owner & Collaborators Row */}
+                    <div className="flex items-center gap-4 flex-wrap">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Avatar className="h-6 w-6">
+                                <AvatarImage src={collection.owner_avatar} />
+                                <AvatarFallback className="text-xs">{getInitials(collection.owner_username)}</AvatarFallback>
+                            </Avatar>
+                            <span>{collection.owner_username}</span>
                         </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                            {isOwner && (
-                                <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                        <Button variant="destructive" size="sm" disabled={deleteCollectionMutation.isPending}>
-                                            {deleteCollectionMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                                            <span className="ml-2 hidden sm:inline">Delete</span>
-                                        </Button>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent className="w-[90%] sm:max-w-md rounded-lg">
-                                        {/* ... Delete Confirmation ... */}
-                                        <AlertDialogHeader>
-                                            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                                            <AlertDialogDescription>This action cannot be undone. This will permanently delete the collection "<strong>{collection.name}</strong>".</AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <AlertDialogFooter>
-                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                            <AlertDialogAction onClick={() => deleteCollectionMutation.mutate(collectionId!)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Yes, delete</AlertDialogAction>
-                                        </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                </AlertDialog>
-                            )}
-                            <Button variant="outline" className='bg-muted' size="sm" onClick={copyInviteLink}>
-                                <Copy className="h-4 w-4" />
-                                <span className="ml-2 hidden sm:inline">Copy Link</span>
-                            </Button>
-                        </div>
-                    </div>
-                    <div className="text-xs text-muted-foreground flex items-center gap-1">
-                        Owned by
-                        <Avatar className="h-5 w-5 inline-block mx-1">
-                            <AvatarImage src={collection.owner_avatar} alt={collection.owner_username ?? 'Owner'} />
-                            <AvatarFallback>{getInitials(collection.owner_username)}</AvatarFallback>
-                        </Avatar>
-                        {collection.owner_username ?? 'Unknown User'}
-                    </div>
-                </div>
-
-                {/* Collaborators Section */}
-                <div className="mb-8">
-                    <div className="flex justify-between items-center mb-4">
-                        <h2 className="text-2xl font-semibold flex items-center"><Users className="mr-2 h-5 w-5" /> Collaborators ({collectionDetails.collaborators.length + 1})</h2>
-                        {isOwner && (
-                            <Dialog open={isAddCollabOpen} onOpenChange={setIsAddCollabOpen}>
-                                <DialogTrigger asChild>
-                                    <Button variant="outline" className='bg-muted' size="sm"><UserPlus className="h-4 w-4 sm:mr-2" />
-                                        <span className="hidden sm:inline">
-                                            Add Collaborator
-                                        </span>
-                                    </Button>
-                                </DialogTrigger>
-                                <DialogContent className="w-[90%] sm:max-w-[425px] rounded-lg">
-                                    <form onSubmit={handleSubmitCollab(onAddCollaborator)}>
-                                        {/* ... Add Collaborator Form ... */}
-                                        <DialogHeader>
-                                            <DialogTitle>Add Collaborator</DialogTitle>
-                                            <DialogDescription>Enter email to invite.</DialogDescription>
-                                        </DialogHeader>
-                                        <div className="grid gap-4 py-4">
-                                            <div className="grid w-full items-center gap-1.5">
-                                                <Label htmlFor="collab-email" className="text-sm text-muted-foreground">Email</Label>
-                                                <Input id="collab-email" className="bg-muted" type="email" {...registerCollab("email")} aria-invalid={collabErrors.email ? "true" : "false"} />
-                                                {collabErrors.email && <p className="text-red-500 text-sm">{collabErrors.email.message}</p>}
-                                            </div>
-                                        </div>
-                                        <DialogFooter>
-                                            <Button type="submit" disabled={addCollaboratorMutation.isPending}>{addCollaboratorMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Add</Button>
-                                        </DialogFooter>
-                                    </form>
-                                </DialogContent>
-                            </Dialog>
-                        )}
-                    </div>
-                    {/* --- Avatar Stack and Management Dialog --- */}
-                    <Dialog open={isCollabListOpen} onOpenChange={setIsCollabListOpen}>
-                        <DialogTrigger asChild>
-                            <div className="flex items-center cursor-pointer hover:opacity-80 transition-opacity w-fit">
-                                {/* Owner Avatar */}
-                                <Avatar className="h-8 w-8 border-2 border-background ring-1 ring-border">
-                                    <AvatarImage src={collection.owner_avatar} />
-                                    <AvatarFallback>{getInitials(collection.owner_username)}</AvatarFallback>
-                                </Avatar>
-                                {/* First few Collaborator Avatars */}
-                                {collectionDetails.collaborators.slice(0, 3).map((c, index) => (
-                                    <Avatar key={c.user_id} className="-ml-3 h-8 w-8 border-2 border-background ring-1 ring-border">
-                                        <AvatarImage src={c.avatar_url} />
-                                        <AvatarFallback>{getInitials(c.username)}</AvatarFallback>
-                                    </Avatar>
-                                ))}
-                                {/* More Indicator */}
-                                {collectionDetails.collaborators.length > 3 && (
-                                    <Avatar className="-ml-3 h-8 w-8 border-2 border-background ring-1 ring-border bg-muted">
-                                        <AvatarFallback>+{collectionDetails.collaborators.length - 3}</AvatarFallback>
-                                    </Avatar>
-                                )}
-                                {/* Show a placeholder if only owner exists */}
-                                {collectionDetails.collaborators.length === 0 && (
-                                    <span className="ml-2 text-sm text-muted-foreground">(Only Owner)</span>
-                                )}
-                            </div>
-                        </DialogTrigger>
-                        <DialogContent className="w-[90%] sm:max-w-[480px] rounded-lg">
-                            <DialogHeader>
-                                <DialogTitle>Manage Collaborators</DialogTitle>
-                                <DialogDescription>View and remove collaborators from this collection.</DialogDescription>
-                            </DialogHeader>
-                            <ScrollArea className="max-h-[400px] pr-4"> {/* Added ScrollArea */}
-                                <div className="space-y-3 py-2">
-                                    {/* Owner Row (Not Removable) */}
-                                    <div className="flex items-center justify-between gap-4 p-2 rounded-md bg-muted/30">
-                                        <div className="flex items-center gap-3">
-                                            <Avatar className="h-8 w-8">
-                                                <AvatarImage src={collection.owner_avatar} />
-                                                <AvatarFallback>{getInitials(collection.owner_username)}</AvatarFallback>
+                        
+                        <span className="text-muted-foreground/30">|</span>
+                        
+                        {/* Collaborators */}
+                        <Dialog open={isCollabListOpen} onOpenChange={setIsCollabListOpen}>
+                            <DialogTrigger asChild>
+                                <button className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
+                                    <div className="flex -space-x-2">
+                                        <Avatar className="h-6 w-6 border-2 border-background">
+                                            <AvatarImage src={collection.owner_avatar} />
+                                            <AvatarFallback className="text-xs">{getInitials(collection.owner_username)}</AvatarFallback>
+                                        </Avatar>
+                                        {collectionDetails.collaborators.slice(0, 2).map((c) => (
+                                            <Avatar key={c.user_id} className="h-6 w-6 border-2 border-background">
+                                                <AvatarImage src={c.avatar_url} />
+                                                <AvatarFallback className="text-xs">{getInitials(c.username)}</AvatarFallback>
                                             </Avatar>
-                                            <div>
-                                                <p className="text-sm font-medium">{collection.owner_username ?? 'Owner'}</p>
-                                                <p className="text-xs text-muted-foreground">Owner</p>
+                                        ))}
+                                        {collectionDetails.collaborators.length > 2 && (
+                                            <div className="h-6 w-6 rounded-full bg-muted border-2 border-background flex items-center justify-center text-xs">
+                                                +{collectionDetails.collaborators.length - 2}
                                             </div>
-                                        </div>
-                                        {/* Placeholder for alignment */}
-                                        <div className="w-8"></div>
+                                        )}
                                     </div>
-
-                                    {/* Collaborator Rows (Removable) */}
-                                    {collectionDetails.collaborators.map((c) => (
-                                        <div key={c.user_id} className="flex items-center justify-between gap-4 p-2 rounded-md hover:bg-muted/50">
+                                    <span>{totalCollaborators} {totalCollaborators === 1 ? 'member' : 'members'}</span>
+                                </button>
+                            </DialogTrigger>
+                            <DialogContent className="w-[90%] sm:max-w-[400px] rounded-xl">
+                                <DialogHeader>
+                                    <DialogTitle>Members</DialogTitle>
+                                    <DialogDescription>People who can access this collection.</DialogDescription>
+                                </DialogHeader>
+                                <ScrollArea className="max-h-[300px]">
+                                    <div className="space-y-1 py-2">
+                                        {/* Owner */}
+                                        <div className="flex items-center justify-between gap-3 p-2 rounded-lg">
                                             <div className="flex items-center gap-3">
-                                                <Avatar className="h-8 w-8">
-                                                    <AvatarImage src={c.avatar_url} />
-                                                    <AvatarFallback>{getInitials(c.username)}</AvatarFallback>
+                                                <Avatar className="h-9 w-9">
+                                                    <AvatarImage src={collection.owner_avatar} />
+                                                    <AvatarFallback>{getInitials(collection.owner_username)}</AvatarFallback>
                                                 </Avatar>
                                                 <div>
-                                                    <p className="text-sm font-medium">{c.username ?? c.email}</p>
-                                                    <p className="text-xs text-muted-foreground capitalize">{c.permission}</p>
+                                                    <p className="text-sm font-medium">{collection.owner_username ?? 'Owner'}</p>
+                                                    <p className="text-xs text-muted-foreground">Owner</p>
                                                 </div>
                                             </div>
-                                            {/* Remove Button */}
-                                            {isOwner && (
-                                                <AlertDialog>
-                                                    <AlertDialogTrigger asChild>
-                                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0" disabled={removeCollaboratorMutation.isPending && removeCollaboratorMutation.variables?.userId === c.user_id}>
-                                                            {(removeCollaboratorMutation.isPending && removeCollaboratorMutation.variables?.userId === c.user_id) ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserMinus className="h-4 w-4" />}
-                                                        </Button>
-                                                    </AlertDialogTrigger>
-                                                    <AlertDialogContent className="w-[90%] sm:max-w-[425px] rounded-lg">
-                                                        <AlertDialogHeader>
-                                                            <AlertDialogTitle>Remove Collaborator?</AlertDialogTitle>
-                                                            <AlertDialogDescription>Remove {c.username ?? c.email} from this collection?</AlertDialogDescription>
-                                                        </AlertDialogHeader>
-                                                        <AlertDialogFooter>
-                                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                            <AlertDialogAction onClick={() => removeCollaboratorMutation.mutate({ collectionId: collectionId!, userId: c.user_id })} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Remove</AlertDialogAction>
-                                                        </AlertDialogFooter>
-                                                    </AlertDialogContent>
-                                                </AlertDialog>
-                                            )}
-                                            {/* Placeholder if not owner for alignment */}
-                                            {!isOwner && <div className="w-8"></div>}
                                         </div>
-                                    ))}
-                                </div>
-                            </ScrollArea>
-                            <DialogFooter>
-                                <DialogClose asChild>
-                                    <Button type="button" variant="outline">Close</Button>
-                                </DialogClose>
-                            </DialogFooter>
-                        </DialogContent>
-                    </Dialog>
-                    {/* --- End Avatar Stack and Management Dialog --- */}
+                                        
+                                        {/* Collaborators */}
+                                        {collectionDetails.collaborators.map((c) => (
+                                            <div key={c.user_id} className="flex items-center justify-between gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors">
+                                                <div className="flex items-center gap-3">
+                                                    <Avatar className="h-9 w-9">
+                                                        <AvatarImage src={c.avatar_url} />
+                                                        <AvatarFallback>{getInitials(c.username)}</AvatarFallback>
+                                                    </Avatar>
+                                                    <div>
+                                                        <p className="text-sm font-medium">{c.username ?? c.email}</p>
+                                                        <p className="text-xs text-muted-foreground capitalize">{c.permission}</p>
+                                                    </div>
+                                                </div>
+                                                {isOwner && (
+                                                    <AlertDialog>
+                                                        <AlertDialogTrigger asChild>
+                                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive">
+                                                                {(removeCollaboratorMutation.isPending && removeCollaboratorMutation.variables?.userId === c.user_id) 
+                                                                    ? <Loader2 className="h-4 w-4 animate-spin" /> 
+                                                                    : <UserMinus className="h-4 w-4" />}
+                                                            </Button>
+                                                        </AlertDialogTrigger>
+                                                        <AlertDialogContent className="w-[90%] sm:max-w-[400px] rounded-xl">
+                                                            <AlertDialogHeader>
+                                                                <AlertDialogTitle>Remove member?</AlertDialogTitle>
+                                                                <AlertDialogDescription>Remove {c.username ?? c.email} from this collection?</AlertDialogDescription>
+                                                            </AlertDialogHeader>
+                                                            <AlertDialogFooter>
+                                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                                <AlertDialogAction 
+                                                                    onClick={() => removeCollaboratorMutation.mutate({ collectionId: collectionId!, userId: c.user_id })} 
+                                                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                                                >
+                                                                    Remove
+                                                                </AlertDialogAction>
+                                                            </AlertDialogFooter>
+                                                        </AlertDialogContent>
+                                                    </AlertDialog>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </ScrollArea>
+                                <DialogFooter className="flex-row gap-2 sm:justify-between">
+                                    {isOwner && (
+                                        <Dialog open={isAddCollabOpen} onOpenChange={setIsAddCollabOpen}>
+                                            <DialogTrigger asChild>
+                                                <Button variant="outline" size="sm" className="gap-1.5">
+                                                    <UserPlus className="h-4 w-4" />
+                                                    Add
+                                                </Button>
+                                            </DialogTrigger>
+                                            <DialogContent className="w-[90%] sm:max-w-[400px] rounded-xl">
+                                                <form onSubmit={handleSubmitCollab(onAddCollaborator)}>
+                                                    <DialogHeader>
+                                                        <DialogTitle>Add Member</DialogTitle>
+                                                        <DialogDescription>Invite someone by email.</DialogDescription>
+                                                    </DialogHeader>
+                                                    <div className="py-4">
+                                                        <div className="space-y-2">
+                                                            <Label htmlFor="collab-email">Email</Label>
+                                                            <Input 
+                                                                id="collab-email" 
+                                                                type="email" 
+                                                                placeholder="name@example.com"
+                                                                {...registerCollab("email")} 
+                                                                aria-invalid={collabErrors.email ? "true" : "false"} 
+                                                            />
+                                                            {collabErrors.email && <p className="text-destructive text-sm">{collabErrors.email.message}</p>}
+                                                        </div>
+                                                    </div>
+                                                    <DialogFooter>
+                                                        <Button type="submit" disabled={addCollaboratorMutation.isPending}>
+                                                            {addCollaboratorMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} 
+                                                            Add Member
+                                                        </Button>
+                                                    </DialogFooter>
+                                                </form>
+                                            </DialogContent>
+                                        </Dialog>
+                                    )}
+                                    <DialogClose asChild>
+                                        <Button variant="ghost" size="sm">Done</Button>
+                                    </DialogClose>
+                                </DialogFooter>
+                            </DialogContent>
+                        </Dialog>
+                    </div>
                 </div>
 
-                {/* Movies Section */}
-                <div>
-                    <div className="flex justify-between items-center mb-4">
-                        {/* Filter Dropdown */}
-                        <div className='flex items-center gap-2 w-auto'>
-                            <Select value={mediaTypeFilter} onValueChange={(value) => {
-                                setMediaTypeFilter(value);
-                                setVisibleItemsCount(ITEMS_PER_PAGE);
-                            }}>
-                                <SelectTrigger className="w-full sm:w-[180px] h-9 bg-muted">
-                                    <SelectValue placeholder="Filter type" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">
-                                        <div className="flex items-center gap-2">
-                                            <Clapperboard className="h-4 w-4 text-muted-foreground" /> All
-                                        </div>
-                                    </SelectItem>
-                                    <SelectItem value="movie">
-                                        <div className="flex items-center gap-2">
-                                            <Film className="h-4 w-4 text-muted-foreground" /> Movies
-                                        </div>
-                                    </SelectItem>
-                                    <SelectItem value="tv">
-                                        <div className="flex items-center gap-2">
-                                            <Tv className="h-4 w-4 text-muted-foreground" /> TV
-                                        </div>
-                                    </SelectItem>
-                                </SelectContent>
-                            </Select>
-                            <p className='text-muted-foreground'>{filteredMedia.length}</p>
-                        </div>
-                        {canEdit && (
-                            <Dialog open={isAddMovieOpen} onOpenChange={setIsAddMovieOpen}>
-                                <DialogTrigger asChild>
-                                    <Button variant="outline" className='bg-muted' size="sm"><PlusCircle className="mr-2 h-4 w-4" /> Add New</Button>
-                                </DialogTrigger>
-                                <AddMovieDialog
-                                    collectionId={collectionId!}
-                                    existingMovieIds={movieIds as unknown as string[]}
-                                    onAddMovie={(movieId) => addMovieMutation.mutate({ collectionId: collectionId!, data: { movieId: movieId as unknown as number } })}
-                                    isAddingMovie={addMovieMutation.isPending}
-                                />
-                            </Dialog>
-                        )}
+                {/* Toolbar */}
+                <div className="flex items-center justify-between gap-4 mb-6">
+                    <div className="flex items-center gap-3">
+                        <Tabs value={mediaTypeFilter} onValueChange={(value) => {
+                            setMediaTypeFilter(value);
+                            setVisibleItemsCount(ITEMS_PER_PAGE);
+                        }}>
+                            <TabsList className="h-9">
+                                <TabsTrigger value="all" className="text-xs px-3">All</TabsTrigger>
+                                <TabsTrigger value="movie" className="text-xs px-3">Movies</TabsTrigger>
+                                <TabsTrigger value="tv" className="text-xs px-3">TV</TabsTrigger>
+                            </TabsList>
+                        </Tabs>
+                        <span className="text-sm text-muted-foreground">{filteredMedia.length} items</span>
                     </div>
-                    {isLoadingMovies ? (
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                            {Array.from({ length: collectionDetails.movies.length || 6 }).map((_, i) =>
-                                <div key={i} className="space-y-2">
-                                    <Skeleton className="aspect-2/3 w-full rounded-md" />
-                                    <Skeleton className="h-3 w-[80%]" />
-                                </div>
-                            )}
-                        </div>
-                    ) : currentVisibleMedia.length > 0 ? (
-                        <Fragment>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                                {currentVisibleMedia.map(movieEntry => {
-                                    const movie = moviesDetailsMap?.[movieEntry.movie_id];
-                                    if (!movie) return (
-                                        <Card key={movieEntry.movie_id} className="relative group overflow-hidden">
-                                            <Skeleton className="aspect-2/3 w-full" />
-                                            {/* Still show remove button on skeleton if needed */}
-                                            {canEdit && (
-                                                <div className="absolute top-2 right-2 z-10">
-                                                    <DropdownMenu>
-                                                        <DropdownMenuTrigger asChild>
-                                                            <Button variant="secondary" size="icon" className="h-7 w-7 rounded-full bg-black/50 backdrop-blur-sm border-0 hover:bg-black/70">
-                                                                <MoreVertical className="h-4 w-4 text-white" />
-                                                            </Button>
-                                                        </DropdownMenuTrigger>
-                                                        <DropdownMenuContent align="end" className="w-40">
-                                                            <DropdownMenuItem
-                                                                className="text-destructive focus:text-destructive cursor-pointer"
-                                                                disabled={removeMovieMutation.isPending && removeMovieMutation.variables?.movieId === movieEntry.movie_id}
-                                                                onClick={() => removeMovieMutation.mutate({ collectionId: collectionId!, movieId: movieEntry.movie_id })}
-                                                            >
-                                                                {(removeMovieMutation.isPending && removeMovieMutation.variables?.movieId === movieEntry.movie_id) ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
-                                                                Remove
-                                                            </DropdownMenuItem>
-                                                        </DropdownMenuContent>
-                                                    </DropdownMenu>
-                                                </div>
-                                            )}
-                                        </Card>
-                                    );
-                                    return (
-                                        <div key={movieEntry.movie_id} className="relative group">
-                                            <MovieCard movie={movie} />
-                                            {canEdit && (
-                                                <div className="absolute top-2 right-2 z-10">
-                                                    <DropdownMenu>
-                                                        <DropdownMenuTrigger asChild>
-                                                            <Button variant="secondary" size="icon" className="h-7 w-7 rounded-full bg-black/50 backdrop-blur-sm border-0 hover:bg-black/70 md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100 transition-opacity" onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
-                                                                <MoreVertical className="h-4 w-4 text-white" />
-                                                            </Button>
-                                                        </DropdownMenuTrigger>
-                                                        <DropdownMenuContent align="end" className="w-40">
-                                                            <DropdownMenuItem
-                                                                className="text-destructive focus:text-destructive cursor-pointer"
-                                                                disabled={removeMovieMutation.isPending && removeMovieMutation.variables?.movieId === movieEntry.movie_id}
-                                                                onClick={() => removeMovieMutation.mutate({ collectionId: collectionId!, movieId: movieEntry.movie_id })}
-                                                            >
-                                                                {(removeMovieMutation.isPending && removeMovieMutation.variables?.movieId === movieEntry.movie_id) ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
-                                                                Remove
-                                                            </DropdownMenuItem>
-                                                        </DropdownMenuContent>
-                                                    </DropdownMenu>
-                                                </div>
-                                            )}
-                                            <p className="text-xs text-muted-foreground mt-1 mx-2">{movieEntry.added_by_username ?? 'Unknown'}</p>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                            {/* Load More Button */}
-                            {filteredMedia.length > visibleItemsCount && (
-                                <div className="text-center mt-8">
-                                    <Button
-                                        variant="outline"
-                                        className='bg-muted'
-                                        onClick={() => setVisibleItemsCount(prevCount => prevCount + ITEMS_PER_PAGE)}
-                                    >
-                                        Load More ({filteredMedia.length - visibleItemsCount} remaining)
-                                    </Button>
-                                </div>
-                            )}
-                        </Fragment>
-                    ) : (
-                        <Card className="text-center py-12 border border-dashed">
-                            <CardContent>
-                                <Film className="mx-auto h-10 w-10 text-muted-foreground mb-2" />
-                                <p className="text-muted-foreground">
-                                    {mediaTypeFilter === 'all' ? 'No media added to this collection yet.' :
-                                        mediaTypeFilter === 'movie' ? 'No movies match the filter.' :
-                                            'No TV shows match the filter.'}
-                                </p>
-                                {canEdit && (
-                                    <Dialog open={isAddMovieOpen} onOpenChange={setIsAddMovieOpen}>
-                                        <DialogTrigger asChild>
-                                            <Button variant="outline" size="sm" className="mt-4"><PlusCircle className="mr-2 h-4 w-4" /> Add Movie</Button>
-                                        </DialogTrigger>
-                                        <AddMovieDialog
-                                            collectionId={collectionId!}
-                                            existingMovieIds={movieIds as unknown as string[]}
-                                            onAddMovie={(movieId) => addMovieMutation.mutate({ collectionId: collectionId!, data: { movieId: movieId as unknown as number } })}
-                                            isAddingMovie={addMovieMutation.isPending}
-                                        />
-                                    </Dialog>
-                                )}
-                            </CardContent>
-                        </Card>
+                    
+                    {canEdit && (
+                        <Dialog open={isAddMovieOpen} onOpenChange={setIsAddMovieOpen}>
+                            <DialogTrigger asChild>
+                                <Button size="sm" className="gap-1.5">
+                                    <Plus className="h-4 w-4" />
+                                    <span className="hidden sm:inline">Add</span>
+                                </Button>
+                            </DialogTrigger>
+                            <AddMovieDialog
+                                collectionId={collectionId!}
+                                existingMovieIds={movieIds as unknown as string[]}
+                                onAddMovie={(movieId) => addMovieMutation.mutate({ collectionId: collectionId!, data: { movieId: movieId as unknown as number } })}
+                                isAddingMovie={addMovieMutation.isPending}
+                            />
+                        </Dialog>
                     )}
                 </div>
+
+                {/* Grid */}
+                {isLoadingMovies ? (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                        {Array.from({ length: collectionDetails.movies.length || 12 }).map((_, i) => (
+                            <Skeleton key={i} className="aspect-[2/3] rounded-lg" />
+                        ))}
+                    </div>
+                ) : currentVisibleMedia.length > 0 ? (
+                    <Fragment>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                            {currentVisibleMedia.map(movieEntry => {
+                                const movie = moviesDetailsMap?.[movieEntry.movie_id];
+                                if (!movie) return (
+                                    <div key={movieEntry.movie_id} className="relative group">
+                                        <Skeleton className="aspect-[2/3] rounded-lg" />
+                                    </div>
+                                );
+                                return (
+                                    <div key={movieEntry.movie_id} className="relative group">
+                                        <MovieCard movie={movie} />
+                                        {canEdit && (
+                                            <div className="absolute top-2 right-2 z-10">
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <Button 
+                                                            variant="secondary" 
+                                                            size="icon" 
+                                                            className="h-7 w-7 rounded-full bg-black/60 backdrop-blur-sm border-0 hover:bg-black/80 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                                                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                                                        >
+                                                            <MoreVertical className="h-4 w-4 text-white" />
+                                                        </Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="end" className="w-36">
+                                                        <DropdownMenuItem
+                                                            className="text-destructive focus:text-destructive cursor-pointer"
+                                                            disabled={removeMovieMutation.isPending && removeMovieMutation.variables?.movieId === movieEntry.movie_id}
+                                                            onClick={() => removeMovieMutation.mutate({ collectionId: collectionId!, movieId: movieEntry.movie_id })}
+                                                        >
+                                                            {(removeMovieMutation.isPending && removeMovieMutation.variables?.movieId === movieEntry.movie_id) 
+                                                                ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> 
+                                                                : <Trash2 className="mr-2 h-4 w-4" />}
+                                                            Remove
+                                                        </DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        
+                        {filteredMedia.length > visibleItemsCount && (
+                            <div className="text-center mt-10">
+                                <Button
+                                    variant="outline"
+                                    onClick={() => setVisibleItemsCount(prevCount => prevCount + ITEMS_PER_PAGE)}
+                                >
+                                    Load More ({filteredMedia.length - visibleItemsCount} remaining)
+                                </Button>
+                            </div>
+                        )}
+                    </Fragment>
+                ) : (
+                    <div className="text-center py-20">
+                        <div className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-muted/50 mb-4">
+                            <Film className="h-8 w-8 text-muted-foreground" />
+                        </div>
+                        <h3 className="text-lg font-medium mb-1">
+                            {mediaTypeFilter === 'all' ? 'No items yet' : `No ${mediaTypeFilter === 'movie' ? 'movies' : 'TV shows'}`}
+                        </h3>
+                        <p className="text-muted-foreground">
+                            {mediaTypeFilter === 'all' 
+                                ? 'Add movies and shows to this collection.' 
+                                : 'Try a different filter.'}
+                        </p>
+                    </div>
+                )}
             </main>
         </>
     );
@@ -724,63 +538,107 @@ const AddMovieDialog: React.FC<AddMovieDialogProps> = ({ collectionId, existingM
     const movies = searchResultsData?.pages.flatMap(page => page.results) ?? [];
 
     return (
-        <DialogContent className="w-[90%] sm:max-w-[600px] rounded-lg">
-            {/* ... Dialog Header ... */}
+        <DialogContent className="w-[90%] sm:max-w-[550px] rounded-xl">
             <DialogHeader>
-                <DialogTitle>Add Movie to Collection</DialogTitle>
-                <DialogDescription>Search TMDB and add movies.</DialogDescription>
+                <DialogTitle>Add to Collection</DialogTitle>
+                <DialogDescription>Search for movies and TV shows.</DialogDescription>
             </DialogHeader>
-            {/* Search Input */}
-            <div className="relative my-4">
-                <SearchIcon className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input type="search" placeholder="Search TMDB..." className="pl-8" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-                {isFetching && !isFetchingNextPage && <Loader2 className="absolute right-2.5 top-2.5 h-4 w-4 animate-spin text-muted-foreground" />}
+            
+            <div className="relative my-2">
+                <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input 
+                    type="search" 
+                    placeholder="Search..." 
+                    className="pl-9" 
+                    value={searchTerm} 
+                    onChange={(e) => setSearchTerm(e.target.value)} 
+                />
+                {isFetching && !isFetchingNextPage && (
+                    <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+                )}
             </div>
-            {/* Results Area */}
-            <ScrollArea className="h-[400px] border rounded-md">
-                <div className="p-4 space-y-4">
-                    {/* Loading/Error/Empty States */}
-                    {isLoadingSearch && debouncedSearchTerm && <div className="text-center p-4"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></div>}
-                    {isSearchError && <div className="text-red-500 text-center p-4">Error searching: {searchError?.message}</div>}
-                    {!debouncedSearchTerm && <div className="text-muted-foreground text-center p-4">Start typing to search...</div>}
-                    {debouncedSearchTerm && !isLoadingSearch && !isSearchError && movies.length === 0 && (
-                        <div className="text-muted-foreground text-center p-4">No results found for "{debouncedSearchTerm}".</div>
+            
+            <ScrollArea className="h-[350px] -mx-6 px-6">
+                <div className="space-y-1">
+                    {isLoadingSearch && debouncedSearchTerm && (
+                        <div className="text-center py-8">
+                            <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
+                        </div>
                     )}
-                    {/* Movie List */}
+                    {isSearchError && (
+                        <div className="text-destructive text-center py-8">Error: {searchError?.message}</div>
+                    )}
+                    {!debouncedSearchTerm && (
+                        <div className="text-muted-foreground text-center py-8">Start typing to search...</div>
+                    )}
+                    {debouncedSearchTerm && !isLoadingSearch && !isSearchError && movies.length === 0 && (
+                        <div className="text-muted-foreground text-center py-8">No results for "{debouncedSearchTerm}"</div>
+                    )}
+                    
                     {movies.map((movie, i) => {
                         const movieId = Object.keys(movie).includes('first_air_date') ? (String(movie.id) + 'tv') : movie.id;
-
                         const alreadyAdded = existingMovieIds.map(m => m).includes(movieId as string);
                         const isCurrentMovieAdding = isAddingMovie && selectedMovieId === movieId;
+                        
                         return (
-                            <div key={movie.id + i} className="flex items-center gap-4 p-2 hover:bg-muted/50 rounded">
-                                <img src={getImageUrl(movie.poster_path, 'w92')} alt={movie.name || movie.title} className="h-16 w-auto rounded aspect-2/3 object-cover bg-muted" onError={(e) => { (e.target as HTMLImageElement).src = '/placeholder.svg'; }} />
-                                <div className="grow">
-                                    <p className="font-medium">{movie.name || movie.title}</p>
-                                    <p className="text-sm text-muted-foreground">{(movie.first_air_date || movie.release_date)?.substring(0, 4)}</p>
+                            <div 
+                                key={movie.id + i} 
+                                className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors"
+                            >
+                                <img 
+                                    src={getImageUrl(movie.poster_path, 'w92')} 
+                                    alt={movie.name || movie.title} 
+                                    className="h-14 w-auto rounded aspect-[2/3] object-cover bg-muted" 
+                                    onError={(e) => { (e.target as HTMLImageElement).src = '/placeholder.svg'; }} 
+                                />
+                                <div className="flex-1 min-w-0">
+                                    <p className="font-medium truncate">{movie.name || movie.title}</p>
+                                    <p className="text-sm text-muted-foreground">
+                                        {(movie.first_air_date || movie.release_date)?.substring(0, 4)}
+                                    </p>
                                 </div>
-                                <Button size="sm" variant={alreadyAdded ? "secondary" : "default"} onClick={() => handleAddClick(movieId as string)} disabled={alreadyAdded || isCurrentMovieAdding || isAddingMovie}>
-                                    {isCurrentMovieAdding ? <Loader2 className="h-4 w-4 animate-spin" /> : alreadyAdded ? <Check className="h-4 w-4" /> : <PlusCircle className="h-4 w-4" />}
-                                    <span className="ml-2">{alreadyAdded ? 'Added' : 'Add'}</span>
+                                <Button 
+                                    size="sm" 
+                                    variant={alreadyAdded ? "secondary" : "default"} 
+                                    onClick={() => handleAddClick(movieId as string)} 
+                                    disabled={alreadyAdded || isCurrentMovieAdding || isAddingMovie}
+                                    className="shrink-0"
+                                >
+                                    {isCurrentMovieAdding ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : alreadyAdded ? (
+                                        <Check className="h-4 w-4" />
+                                    ) : (
+                                        <Plus className="h-4 w-4" />
+                                    )}
                                 </Button>
                             </div>
                         );
                     })}
-                    {/* Load More Button */}
+                    
                     {hasNextPage && (
-                        <Button variant="outline" className="w-full mt-4 bg-muted" onClick={() => fetchNextPage()} disabled={isFetchingNextPage}>
-                            {isFetchingNextPage ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} Load More
-                        </Button>
+                        <div className="pt-2">
+                            <Button 
+                                variant="ghost" 
+                                className="w-full" 
+                                onClick={() => fetchNextPage()} 
+                                disabled={isFetchingNextPage}
+                            >
+                                {isFetchingNextPage ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} 
+                                Load More
+                            </Button>
+                        </div>
                     )}
                 </div>
             </ScrollArea>
-            {/* Dialog Footer */}
+            
             <DialogFooter>
-                <DialogClose asChild><Button type="button" variant="secondary">Close</Button></DialogClose>
+                <DialogClose asChild>
+                    <Button variant="outline">Done</Button>
+                </DialogClose>
             </DialogFooter>
         </DialogContent>
     );
 };
 
 export default CollectionDetail;
-

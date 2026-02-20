@@ -231,6 +231,7 @@ export interface CollectionSummary {
   updated_at: string; // ISO string from DB
   owner_username?: string | null; // Optional from join
   owner_avatar?: string | null; // Optional from join
+  preview_movie_ids?: (number | string)[]; // Up to 4 movie IDs for preview collage
 }
 
 // Movie entry within a collection (as returned by backend)
