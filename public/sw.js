@@ -43,6 +43,16 @@ self.addEventListener("fetch", (event) => {
   // Skip chrome-extension and non-http(s) requests
   if (!request.url.startsWith("http")) return;
 
+  // Skip cross-origin requests (API calls to the backend domain).
+  // - Cross-origin cookies are only sent when the browser controls the request;
+  //   serving a cached cross-origin response would bypass cookie handling and
+  //   return stale auth state, making the PWA appear logged-in when it isn't.
+  // - Auth session endpoints must always hit the real network.
+  if (new URL(request.url).origin !== self.location.origin) return;
+
+  // Skip any auth-related same-origin paths just in case
+  if (request.url.includes("/api/auth/")) return;
+
   event.respondWith(
     fetch(request)
       .then((response) => {

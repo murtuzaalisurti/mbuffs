@@ -44,6 +44,22 @@ export const auth = betterAuth({
             maxAge: 5 * 60, // 5 minutes cache
         },
     },
+    advanced: {
+        // Cross-origin cookie setup for separate frontend/backend domains (PWA support)
+        // sameSite:"none" + secure:true is required for cross-origin fetch()
+        // requests to send cookies (used by useSession() in the PWA).
+        // Without this, cookies only travel on top-level navigations (the OAuth
+        // redirect), so the session appears valid right after login but is gone
+        // when the PWA is closed and reopened.
+        // In development (HTTP) we fall back to "lax" because "none" requires HTTPS.
+        defaultCookieAttributes: {
+            sameSite: (process.env.NODE_ENV === "production" ? "none" : "lax") as "none" | "lax",
+            secure: process.env.NODE_ENV === "production",
+            // Explicit maxAge prevents iOS from treating these as session-only cookies
+            // that get wiped when it kills the PWA's WKWebView process.
+            maxAge: 60 * 60 * 24 * 7, // 7 days — matches session.expiresIn
+        },
+    },
     user: {
         additionalFields: {
             username: {
