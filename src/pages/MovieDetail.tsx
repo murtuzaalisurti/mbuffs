@@ -258,6 +258,9 @@ const MovieDetail = () => {
     // Check if movie is in at least one collection
     const isInAnyCollection = movieStatusMap ? Object.values(movieStatusMap).some(status => status.hasMedia) : false;
 
+    // Type for movie status map
+    type MovieStatusMap = Record<string, { hasMedia: boolean; addedByUserId: string | null }>;
+
     // Add movie to collection mutation with optimistic updates
     const addToCollectionMutation = useMutation({
         mutationFn: ({ collectionId }: { collectionId: string }) =>
@@ -267,12 +270,12 @@ const MovieDetail = () => {
             await queryClient.cancelQueries({ queryKey: movieStatusQueryKey });
             
             // Snapshot previous value
-            const previousStatus = queryClient.getQueryData<Record<string, boolean>>(movieStatusQueryKey);
+            const previousStatus = queryClient.getQueryData<MovieStatusMap>(movieStatusQueryKey);
             
-            // Optimistically update
-            queryClient.setQueryData(movieStatusQueryKey, (old: Record<string, boolean> | undefined) => ({
+            // Optimistically update - current user is adding, so they own it
+            queryClient.setQueryData(movieStatusQueryKey, (old: MovieStatusMap | undefined) => ({
                 ...old,
-                [collectionId]: true,
+                [collectionId]: { hasMedia: true, addedByUserId: currentUser?.id ?? null },
             }));
             
             return { previousStatus };
@@ -302,12 +305,12 @@ const MovieDetail = () => {
             await queryClient.cancelQueries({ queryKey: movieStatusQueryKey });
             
             // Snapshot previous value
-            const previousStatus = queryClient.getQueryData<Record<string, boolean>>(movieStatusQueryKey);
+            const previousStatus = queryClient.getQueryData<MovieStatusMap>(movieStatusQueryKey);
             
             // Optimistically update
-            queryClient.setQueryData(movieStatusQueryKey, (old: Record<string, boolean> | undefined) => ({
+            queryClient.setQueryData(movieStatusQueryKey, (old: MovieStatusMap | undefined) => ({
                 ...old,
-                [collectionId]: false,
+                [collectionId]: { hasMedia: false, addedByUserId: null },
             }));
             
             return { previousStatus };

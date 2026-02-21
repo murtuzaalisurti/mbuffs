@@ -403,7 +403,8 @@ export default function PersonDetail() {
                                     </div>
                                 ) : (
                                     // Grid View (Expanded - Mobile & Desktop)
-                                    <div className="grid grid-cols-2 xs:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4 animate-in fade-in zoom-in-95 duration-200">
+                                    // Using auto-fill with min 128px (w-32) to match collapsed card widths
+                                    <div className="grid grid-cols-[repeat(auto-fill,minmax(128px,160px))] gap-4 animate-in fade-in duration-200">
                                         {castCredits.map((credit: PersonCredit) => (
                                             <Link
                                                 key={`${credit.id}-${credit.character}`}
@@ -526,7 +527,8 @@ export default function PersonDetail() {
                                     </div>
                                 ) : (
                                     // Grid View (Expanded - Mobile & Desktop)
-                                    <div className="grid grid-cols-2 xs:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4 animate-in fade-in zoom-in-95 duration-200">
+                                    // Using auto-fill with min 128px (w-32) to match collapsed card widths
+                                    <div className="grid grid-cols-[repeat(auto-fill,minmax(128px,160px))] gap-4 animate-in fade-in duration-200">
                                         {crewCredits.map((credit) => (
                                             <Link
                                                 key={`${credit.id}-${credit.jobs.join('-')}`}
@@ -566,63 +568,85 @@ export default function PersonDetail() {
                     {(creditsData?.cast?.length > 0 || creditsData?.crew?.length > 0) && (
                         <section className="space-y-6 pt-4">
                             <h2 className="text-xl md:text-2xl font-semibold text-foreground/90">Timeline</h2>
-                            <div className="relative border-l border-white/10 ml-3 md:ml-4 space-y-8 pb-4">
-                                {(() => {
-                                    // Combine cast and crew into a unified structure
-                                    const allCredits = [
-                                        ...(creditsData?.cast || []).map(c => ({
-                                            ...c,
-                                            role: c.character ? `as ${c.character}` : 'Actor',
-                                            year: c.release_date || c.first_air_date ? new Date(c.release_date || c.first_air_date || '').getFullYear() : null,
-                                            date: c.release_date || c.first_air_date
-                                        })),
-                                        ...(creditsData?.crew || []).map(c => ({
-                                            ...c,
-                                            role: c.job || c.department || 'Crew',
-                                            year: c.release_date || c.first_air_date ? new Date(c.release_date || c.first_air_date || '').getFullYear() : null,
-                                            date: c.release_date || c.first_air_date
-                                        }))
-                                    ]
-                                        .filter(c => c.date) // Only show items with a release date
-                                        .sort((a, b) => new Date(b.date || '').getTime() - new Date(a.date || '').getTime());
+                            {(() => {
+                                // Combine cast and crew into a unified structure
+                                const allCredits = [
+                                    ...(creditsData?.cast || []).map(c => ({
+                                        ...c,
+                                        role: c.character ? `as ${c.character}` : 'Actor',
+                                        year: c.release_date || c.first_air_date ? new Date(c.release_date || c.first_air_date || '').getFullYear() : null,
+                                        date: c.release_date || c.first_air_date
+                                    })),
+                                    ...(creditsData?.crew || []).map(c => ({
+                                        ...c,
+                                        role: c.job || c.department || 'Crew',
+                                        year: c.release_date || c.first_air_date ? new Date(c.release_date || c.first_air_date || '').getFullYear() : null,
+                                        date: c.release_date || c.first_air_date
+                                    }))
+                                ]
+                                    .filter(c => c.date) // Only show items with a release date
+                                    .sort((a, b) => new Date(b.date || '').getTime() - new Date(a.date || '').getTime());
 
-                                    return allCredits.map((credit, index) => (
-                                        <div key={`${credit.id}-${credit.role}-${index}`} className="relative pl-6 md:pl-8 group">
-                                            {/* Timeline Dot */}
-                                            <div className="absolute -left-[5px] top-2 w-2.5 h-2.5 rounded-full bg-white border border-black ring-4 ring-background" />
+                                // Group credits by year
+                                const creditsByYear = allCredits.reduce((acc, credit) => {
+                                    const year = credit.year || 'Unknown';
+                                    if (!acc[year]) acc[year] = [];
+                                    acc[year].push(credit);
+                                    return acc;
+                                }, {} as Record<string | number, typeof allCredits>);
 
-                                            <Link
-                                                to={`/media/${credit.media_type}/${credit.id}`}
-                                                className="flex justify-between items-start gap-4 hover:bg-white/5 p-2 -ml-2 rounded-lg transition-colors"
-                                            >
-                                                <div className="space-y-1">
-                                                    <h3 className="text-base md:text-lg font-medium text-foreground">
-                                                        {credit.title || credit.name}
-                                                        <span className="text-muted-foreground font-normal ml-2">({credit.year})</span>
-                                                    </h3>
-                                                    <p className="text-sm text-muted-foreground/80">{credit.role}</p>
+                                const years = Object.keys(creditsByYear).sort((a, b) => Number(b) - Number(a));
+
+                                return (
+                                    <div className="space-y-8">
+                                        {years.map((year) => (
+                                            <div key={year} className="relative">
+                                                {/* Year Header */}
+                                                <div className="sticky top-20 z-10 mb-4">
+                                                    <span className="inline-flex items-center px-3 py-1.5 rounded-full bg-secondary/80 backdrop-blur-sm text-sm font-medium text-foreground/90 border border-white/8">
+                                                        {year}
+                                                    </span>
                                                 </div>
-
-                                                {/* Optional: Show poster on the right for visual context (like reference) */}
-                                                <div className="shrink-0 w-16 md:w-20 aspect-2/3 rounded overflow-hidden bg-muted/20 border border-white/10">
-                                                    {credit.poster_path ? (
-                                                        <img
-                                                            src={getImageUrl(credit.poster_path, 'w92')}
-                                                            alt={credit.title || credit.name}
-                                                            className="w-full h-full object-cover"
-                                                            loading="lazy"
-                                                        />
-                                                    ) : (
-                                                        <div className="w-full h-full flex items-center justify-center">
-                                                            <ImageOff className="w-4 h-4 text-muted-foreground/30" />
-                                                        </div>
-                                                    )}
+                                                
+                                                {/* Credits Grid */}
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                                                    {creditsByYear[year].map((credit, index) => (
+                                                        <Link
+                                                            key={`${credit.id}-${credit.role}-${index}`}
+                                                            to={`/media/${credit.media_type}/${credit.id}`}
+                                                            className="group flex gap-3 p-3 rounded-xl bg-card/50 border border-white/5 hover:bg-card hover:border-white/10 transition-all duration-200"
+                                                        >
+                                                            {/* Poster */}
+                                                            <div className="shrink-0 w-12 h-18 rounded-lg overflow-hidden bg-muted/30 border border-white/5">
+                                                                {credit.poster_path ? (
+                                                                    <img
+                                                                        src={getImageUrl(credit.poster_path, 'w92')}
+                                                                        alt={credit.title || credit.name}
+                                                                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                                                        loading="lazy"
+                                                                    />
+                                                                ) : (
+                                                                    <div className="w-full h-full flex items-center justify-center">
+                                                                        <ImageOff className="w-4 h-4 text-muted-foreground/30" />
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                            
+                                                            {/* Info */}
+                                                            <div className="flex-1 min-w-0 flex flex-col justify-center">
+                                                                <h3 className="text-sm font-medium text-foreground line-clamp-1 group-hover:text-primary transition-colors">
+                                                                    {credit.title || credit.name}
+                                                                </h3>
+                                                                <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{credit.role}</p>
+                                                            </div>
+                                                        </Link>
+                                                    ))}
                                                 </div>
-                                            </Link>
-                                        </div>
-                                    ));
-                                })()}
-                            </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                );
+                            })()}
                         </section>
                     )}
                 </div>
