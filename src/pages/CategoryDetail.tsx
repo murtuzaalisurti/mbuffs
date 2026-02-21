@@ -1,11 +1,12 @@
 import { useParams, Link } from "react-router-dom";
 import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
+import { useEffect, useRef, useCallback } from "react";
 import { Navbar } from "@/components/Navbar";
 import { MovieCard } from "@/components/MovieCard";
 import { fetchGenreListApi, fetchMoviesByGenreApi, fetchTvByGenreApi, fetchNowPlayingMoviesApi } from "@/lib/api";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, Loader2 } from "lucide-react";
+import { ChevronLeft } from "lucide-react";
 
 const CategoryDetail = () => {
   const { mediaType, genreId } = useParams<{ mediaType: 'movie' | 'tv'; genreId: string }>();
@@ -51,8 +52,42 @@ const CategoryDetail = () => {
     enabled: !!mediaType && (!!genreIdNum || genreId === 'now-playing'),
   });
 
-  const allMovies = data?.pages.flatMap(page => page.results) || [];
+  // Deduplicate movies by ID
+  const allMovies = data?.pages.flatMap(page => page.results).filter((movie, index, self) => 
+    self.findIndex(m => m.id === movie.id) === index
+  ) || [];
   const totalResults = data?.pages[0]?.total_results || 0;
+
+  // Infinite scroll with Intersection Observer
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const loadMoreRef = useCallback((node: HTMLDivElement | null) => {
+    if (isFetchingNextPage) return;
+    
+    if (observerRef.current) {
+      observerRef.current.disconnect();
+    }
+    
+    observerRef.current = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting && hasNextPage) {
+        fetchNextPage();
+      }
+    }, {
+      rootMargin: '200px',
+    });
+    
+    if (node) {
+      observerRef.current.observe(node);
+    }
+  }, [isFetchingNextPage, hasNextPage, fetchNextPage]);
+
+  // Cleanup observer on unmount
+  useEffect(() => {
+    return () => {
+      if (observerRef.current) {
+        observerRef.current.disconnect();
+      }
+    };
+  }, []);
 
   return (
     <>
@@ -97,32 +132,18 @@ const CategoryDetail = () => {
               {allMovies.map((movie, index) => (
                 <MovieCard key={`${movie.id}-${index}`} movie={movie} />
               ))}
+              {/* Skeleton loaders for infinite scroll - inside the same grid */}
+              {isFetchingNextPage && Array.from({ length: 6 }).map((_, index) => (
+                <div key={`skeleton-${index}`} className="space-y-3">
+                  <Skeleton className="aspect-[2/3] w-full rounded-xl" />
+                  <Skeleton className="h-4 w-[75%] rounded-md" />
+                  <Skeleton className="h-3 w-[45%] rounded-md" />
+                </div>
+              ))}
             </div>
 
-            {/* Load more button */}
-            <div className="flex justify-center py-8">
-              {hasNextPage && (
-                <Button
-                  variant="outline"
-                  onClick={() => fetchNextPage()}
-                  disabled={isFetchingNextPage}
-                >
-                  {isFetchingNextPage ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                      Loading...
-                    </>
-                  ) : (
-                    'Load more'
-                  )}
-                </Button>
-              )}
-              {!hasNextPage && allMovies.length > 0 && (
-                <p className="text-sm text-muted-foreground">
-                  You've seen all {totalResults.toLocaleString()} results
-                </p>
-              )}
-            </div>
+            {/* Infinite scroll trigger */}
+            <div ref={loadMoreRef} />
           </>
         ) : (
           <div className="text-center py-16">

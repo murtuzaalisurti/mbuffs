@@ -1,4 +1,4 @@
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
 import {
     fetchCollectionDetailsApi,
@@ -7,10 +7,11 @@ import {
     addMovieToCollectionApi,
     removeMovieFromCollectionApi,
     addCollaboratorApi,
+    updateCollaboratorApi,
     removeCollaboratorApi,
     fetchTvDetailsApi
 } from '@/lib/api';
-import { CollectionDetails, MovieDetails, CollectionCollaborator, AddCollaboratorInput, SearchResults, AddMovieInput } from '@/lib/types';
+import { CollectionDetails, MovieDetails, CollectionCollaborator, AddCollaboratorInput, UpdateCollaboratorInput, SearchResults, AddMovieInput } from '@/lib/types';
 import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -19,7 +20,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getImageUrl } from "@/lib/api";
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/useAuth';
-import { Film, Trash2, UserPlus, Loader2, Check, UserMinus, Plus, Search as SearchIcon, MoreVertical } from 'lucide-react';
+import { Film, Trash2, UserPlus, Loader2, Check, UserMinus, Plus, Search as SearchIcon, MoreVertical, LogOut } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger, DialogClose } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
@@ -28,14 +29,16 @@ import { Label } from "@/components/ui/label";
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import React, { useState, useMemo, Fragment } from 'react';
+import React, { useState, useMemo, Fragment, useRef, useCallback, useEffect } from 'react';
 import { toast } from "sonner";
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useDebounce } from '@/hooks/use-debounce';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const frontendAddCollaboratorSchema = z.object({
     email: z.string().email("Invalid email address"),
+    permission: z.enum(['view', 'edit']),
 });
 type FrontendAddCollaboratorInput = z.infer<typeof frontendAddCollaboratorSchema>;
 
@@ -45,11 +48,13 @@ const CollectionDetail = () => {
     const { collectionId } = useParams<{ collectionId: string }>();
     const { user: currentUser, isLoggedIn } = useAuth();
     const queryClient = useQueryClient();
+    const navigate = useNavigate();
     const [isAddCollabOpen, setIsAddCollabOpen] = useState(false);
     const [isAddMovieOpen, setIsAddMovieOpen] = useState(false);
     const [isCollabListOpen, setIsCollabListOpen] = useState(false);
     const [mediaTypeFilter, setMediaTypeFilter] = useState('all');
     const [visibleItemsCount, setVisibleItemsCount] = useState(ITEMS_PER_PAGE);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
 
     const collectionQueryKey = ['collection', collectionId];
 
@@ -111,6 +116,44 @@ const CollectionDetail = () => {
         return filteredMedia.slice(0, visibleItemsCount);
     }, [filteredMedia, visibleItemsCount]);
 
+    const hasMoreItems = filteredMedia.length > visibleItemsCount;
+
+    // Infinite scroll with Intersection Observer
+    const observerRef = useRef<IntersectionObserver | null>(null);
+    const loadMoreRef = useCallback((node: HTMLDivElement | null) => {
+        if (isLoadingMore) return;
+        
+        if (observerRef.current) {
+            observerRef.current.disconnect();
+        }
+        
+        observerRef.current = new IntersectionObserver((entries) => {
+            if (entries[0].isIntersecting && hasMoreItems) {
+                setIsLoadingMore(true);
+                // Small delay to show skeleton loaders
+                setTimeout(() => {
+                    setVisibleItemsCount(prevCount => prevCount + ITEMS_PER_PAGE);
+                    setIsLoadingMore(false);
+                }, 300);
+            }
+        }, {
+            rootMargin: '200px',
+        });
+        
+        if (node) {
+            observerRef.current.observe(node);
+        }
+    }, [isLoadingMore, hasMoreItems]);
+
+    // Cleanup observer on unmount
+    useEffect(() => {
+        return () => {
+            if (observerRef.current) {
+                observerRef.current.disconnect();
+            }
+        };
+    }, []);
+
     // Mutations
     const removeMovieMutation = useMutation<void, Error, { collectionId: string; movieId: number | string }>({
         mutationFn: ({ collectionId, movieId }) => removeMovieFromCollectionApi(collectionId, movieId),
@@ -122,8 +165,9 @@ const CollectionDetail = () => {
         onError: (error) => { toast.error(`Failed to remove: ${error.message}`); }
     });
 
-    const { register: registerCollab, handleSubmit: handleSubmitCollab, reset: resetCollab, formState: { errors: collabErrors } } = useForm<FrontendAddCollaboratorInput>({
+    const { register: registerCollab, handleSubmit: handleSubmitCollab, reset: resetCollab, setValue: setCollabValue, watch: watchCollab, formState: { errors: collabErrors } } = useForm<FrontendAddCollaboratorInput>({
         resolver: zodResolver(frontendAddCollaboratorSchema),
+        defaultValues: { permission: 'edit' },
     });
     
     const addCollaboratorMutation = useMutation<{ collaborator: CollectionCollaborator }, Error, { collectionId: string; data: AddCollaboratorInput }>({
@@ -139,7 +183,7 @@ const CollectionDetail = () => {
     
     const onAddCollaborator = (formData: FrontendAddCollaboratorInput) => {
         if (!collectionId) return;
-        addCollaboratorMutation.mutate({ collectionId, data: { email: formData.email, permission: 'edit' } });
+        addCollaboratorMutation.mutate({ collectionId, data: { email: formData.email, permission: formData.permission } });
     };
 
     const removeCollaboratorMutation = useMutation<void, Error, { collectionId: string; userId: string }>({
@@ -149,6 +193,26 @@ const CollectionDetail = () => {
             queryClient.invalidateQueries({ queryKey: collectionQueryKey });
         },
         onError: (error) => { toast.error(`Failed to remove: ${error.message}`); }
+    });
+
+    const updateCollaboratorMutation = useMutation<{ collaborator: CollectionCollaborator }, Error, { collectionId: string; userId: string; data: UpdateCollaboratorInput }>({
+        mutationFn: ({ collectionId, userId, data }) => updateCollaboratorApi(collectionId, userId, data),
+        onSuccess: (data) => {
+            toast.success(`Role updated to ${data.collaborator.permission}.`);
+            queryClient.invalidateQueries({ queryKey: collectionQueryKey });
+        },
+        onError: (error) => { toast.error(`Failed to update: ${error.message}`); }
+    });
+
+    const leaveCollectionMutation = useMutation<void, Error, { collectionId: string; userId: string }>({
+        mutationFn: ({ collectionId, userId }) => removeCollaboratorApi(collectionId, userId),
+        onSuccess: () => {
+            toast.success("You have left the collection.");
+            queryClient.invalidateQueries({ queryKey: ['collections'] });
+            setIsCollabListOpen(false);
+            navigate('/');
+        },
+        onError: (error) => { toast.error(`Failed to leave: ${error.message}`); }
     });
 
     const addMovieMutation = useMutation<any, Error, { collectionId: string; data: AddMovieInput }>({
@@ -289,53 +353,106 @@ const CollectionDetail = () => {
                                         </div>
                                         
                                         {/* Collaborators */}
-                                        {collectionDetails.collaborators.map((c) => (
-                                            <div key={c.user_id} className="flex items-center justify-between gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors">
-                                                <div className="flex items-center gap-3">
-                                                    <Avatar className="h-9 w-9">
-                                                        <AvatarImage src={c.avatar_url} />
-                                                        <AvatarFallback>{getInitials(c.username)}</AvatarFallback>
-                                                    </Avatar>
-                                                    <div>
-                                                        <p className="text-sm font-medium">{c.username ?? c.email}</p>
-                                                        <p className="text-xs text-muted-foreground capitalize">{c.permission}</p>
+                                        {collectionDetails.collaborators.map((c) => {
+                                            const isCurrentUser = c.user_id === currentUser?.id;
+                                            return (
+                                                <div key={c.user_id} className="flex items-center justify-between gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors">
+                                                    <div className="flex items-center gap-3">
+                                                        <Avatar className="h-9 w-9">
+                                                            <AvatarImage src={c.avatar_url} />
+                                                            <AvatarFallback>{getInitials(c.username)}</AvatarFallback>
+                                                        </Avatar>
+                                                        <div className="flex flex-col">
+                                                            <p className="text-sm font-medium leading-tight">{c.username ?? c.email}{isCurrentUser && ' (You)'}</p>
+                                                            {isOwner ? (
+                                                                <Select 
+                                                                    value={c.permission} 
+                                                                    onValueChange={(value: 'view' | 'edit') => {
+                                                                        updateCollaboratorMutation.mutate({ 
+                                                                            collectionId: collectionId!, 
+                                                                            userId: c.user_id, 
+                                                                            data: { permission: value } 
+                                                                        });
+                                                                    }}
+                                                                    disabled={updateCollaboratorMutation.isPending && updateCollaboratorMutation.variables?.userId === c.user_id}
+                                                                >
+                                                                    <SelectTrigger size="sm" className="!h-5 w-fit text-xs border-0 bg-transparent px-0 py-0 gap-1 text-muted-foreground hover:text-foreground shadow-none focus:ring-0 focus-visible:ring-0 justify-start">
+                                                                        <SelectValue />
+                                                                    </SelectTrigger>
+                                                                    <SelectContent>
+                                                                        <SelectItem value="edit">Edit</SelectItem>
+                                                                        <SelectItem value="view">View</SelectItem>
+                                                                    </SelectContent>
+                                                                </Select>
+                                                            ) : (
+                                                                <p className="text-xs text-muted-foreground capitalize">{c.permission}</p>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-1">
+                                                        {isCurrentUser && !isOwner ? (
+                                                            <AlertDialog>
+                                                                <AlertDialogTrigger asChild>
+                                                                    <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive gap-1">
+                                                                        {leaveCollectionMutation.isPending 
+                                                                            ? <Loader2 className="h-3 w-3 animate-spin" /> 
+                                                                            : <LogOut className="h-3 w-3" />}
+                                                                        Leave
+                                                                    </Button>
+                                                                </AlertDialogTrigger>
+                                                                <AlertDialogContent className="w-[90%] sm:max-w-[400px] rounded-xl">
+                                                                    <AlertDialogHeader>
+                                                                        <AlertDialogTitle>Leave collection?</AlertDialogTitle>
+                                                                        <AlertDialogDescription>Are you sure you want to leave this collection? You will no longer have access to it.</AlertDialogDescription>
+                                                                    </AlertDialogHeader>
+                                                                    <AlertDialogFooter>
+                                                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                                        <AlertDialogAction 
+                                                                            onClick={() => leaveCollectionMutation.mutate({ collectionId: collectionId!, userId: currentUser!.id })} 
+                                                                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                                                        >
+                                                                            Leave
+                                                                        </AlertDialogAction>
+                                                                    </AlertDialogFooter>
+                                                                </AlertDialogContent>
+                                                            </AlertDialog>
+                                                        ) : isOwner && (
+                                                            <AlertDialog>
+                                                                <AlertDialogTrigger asChild>
+                                                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive">
+                                                                        {(removeCollaboratorMutation.isPending && removeCollaboratorMutation.variables?.userId === c.user_id) 
+                                                                            ? <Loader2 className="h-4 w-4 animate-spin" /> 
+                                                                            : <UserMinus className="h-4 w-4" />}
+                                                                    </Button>
+                                                                </AlertDialogTrigger>
+                                                                <AlertDialogContent className="w-[90%] sm:max-w-[400px] rounded-xl">
+                                                                    <AlertDialogHeader>
+                                                                        <AlertDialogTitle>Remove member?</AlertDialogTitle>
+                                                                        <AlertDialogDescription>Remove {c.username ?? c.email} from this collection?</AlertDialogDescription>
+                                                                    </AlertDialogHeader>
+                                                                    <AlertDialogFooter>
+                                                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                                        <AlertDialogAction 
+                                                                            onClick={() => removeCollaboratorMutation.mutate({ collectionId: collectionId!, userId: c.user_id })} 
+                                                                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                                                        >
+                                                                            Remove
+                                                                        </AlertDialogAction>
+                                                                    </AlertDialogFooter>
+                                                                </AlertDialogContent>
+                                                            </AlertDialog>
+                                                        )}
                                                     </div>
                                                 </div>
-                                                {isOwner && (
-                                                    <AlertDialog>
-                                                        <AlertDialogTrigger asChild>
-                                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive">
-                                                                {(removeCollaboratorMutation.isPending && removeCollaboratorMutation.variables?.userId === c.user_id) 
-                                                                    ? <Loader2 className="h-4 w-4 animate-spin" /> 
-                                                                    : <UserMinus className="h-4 w-4" />}
-                                                            </Button>
-                                                        </AlertDialogTrigger>
-                                                        <AlertDialogContent className="w-[90%] sm:max-w-[400px] rounded-xl">
-                                                            <AlertDialogHeader>
-                                                                <AlertDialogTitle>Remove member?</AlertDialogTitle>
-                                                                <AlertDialogDescription>Remove {c.username ?? c.email} from this collection?</AlertDialogDescription>
-                                                            </AlertDialogHeader>
-                                                            <AlertDialogFooter>
-                                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                                <AlertDialogAction 
-                                                                    onClick={() => removeCollaboratorMutation.mutate({ collectionId: collectionId!, userId: c.user_id })} 
-                                                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                                                >
-                                                                    Remove
-                                                                </AlertDialogAction>
-                                                            </AlertDialogFooter>
-                                                        </AlertDialogContent>
-                                                    </AlertDialog>
-                                                )}
-                                            </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                 </ScrollArea>
                                 <DialogFooter className="flex-row gap-2 sm:justify-between">
                                     {isOwner && (
                                         <Dialog open={isAddCollabOpen} onOpenChange={setIsAddCollabOpen}>
                                             <DialogTrigger asChild>
-                                                <Button variant="outline" size="sm" className="gap-1.5">
+                                                <Button variant="secondary" size="sm" className="gap-1.5">
                                                     <UserPlus className="h-4 w-4" />
                                                     Add
                                                 </Button>
@@ -346,7 +463,7 @@ const CollectionDetail = () => {
                                                         <DialogTitle>Add Member</DialogTitle>
                                                         <DialogDescription>Invite someone by email.</DialogDescription>
                                                     </DialogHeader>
-                                                    <div className="py-4">
+                                                    <div className="py-4 space-y-4">
                                                         <div className="space-y-2">
                                                             <Label htmlFor="collab-email">Email</Label>
                                                             <Input 
@@ -357,6 +474,26 @@ const CollectionDetail = () => {
                                                                 aria-invalid={collabErrors.email ? "true" : "false"} 
                                                             />
                                                             {collabErrors.email && <p className="text-destructive text-sm">{collabErrors.email.message}</p>}
+                                                        </div>
+                                                        <div className="space-y-2">
+                                                            <Label htmlFor="collab-permission">Role</Label>
+                                                            <Select 
+                                                                value={watchCollab("permission")} 
+                                                                onValueChange={(value: 'view' | 'edit') => setCollabValue("permission", value)}
+                                                            >
+                                                                <SelectTrigger id="collab-permission" className="w-full">
+                                                                    <SelectValue placeholder="Select role" />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    <SelectItem value="edit">Edit</SelectItem>
+                                                                    <SelectItem value="view">View</SelectItem>
+                                                                </SelectContent>
+                                                            </Select>
+                                                            <p className="text-xs text-muted-foreground">
+                                                                {watchCollab("permission") === 'edit' 
+                                                                    ? "Can add items and remove their own items" 
+                                                                    : "Can only view the collection"}
+                                                            </p>
                                                         </div>
                                                     </div>
                                                     <DialogFooter>
@@ -370,7 +507,7 @@ const CollectionDetail = () => {
                                         </Dialog>
                                     )}
                                     <DialogClose asChild>
-                                        <Button variant="ghost" size="sm">Done</Button>
+                                        <Button variant="secondary" size="sm">Done</Button>
                                     </DialogClose>
                                 </DialogFooter>
                             </DialogContent>
@@ -384,6 +521,7 @@ const CollectionDetail = () => {
                         <Tabs value={mediaTypeFilter} onValueChange={(value) => {
                             setMediaTypeFilter(value);
                             setVisibleItemsCount(ITEMS_PER_PAGE);
+                            setIsLoadingMore(false);
                         }}>
                             <TabsList className="h-9">
                                 <TabsTrigger value="all" className="text-xs px-3">All</TabsTrigger>
@@ -429,10 +567,19 @@ const CollectionDetail = () => {
                                         <Skeleton className="aspect-[2/3] rounded-lg" />
                                     </div>
                                 );
+                                const isAddedByMember = movieEntry.added_by_user_id === collection.owner_id || 
+                                    collectionDetails.collaborators.some(c => c.user_id === movieEntry.added_by_user_id);
+                                // Owner can remove any item, edit members can only remove their own items
+                                const canRemoveItem = isOwner || movieEntry.added_by_user_id === currentUser?.id;
                                 return (
                                     <div key={movieEntry.movie_id} className="relative group">
                                         <MovieCard movie={movie} />
-                                        {canEdit && (
+                                        {movieEntry.added_by_username && (
+                                            <p className="text-xs text-muted-foreground mt-1.5 truncate">
+                                                {movieEntry.added_by_username}{!isAddedByMember && <span className="opacity-60"> (left)</span>}
+                                            </p>
+                                        )}
+                                        {canEdit && canRemoveItem && (
                                             <div className="absolute top-2 right-2 z-10">
                                                 <DropdownMenu>
                                                     <DropdownMenuTrigger asChild>
@@ -463,18 +610,18 @@ const CollectionDetail = () => {
                                     </div>
                                 );
                             })}
+                            {/* Skeleton loaders for infinite scroll - inside the same grid */}
+                            {isLoadingMore && Array.from({ length: 6 }).map((_, index) => (
+                                <div key={`skeleton-${index}`} className="space-y-3">
+                                    <Skeleton className="aspect-[2/3] w-full rounded-xl" />
+                                    <Skeleton className="h-4 w-[75%] rounded-md" />
+                                    <Skeleton className="h-3 w-[45%] rounded-md" />
+                                </div>
+                            ))}
                         </div>
                         
-                        {filteredMedia.length > visibleItemsCount && (
-                            <div className="text-center mt-10">
-                                <Button
-                                    variant="outline"
-                                    onClick={() => setVisibleItemsCount(prevCount => prevCount + ITEMS_PER_PAGE)}
-                                >
-                                    Load More ({filteredMedia.length - visibleItemsCount} remaining)
-                                </Button>
-                            </div>
-                        )}
+                        {/* Infinite scroll trigger */}
+                        <div ref={loadMoreRef} />
                     </Fragment>
                 ) : (
                     <div className="text-center py-20">
@@ -547,19 +694,30 @@ const AddMovieDialog: React.FC<AddMovieDialogProps> = ({ collectionId, existingM
             <div className="relative my-2">
                 <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input 
-                    type="search" 
+                    type="text" 
                     placeholder="Search..." 
-                    className="pl-9" 
+                    className="pl-9 pr-9" 
                     value={searchTerm} 
                     onChange={(e) => setSearchTerm(e.target.value)} 
                 />
-                {isFetching && !isFetchingNextPage && (
+                {isFetching && !isFetchingNextPage ? (
                     <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+                ) : searchTerm && (
+                    <button 
+                        type="button"
+                        onClick={() => setSearchTerm("")}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground hover:text-foreground"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                    </button>
                 )}
             </div>
             
-            <ScrollArea className="h-[350px] -mx-6 px-6">
-                <div className="space-y-1">
+            <div className="h-[350px] overflow-y-auto">
+                <div className="space-y-1 pr-2">
                     {isLoadingSearch && debouncedSearchTerm && (
                         <div className="text-center py-8">
                             <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
@@ -583,26 +741,26 @@ const AddMovieDialog: React.FC<AddMovieDialogProps> = ({ collectionId, existingM
                         return (
                             <div 
                                 key={movie.id + i} 
-                                className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors"
+                                className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors overflow-hidden"
                             >
                                 <img 
                                     src={getImageUrl(movie.poster_path, 'w92')} 
                                     alt={movie.name || movie.title} 
-                                    className="h-14 w-auto rounded aspect-[2/3] object-cover bg-muted" 
+                                    className="h-14 w-auto rounded aspect-[2/3] object-cover bg-muted shrink-0" 
                                     onError={(e) => { (e.target as HTMLImageElement).src = '/placeholder.svg'; }} 
                                 />
-                                <div className="flex-1 min-w-0">
+                                <div className="flex-1 min-w-0 overflow-hidden">
                                     <p className="font-medium truncate">{movie.name || movie.title}</p>
                                     <p className="text-sm text-muted-foreground">
                                         {(movie.first_air_date || movie.release_date)?.substring(0, 4)}
                                     </p>
                                 </div>
                                 <Button 
-                                    size="sm" 
+                                    size="icon" 
                                     variant={alreadyAdded ? "secondary" : "default"} 
                                     onClick={() => handleAddClick(movieId as string)} 
                                     disabled={alreadyAdded || isCurrentMovieAdding || isAddingMovie}
-                                    className="shrink-0"
+                                    className="shrink-0 h-8 w-8"
                                 >
                                     {isCurrentMovieAdding ? (
                                         <Loader2 className="h-4 w-4 animate-spin" />
@@ -630,7 +788,7 @@ const AddMovieDialog: React.FC<AddMovieDialogProps> = ({ collectionId, existingM
                         </div>
                     )}
                 </div>
-            </ScrollArea>
+            </div>
             
             <DialogFooter>
                 <DialogClose asChild>

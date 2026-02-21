@@ -131,7 +131,7 @@ const CollectionSection = ({ collectionId, currentMediaId }: { collectionId: num
 
 const MovieDetail = () => {
     const { mediaType, mediaId } = useParams<{ mediaType: 'movie' | 'tv', mediaId: string }>();
-    const { isLoggedIn } = useAuth();
+    const { isLoggedIn, user: currentUser } = useAuth();
     const queryClient = useQueryClient();
 
     const isMovie = mediaType === 'movie';
@@ -237,22 +237,26 @@ const MovieDetail = () => {
                 collections.map(async (collection: CollectionSummary) => {
                     const details = await fetchCollectionDetailsApi(collection.id);
                     // movie_id is stored as string, with 'tv' suffix for TV shows
-                    const hasMedia = details?.movies?.some(
+                    const movieEntry = details?.movies?.find(
                         m => String(m.movie_id) === collectionMediaId
-                    ) ?? false;
-                    return { collectionId: collection.id, hasMedia };
+                    );
+                    return { 
+                        collectionId: collection.id, 
+                        hasMedia: !!movieEntry,
+                        addedByUserId: movieEntry?.added_by_user_id ?? null
+                    };
                 })
             );
-            return results.reduce((acc, { collectionId, hasMedia }) => {
-                acc[collectionId] = hasMedia;
+            return results.reduce((acc, { collectionId, hasMedia, addedByUserId }) => {
+                acc[collectionId] = { hasMedia, addedByUserId };
                 return acc;
-            }, {} as Record<string, boolean>);
+            }, {} as Record<string, { hasMedia: boolean; addedByUserId: string | null }>);
         },
         enabled: isLoggedIn && collections.length > 0 && !!mediaId && !!mediaType,
     });
 
     // Check if movie is in at least one collection
-    const isInAnyCollection = movieStatusMap ? Object.values(movieStatusMap).some(Boolean) : false;
+    const isInAnyCollection = movieStatusMap ? Object.values(movieStatusMap).some(status => status.hasMedia) : false;
 
     // Add movie to collection mutation with optimistic updates
     const addToCollectionMutation = useMutation({
@@ -595,21 +599,49 @@ const MovieDetail = () => {
                                             </div>
                                         ) : (
                                             collectionsData?.collections?.map((collection: CollectionSummary) => {
-                                                const isInCollection = movieStatusMap?.[collection.id] ?? false;
+                                                const status = movieStatusMap?.[collection.id];
+                                                const isInCollection = status?.hasMedia ?? false;
+                                                const addedByUserId = status?.addedByUserId;
+                                                
+                                                const isOwner = collection.user_permission === 'owner';
+                                                const isEditPermission = collection.user_permission === 'edit';
+                                                const isViewOnly = collection.user_permission === 'view';
+                                                
+                                                // Owner can always add/remove
+                                                // Edit permission can add, but can only remove if they added the item
+                                                // View permission cannot add or remove
+                                                const canAdd = isOwner || isEditPermission;
+                                                const canRemove = isOwner || (isEditPermission && addedByUserId === currentUser?.id);
+                                                const canToggle = isInCollection ? canRemove : canAdd;
+                                                const isDisabled = !canToggle;
 
                                                 return (
                                                     <div
                                                         key={collection.id}
-                                                        className="flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-accent/50 cursor-pointer transition-all group"
-                                                        onClick={() => handleCollectionToggle(collection.id, isInCollection)}
+                                                        className={`flex items-center gap-3 px-3 py-2.5 rounded-md transition-all group ${
+                                                            isDisabled 
+                                                                ? 'opacity-50 cursor-not-allowed' 
+                                                                : 'hover:bg-accent/50 cursor-pointer'
+                                                        }`}
+                                                        onClick={() => canToggle && handleCollectionToggle(collection.id, isInCollection)}
                                                     >
                                                         <Checkbox
                                                             checked={isInCollection}
-                                                            onCheckedChange={() => handleCollectionToggle(collection.id, isInCollection)}
-                                                            className="pointer-events-none rounded-full w-5 h-5 border-muted-foreground/30 data-[state=checked]:bg-primary data-[state=checked]:border-primary transition-all group-hover:border-muted-foreground/50"
+                                                            disabled={isDisabled}
+                                                            onCheckedChange={() => canToggle && handleCollectionToggle(collection.id, isInCollection)}
+                                                            className={`pointer-events-none rounded-full w-5 h-5 border-muted-foreground/30 data-[state=checked]:bg-primary data-[state=checked]:border-primary transition-all ${
+                                                                isDisabled ? '' : 'group-hover:border-muted-foreground/50'
+                                                            }`}
                                                         />
-                                                        <span className={`text-sm truncate flex-1 transition-colors ${isInCollection ? 'text-foreground font-medium' : 'text-muted-foreground group-hover:text-foreground'}`}>
+                                                        <span className={`text-sm truncate flex-1 transition-colors ${
+                                                            isInCollection 
+                                                                ? 'text-foreground font-medium' 
+                                                                : isDisabled 
+                                                                    ? 'text-muted-foreground' 
+                                                                    : 'text-muted-foreground group-hover:text-foreground'
+                                                        }`}>
                                                             {collection.name}
+                                                            {isViewOnly && <span className="text-xs ml-1">(view only)</span>}
                                                         </span>
                                                     </div>
                                                 );

@@ -6,7 +6,7 @@ import { MovieCard } from "@/components/MovieCard";
 import { fetchRecommendationsApi, fetchUserPreferencesApi } from "@/lib/api";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, Loader2, Sparkles, Settings } from "lucide-react";
+import { ChevronLeft, Sparkles, Settings } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { UserPreferences } from "@/lib/types";
 
@@ -47,7 +47,10 @@ const ForYou = () => {
     enabled: !!user && recommendationsEnabled,
   });
 
-  const allMovies = data?.pages.flatMap(page => page.results) || [];
+  // Deduplicate movies by ID to prevent showing same items multiple times
+  const allMovies = data?.pages.flatMap(page => page.results).filter((movie, index, self) => 
+    self.findIndex(m => m.id === movie.id) === index
+  ) || [];
   const totalResults = data?.pages[0]?.total_results || 0;
   const sourceCollections = data?.pages[0]?.sourceCollections || [];
   const totalSourceItems = data?.pages[0]?.totalSourceItems || 0;
@@ -175,22 +178,18 @@ const ForYou = () => {
               {allMovies.map((movie, index) => (
                 <MovieCard key={`${movie.id}-${index}`} movie={movie} />
               ))}
+              {/* Skeleton loaders for infinite scroll - inside the same grid */}
+              {isFetchingNextPage && Array.from({ length: 6 }).map((_, index) => (
+                <div key={`skeleton-${index}`} className="space-y-3">
+                  <Skeleton className="aspect-[2/3] w-full rounded-xl" />
+                  <Skeleton className="h-4 w-[75%] rounded-md" />
+                  <Skeleton className="h-3 w-[45%] rounded-md" />
+                </div>
+              ))}
             </div>
 
             {/* Infinite scroll trigger */}
-            <div ref={loadMoreRef} className="flex justify-center py-8">
-              {isFetchingNextPage && (
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                  <span>Loading more...</span>
-                </div>
-              )}
-              {!hasNextPage && allMovies.length > 0 && (
-                <p className="text-sm text-muted-foreground">
-                  You've reached the end
-                </p>
-              )}
-            </div>
+            <div ref={loadMoreRef} />
           </>
         ) : (
           <div className="text-center py-16">

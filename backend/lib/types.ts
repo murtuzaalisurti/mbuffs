@@ -46,12 +46,14 @@ export interface CollectionSummary {
   updated_at: string; // ISO string from DB
   owner_username?: string | null; // Optional: added via join
   owner_avatar?: string | null;   // Optional: added via join
+  user_permission?: 'owner' | 'edit' | 'view'; // User's permission on this collection
 }
 
 // Movie entry within a collection (as returned by backend)
 export interface CollectionMovieEntry {
   movie_id: number | string; // Can be string with 'tv' suffix for TV shows (e.g., "12345tv")
   added_at: string; // ISO string from DB
+  added_by_user_id: string;
   added_by_username: string | null;
   is_movie: boolean; // true if movie, false if TV show
 }

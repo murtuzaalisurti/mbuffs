@@ -34,9 +34,10 @@ export const getUserCollections = async (req: Request, res: Response, next: Next
     try {
         // Get collections with preview movie IDs (up to 4 per collection)
         // Using a subquery approach to avoid DISTINCT issues with JSON
+        // Also includes user's permission: 'owner', 'edit', or 'view'
         const collections = await sql`
             SELECT c.id, c.name, c.description, c.owner_id, c.created_at, c.updated_at,
-                   u.username as owner_username, u.avatar_url as owner_avatar,
+                   u.username as owner_username, COALESCE(u.image, u.avatar_url) as owner_avatar,
                    (
                        SELECT COALESCE(json_agg(movie_id), '[]'::json)
                        FROM (
@@ -46,7 +47,15 @@ export const getUserCollections = async (req: Request, res: Response, next: Next
                            ORDER BY added_at DESC
                            LIMIT 4
                        ) sub
-                   ) as preview_movie_ids
+                   ) as preview_movie_ids,
+                   CASE 
+                       WHEN c.owner_id = ${userId} THEN 'owner'
+                       ELSE (
+                           SELECT cc.permission 
+                           FROM collection_collaborators cc 
+                           WHERE cc.collection_id = c.id AND cc.user_id = ${userId}
+                       )
+                   END as user_permission
             FROM collections c
             JOIN "user" u ON c.owner_id = u.id
             WHERE c.id IN (
@@ -72,7 +81,7 @@ export const getCollectionById = async (req: Request, res: Response, next: NextF
     }
     try {
         const collectionResult = await sql`
-            SELECT c.*, u.username as owner_username, u.avatar_url as owner_avatar
+            SELECT c.*, u.username as owner_username, COALESCE(u.image, u.avatar_url) as owner_avatar
             FROM collections c
             JOIN "user" u ON c.owner_id = u.id
             WHERE c.id = ${collectionId}
@@ -96,7 +105,7 @@ export const getCollectionById = async (req: Request, res: Response, next: NextF
         };
 
         const moviesResult = await sql`
-            SELECT cm.movie_id, cm.is_movie, cm.added_at, u.username as added_by_username
+            SELECT cm.movie_id, cm.is_movie, cm.added_at, cm.added_by_user_id, COALESCE(u.username, u.name) as added_by_username
             FROM collection_movies cm
             JOIN "user" u ON cm.added_by_user_id = u.id
             WHERE cm.collection_id = ${collectionId}
@@ -104,7 +113,7 @@ export const getCollectionById = async (req: Request, res: Response, next: NextF
         `;
 
         const collaboratorsResult = await sql`
-            SELECT cc.user_id, cc.permission, u.username, u.email, u.avatar_url
+            SELECT cc.user_id, cc.permission, u.username, u.email, COALESCE(u.image, u.avatar_url) as avatar_url
             FROM collection_collaborators cc
             JOIN "user" u ON cc.user_id = u.id
             WHERE cc.collection_id = ${collectionId}
@@ -112,7 +121,7 @@ export const getCollectionById = async (req: Request, res: Response, next: NextF
         
         const responseData: CollectionDetailsResponse = {
              collection: collectionSummary,
-             movies: (moviesResult as (CollectionMovieEntry & { added_by_username: string | null })[]).map(m => ({ movie_id: m.movie_id, added_at: m.added_at, added_by_username: m.added_by_username, is_movie: m.is_movie })), 
+             movies: (moviesResult as (CollectionMovieEntry & { added_by_username: string | null; added_by_user_id: string })[]).map(m => ({ movie_id: m.movie_id, added_at: m.added_at, added_by_username: m.added_by_username, added_by_user_id: m.added_by_user_id, is_movie: m.is_movie })), 
              collaborators: collaboratorsResult as CollectionCollaborator[]
         };
 
@@ -244,6 +253,31 @@ export const addMovieToCollection = async (req: Request, res: Response, next: Ne
         return;
     }
     try {
+        // Check if user is owner or has edit permission
+        const permissionCheck = await sql`
+            SELECT 
+                CASE 
+                    WHEN c.owner_id = ${userId} THEN 'owner'
+                    WHEN cc.permission = 'edit' THEN 'edit'
+                    WHEN cc.permission = 'view' THEN 'view'
+                    ELSE NULL
+                END as role
+            FROM collections c
+            LEFT JOIN collection_collaborators cc ON c.id = cc.collection_id AND cc.user_id = ${userId}
+            WHERE c.id = ${collectionId}
+        `;
+
+        if (permissionCheck.length === 0) {
+            res.status(404).json({ message: 'Collection not found' });
+            return;
+        }
+
+        const role = permissionCheck[0].role;
+        if (!role || role === 'view') {
+            res.status(403).json({ message: 'You do not have permission to add items to this collection' });
+            return;
+        }
+
         const validation = addMovieSchema.safeParse(req.body);
         if (!validation.success) {
             res.status(400).json({ message: 'Validation failed', errors: validation.error.issues });
@@ -279,6 +313,40 @@ export const removeMovieFromCollection = async (req: Request, res: Response, nex
         return;
     }
     try {
+        // Check user's role and get movie's added_by_user_id
+        const permissionCheck = await sql`
+            SELECT 
+                CASE 
+                    WHEN c.owner_id = ${userId} THEN 'owner'
+                    WHEN cc.permission = 'edit' THEN 'edit'
+                    WHEN cc.permission = 'view' THEN 'view'
+                    ELSE NULL
+                END as role,
+                cm.added_by_user_id
+            FROM collections c
+            LEFT JOIN collection_collaborators cc ON c.id = cc.collection_id AND cc.user_id = ${userId}
+            LEFT JOIN collection_movies cm ON c.id = cm.collection_id AND cm.movie_id = ${movieId}
+            WHERE c.id = ${collectionId}
+        `;
+
+        if (permissionCheck.length === 0) {
+            res.status(404).json({ message: 'Collection not found' });
+            return;
+        }
+
+        const { role, added_by_user_id } = permissionCheck[0];
+        
+        if (!role || role === 'view') {
+            res.status(403).json({ message: 'You do not have permission to remove items from this collection' });
+            return;
+        }
+
+        // Edit role can only remove items they added, owner can remove any
+        if (role === 'edit' && added_by_user_id !== userId) {
+            res.status(403).json({ message: 'You can only remove items that you added' });
+            return;
+        }
+
         // movie_id can be a number (for movies) or string with 'tv' suffix (for TV shows)
         const deleteResult = await sql`
             DELETE FROM collection_movies
@@ -335,7 +403,7 @@ export const addCollaborator = async (req: Request, res: Response, next: NextFun
             `;
             
             const collaboratorDetails = await sql`
-                SELECT u.id as user_id, cc.permission, u.username, u.email, u.avatar_url
+                SELECT u.id as user_id, cc.permission, u.username, u.email, COALESCE(u.image, u.avatar_url) as avatar_url
                 FROM "user" u
                 JOIN collection_collaborators cc ON u.id = cc.user_id
                 WHERE cc.id = ${(insertResult[0] as {id: string}).id}
