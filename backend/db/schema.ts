@@ -119,6 +119,7 @@ export const collections = pgTable("collections", {
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`),
 	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`),
 	shareableId: text("shareable_id"),
+	isSystem: boolean("is_system").default(false).notNull(),
 }, (table) => [
 	index("collections_owner_id_idx").using("btree", table.ownerId.asc().nullsLast().op("text_ops")),
 	index("idx_collections_owner_id").using("btree", table.ownerId.asc().nullsLast().op("text_ops")),

@@ -216,6 +216,33 @@ export const removeCollaboratorApi = async (collectionId: string, userId: string
     await fetchBackend(`/collections/${collectionId}/collaborators/${userId}`, { method: 'DELETE' });
 };
 
+// --- Watched Status API ---
+export interface WatchedStatusResponse {
+    isWatched: boolean;
+    watchedAt: string | null;
+}
+
+export interface WatchedStatusBatchResponse {
+    watchedStatus: Record<string, { isWatched: boolean; watchedAt: string | null }>;
+}
+
+export const getWatchedStatusApi = async (mediaId: string): Promise<WatchedStatusResponse> => {
+    return fetchBackend(`/collections/watched/${mediaId}`);
+};
+
+export const getWatchedStatusBatchApi = async (mediaIds: string[]): Promise<WatchedStatusBatchResponse> => {
+    return fetchBackend('/collections/watched/batch', {
+        method: 'POST',
+        body: JSON.stringify({ mediaIds }),
+    });
+};
+
+export const toggleWatchedStatusApi = async (mediaId: string): Promise<WatchedStatusResponse> => {
+    return fetchBackend(`/collections/watched/${mediaId}/toggle`, {
+        method: 'POST',
+    });
+};
+
 const IMAGE_BASE_URL = 'https://image.tmdb.org/t/p';
 
 export const getImageUrl = (path: string | null | undefined, size = 'w500') => {

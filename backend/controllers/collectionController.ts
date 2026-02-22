@@ -62,7 +62,8 @@ export const getUserCollections = async (req: Request, res: Response, next: Next
                 SELECT DISTINCT col.id
                 FROM collections col
                 LEFT JOIN collection_collaborators cc ON col.id = cc.collection_id
-                WHERE col.owner_id = ${userId} OR cc.user_id = ${userId}
+                WHERE (col.owner_id = ${userId} OR cc.user_id = ${userId})
+                  AND (col.is_system = false OR col.is_system IS NULL)
             )
             ORDER BY c.updated_at DESC
         `;
@@ -475,6 +476,155 @@ export const removeCollaborator = async (req: Request, res: Response, next: Next
         }
 
         res.status(204).send();
+    } catch (error) {
+        next(error);
+    }
+};
+
+// ============================================================================
+// WATCHED COLLECTION (System Collection)
+// ============================================================================
+
+const WATCHED_COLLECTION_NAME = '__watched__';
+
+/**
+ * Get the watched status for a specific media item
+ */
+export const getWatchedStatus = async (req: Request, res: Response, next: NextFunction) => {
+    const userId = req.userId;
+    const { mediaId } = req.params;
+    
+    if (!userId) {
+        res.sendStatus(401);
+        return;
+    }
+    
+    try {
+        // Check if the media is in the user's watched collection
+        const result = await sql`
+            SELECT cm.id, cm.added_at
+            FROM collection_movies cm
+            JOIN collections c ON cm.collection_id = c.id
+            WHERE c.owner_id = ${userId} 
+              AND c.is_system = true 
+              AND c.name = ${WATCHED_COLLECTION_NAME}
+              AND cm.movie_id = ${mediaId}
+            LIMIT 1
+        `;
+        
+        res.status(200).json({ 
+            isWatched: result.length > 0,
+            watchedAt: result.length > 0 ? result[0].added_at : null
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * Get watched status for multiple media items (batch)
+ */
+export const getWatchedStatusBatch = async (req: Request, res: Response, next: NextFunction) => {
+    const userId = req.userId;
+    const { mediaIds } = req.body;
+    
+    if (!userId) {
+        res.sendStatus(401);
+        return;
+    }
+    
+    if (!Array.isArray(mediaIds) || mediaIds.length === 0) {
+        res.status(400).json({ message: 'mediaIds must be a non-empty array' });
+        return;
+    }
+    
+    try {
+        const result = await sql`
+            SELECT cm.movie_id, cm.added_at
+            FROM collection_movies cm
+            JOIN collections c ON cm.collection_id = c.id
+            WHERE c.owner_id = ${userId} 
+              AND c.is_system = true 
+              AND c.name = ${WATCHED_COLLECTION_NAME}
+              AND cm.movie_id = ANY(${mediaIds}::text[])
+        `;
+        
+        // Create a map of mediaId -> watched info
+        const watchedMap: Record<string, { isWatched: boolean; watchedAt: string | null }> = {};
+        for (const mediaId of mediaIds) {
+            const found = result.find((r) => r.movie_id === String(mediaId));
+            watchedMap[mediaId] = {
+                isWatched: !!found,
+                watchedAt: found ? found.added_at : null
+            };
+        }
+        
+        res.status(200).json({ watchedStatus: watchedMap });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * Toggle watched status for a media item
+ * Creates the watched collection if it doesn't exist
+ */
+export const toggleWatchedStatus = async (req: Request, res: Response, next: NextFunction) => {
+    const userId = req.userId;
+    const { mediaId } = req.params;
+    
+    if (!userId) {
+        res.sendStatus(401);
+        return;
+    }
+    
+    try {
+        // First, get or create the watched collection
+        let watchedCollection = await sql`
+            SELECT id FROM collections 
+            WHERE owner_id = ${userId} 
+              AND is_system = true 
+              AND name = ${WATCHED_COLLECTION_NAME}
+            LIMIT 1
+        `;
+        
+        let collectionId: string;
+        
+        if (watchedCollection.length === 0) {
+            // Create the watched collection
+            const newCollectionId = generateId(21);
+            await sql`
+                INSERT INTO collections (id, name, description, owner_id, is_system)
+                VALUES (${newCollectionId}, ${WATCHED_COLLECTION_NAME}, 'System collection for watched items', ${userId}, true)
+            `;
+            collectionId = newCollectionId;
+        } else {
+            collectionId = watchedCollection[0].id as string;
+        }
+        
+        // Check if the media is already in the watched collection
+        const existing = await sql`
+            SELECT id FROM collection_movies 
+            WHERE collection_id = ${collectionId} AND movie_id = ${mediaId}
+            LIMIT 1
+        `;
+        
+        if (existing.length > 0) {
+            // Remove from watched
+            await sql`
+                DELETE FROM collection_movies 
+                WHERE collection_id = ${collectionId} AND movie_id = ${mediaId}
+            `;
+            res.status(200).json({ isWatched: false, message: 'Removed from watched' });
+        } else {
+            // Add to watched
+            const newEntryId = generateId(21);
+            await sql`
+                INSERT INTO collection_movies (id, collection_id, movie_id, added_by_user_id)
+                VALUES (${newEntryId}, ${collectionId}, ${mediaId}, ${userId})
+            `;
+            res.status(200).json({ isWatched: true, message: 'Added to watched' });
+        }
     } catch (error) {
         next(error);
     }

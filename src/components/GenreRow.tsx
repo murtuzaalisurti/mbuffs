@@ -1,9 +1,10 @@
 import { Link } from "react-router-dom";
 import { ChevronRight, Sparkles } from "lucide-react";
 import { Movie, Genre } from "@/lib/types";
-import { getImageUrl } from "@/lib/api";
 import { MovieCard } from "./MovieCard";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useWatchedStatus } from "@/hooks/useWatchedStatus";
+import { useMemo } from "react";
 
 export interface GenreRowProps {
   genre?: Genre;
@@ -19,6 +20,17 @@ export interface GenreRowProps {
 
 export function GenreRow({ genre, title, movies, mediaType, isLoading = false, limit = 10, hideSeeAll = false, customLink, isPersonalized = false }: GenreRowProps) {
   const displayMovies = movies.slice(0, limit);
+  
+  // Generate media IDs for watched status lookup
+  const mediaIds = useMemo(() => 
+    displayMovies.map(movie => {
+      const isTV = !!movie.first_air_date;
+      return isTV ? `${movie.id}tv` : String(movie.id);
+    }),
+    [displayMovies]
+  );
+
+  const { watchedMap } = useWatchedStatus(mediaIds);
 
   if (isLoading) {
     return (
@@ -75,14 +87,18 @@ export function GenreRow({ genre, title, movies, mediaType, isLoading = false, l
       {/* Scrollable row */}
       <div className="relative -mx-4 px-4">
         <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide scroll-smooth">
-          {displayMovies.map((movie) => (
-            <div
-              key={movie.id}
-              className="shrink-0 w-[140px] sm:w-[160px] md:w-[180px]"
-            >
-              <MovieCard movie={movie} />
-            </div>
-          ))}
+          {displayMovies.map((movie) => {
+            const isTV = !!movie.first_air_date;
+            const mediaId = isTV ? `${movie.id}tv` : String(movie.id);
+            return (
+              <div
+                key={movie.id}
+                className="shrink-0 w-[140px] sm:w-[160px] md:w-[180px]"
+              >
+                <MovieCard movie={movie} isWatched={watchedMap[mediaId] ?? false} />
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>

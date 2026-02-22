@@ -1,11 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
-import { useRef } from 'react';
+import { useRef, useMemo } from 'react';
 import { MovieGrid } from "@/components/MovieGrid";
 import { MovieCard } from "@/components/MovieCard";
 import { fetchTrendingContentApi, fetchUserRegion, fetchRecommendationsApi, fetchUserPreferencesApi } from "@/lib/api";
 import { Navbar } from "@/components/Navbar";
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/useAuth';
+import { useWatchedStatus } from '@/hooks/useWatchedStatus';
 import { Sparkles, Settings, ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -58,6 +59,17 @@ const Index = () => {
   const trendingContent = trendingContentData?.results?.slice(0, 50) || [];
   const recommendations = recommendationsData?.results || [];
   const hasRecommendations = recommendationsEnabled && recommendations.length > 0;
+
+  // Generate media IDs for watched status lookup (recommendations only)
+  const recommendationMediaIds = useMemo(() => 
+    recommendations.map(movie => {
+      const isTV = !!movie.first_air_date;
+      return isTV ? `${movie.id}tv` : String(movie.id);
+    }),
+    [recommendations]
+  );
+
+  const { watchedMap } = useWatchedStatus(recommendationMediaIds);
 
   // For You scroll functionality
   const forYouScrollRef = useRef<HTMLDivElement>(null);
@@ -142,11 +154,15 @@ const Index = () => {
                       ref={forYouScrollRef}
                       className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide scroll-smooth px-4 pr-16"
                     >
-                      {recommendations.map((movie) => (
-                        <div key={movie.id} className="shrink-0 w-[140px] sm:w-[160px] md:w-[180px]">
-                          <MovieCard movie={movie} />
-                        </div>
-                      ))}
+                      {recommendations.map((movie) => {
+                        const isTV = !!movie.first_air_date;
+                        const mediaId = isTV ? `${movie.id}tv` : String(movie.id);
+                        return (
+                          <div key={movie.id} className="shrink-0 w-[140px] sm:w-[160px] md:w-[180px]">
+                            <MovieCard movie={movie} isWatched={watchedMap[mediaId] ?? false} />
+                          </div>
+                        );
+                      })}
                     </div>
                     <button
                       onClick={scrollForYouRight}

@@ -1,6 +1,6 @@
 import { useParams, Link } from "react-router-dom";
 import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useMemo } from "react";
 import { Navbar } from "@/components/Navbar";
 import { MovieCard } from "@/components/MovieCard";
 import { 
@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ChevronLeft, Sparkles } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { useWatchedStatus } from "@/hooks/useWatchedStatus";
 import { UserPreferences } from "@/lib/types";
 
 const ITEMS_PER_PAGE = 20;
@@ -122,6 +123,17 @@ const CategoryDetail = () => {
   const sourceCollections = showPersonalized ? (personalizedData?.pages[0]?.sourceCollections || []) : [];
   const totalSourceItems = showPersonalized ? (personalizedData?.pages[0]?.totalSourceItems || 0) : 0;
 
+  // Generate media IDs for watched status lookup
+  const mediaIds = useMemo(() => 
+    allMovies.map(movie => {
+      const isTV = mediaType === 'tv' || !!movie.first_air_date;
+      return isTV ? `${movie.id}tv` : String(movie.id);
+    }),
+    [allMovies, mediaType]
+  );
+
+  const { watchedMap } = useWatchedStatus(mediaIds);
+
   // Infinite scroll with Intersection Observer
   const observerRef = useRef<IntersectionObserver | null>(null);
   const loadMoreRef = useCallback((node: HTMLDivElement | null) => {
@@ -204,9 +216,13 @@ const CategoryDetail = () => {
         ) : allMovies.length > 0 ? (
           <>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 md:gap-5">
-              {allMovies.map((movie, index) => (
-                <MovieCard key={`${movie.id}-${index}`} movie={movie} />
-              ))}
+              {allMovies.map((movie, index) => {
+                const isTV = mediaType === 'tv' || !!movie.first_air_date;
+                const mediaId = isTV ? `${movie.id}tv` : String(movie.id);
+                return (
+                  <MovieCard key={`${movie.id}-${index}`} movie={movie} isWatched={watchedMap[mediaId] ?? false} />
+                );
+              })}
               {/* Skeleton loaders for infinite scroll - inside the same grid */}
               {isFetchingNextPage && Array.from({ length: 6 }).map((_, index) => (
                 <div key={`skeleton-${index}`} className="space-y-3">

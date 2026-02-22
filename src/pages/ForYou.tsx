@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useMemo } from "react";
 import { Navbar } from "@/components/Navbar";
 import { MovieCard } from "@/components/MovieCard";
 import { fetchRecommendationsApi, fetchUserPreferencesApi } from "@/lib/api";
@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, Sparkles, Settings } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { useWatchedStatus } from "@/hooks/useWatchedStatus";
 import { UserPreferences } from "@/lib/types";
 
 const ITEMS_PER_PAGE = 20;
@@ -54,6 +55,17 @@ const ForYou = () => {
   const totalResults = data?.pages[0]?.total_results || 0;
   const sourceCollections = data?.pages[0]?.sourceCollections || [];
   const totalSourceItems = data?.pages[0]?.totalSourceItems || 0;
+
+  // Generate media IDs for watched status lookup
+  const mediaIds = useMemo(() => 
+    allMovies.map(movie => {
+      const isTV = !!movie.first_air_date;
+      return isTV ? `${movie.id}tv` : String(movie.id);
+    }),
+    [allMovies]
+  );
+
+  const { watchedMap } = useWatchedStatus(mediaIds);
 
   // Infinite scroll with Intersection Observer
   const observerRef = useRef<IntersectionObserver | null>(null);
@@ -175,9 +187,13 @@ const ForYou = () => {
         ) : allMovies.length > 0 ? (
           <>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 md:gap-5">
-              {allMovies.map((movie, index) => (
-                <MovieCard key={`${movie.id}-${index}`} movie={movie} />
-              ))}
+              {allMovies.map((movie, index) => {
+                const isTV = !!movie.first_air_date;
+                const mediaId = isTV ? `${movie.id}tv` : String(movie.id);
+                return (
+                  <MovieCard key={`${movie.id}-${index}`} movie={movie} isWatched={watchedMap[mediaId] ?? false} />
+                );
+              })}
               {/* Skeleton loaders for infinite scroll - inside the same grid */}
               {isFetchingNextPage && Array.from({ length: 6 }).map((_, index) => (
                 <div key={`skeleton-${index}`} className="space-y-3">

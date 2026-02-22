@@ -8,6 +8,13 @@
       "when": 1771059298977,
       "tag": "0000_ambitious_scorpion",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1771774894184,
+      "tag": "0001_add_is_system_to_collections",
+      "breakpoints": true
     }
   ]
 }

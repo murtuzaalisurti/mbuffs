@@ -9,7 +9,10 @@ import {
     removeMovieFromCollection,
      addCollaborator,
      updateCollaboratorPermission,
-    removeCollaborator
+    removeCollaborator,
+    getWatchedStatus,
+    getWatchedStatusBatch,
+    toggleWatchedStatus
 } from '../controllers/collectionController.js';
 import { requireAuth } from '../middleware/authMiddleware.js';
 import { requireCollectionPermission } from '../middleware/collectionAuthMiddleware.js';
@@ -72,5 +75,10 @@ router.delete(
     requireAuth as RequestHandler,
     removeCollaborator as RequestHandler
 );
+
+// Watched status routes (system collection)
+router.get('/watched/:mediaId', requireAuth as RequestHandler, getWatchedStatus as RequestHandler);
+router.post('/watched/batch', requireAuth as RequestHandler, getWatchedStatusBatch as RequestHandler);
+router.post('/watched/:mediaId/toggle', requireAuth as RequestHandler, toggleWatchedStatus as RequestHandler);
 
 export default router;

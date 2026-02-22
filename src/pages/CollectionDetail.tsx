@@ -33,6 +33,7 @@ import React, { useState, useMemo, Fragment, useRef, useCallback, useEffect } fr
 import { toast } from "sonner";
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useDebounce } from '@/hooks/use-debounce';
+import { useWatchedStatus } from '@/hooks/useWatchedStatus';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
@@ -117,6 +118,14 @@ const CollectionDetail = () => {
     }, [filteredMedia, visibleItemsCount]);
 
     const hasMoreItems = filteredMedia.length > visibleItemsCount;
+
+    // Generate media IDs for watched status lookup
+    const mediaIds = useMemo(() => 
+        currentVisibleMedia.map(entry => String(entry.movie_id)),
+        [currentVisibleMedia]
+    );
+
+    const { watchedMap } = useWatchedStatus(mediaIds);
 
     // Infinite scroll with Intersection Observer
     const observerRef = useRef<IntersectionObserver | null>(null);
@@ -571,41 +580,32 @@ const CollectionDetail = () => {
                                     collectionDetails.collaborators.some(c => c.user_id === movieEntry.added_by_user_id);
                                 // Owner can remove any item, edit members can only remove their own items
                                 const canRemoveItem = isOwner || movieEntry.added_by_user_id === currentUser?.id;
-                                return (
+                                const isItemWatched = watchedMap[String(movieEntry.movie_id)] ?? false;
+                                const showRemoveOption = canEdit && canRemoveItem;
+                                    return (
                                     <div key={movieEntry.movie_id} className="relative group">
-                                        <MovieCard movie={movie} />
+                                        <MovieCard 
+                                            movie={movie} 
+                                            isWatched={isItemWatched}
+                                            additionalMenuItems={showRemoveOption ? (
+                                                <DropdownMenuItem
+                                                    className="text-destructive focus:text-destructive cursor-pointer"
+                                                    disabled={removeMovieMutation.isPending && removeMovieMutation.variables?.movieId === movieEntry.movie_id}
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+                                                        removeMovieMutation.mutate({ collectionId: collectionId!, movieId: movieEntry.movie_id });
+                                                    }}
+                                                >
+                                                    <Trash2 className="mr-2 h-4 w-4" />
+                                                    Remove
+                                                </DropdownMenuItem>
+                                            ) : undefined}
+                                        />
                                         {movieEntry.added_by_username && (
                                             <p className="text-xs text-muted-foreground mt-1.5 truncate">
                                                 {movieEntry.added_by_username}{!isAddedByMember && <span className="opacity-60"> (left)</span>}
                                             </p>
-                                        )}
-                                        {canEdit && canRemoveItem && (
-                                            <div className="absolute top-2 right-2 z-10">
-                                                <DropdownMenu>
-                                                    <DropdownMenuTrigger asChild>
-                                                        <Button 
-                                                            variant="secondary" 
-                                                            size="icon" 
-                                                            className="h-7 w-7 rounded-full bg-black/60 backdrop-blur-sm border-0 hover:bg-black/80 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity"
-                                                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                                                        >
-                                                            <MoreVertical className="h-4 w-4 text-white" />
-                                                        </Button>
-                                                    </DropdownMenuTrigger>
-                                                    <DropdownMenuContent align="end" className="w-36">
-                                                        <DropdownMenuItem
-                                                            className="text-destructive focus:text-destructive cursor-pointer"
-                                                            disabled={removeMovieMutation.isPending && removeMovieMutation.variables?.movieId === movieEntry.movie_id}
-                                                            onClick={() => removeMovieMutation.mutate({ collectionId: collectionId!, movieId: movieEntry.movie_id })}
-                                                        >
-                                                            {(removeMovieMutation.isPending && removeMovieMutation.variables?.movieId === movieEntry.movie_id) 
-                                                                ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> 
-                                                                : <Trash2 className="mr-2 h-4 w-4" />}
-                                                            Remove
-                                                        </DropdownMenuItem>
-                                                    </DropdownMenuContent>
-                                                </DropdownMenu>
-                                            </div>
                                         )}
                                     </div>
                                 );
