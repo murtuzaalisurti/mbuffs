@@ -709,11 +709,6 @@ export async function generateCategoryRecommendations(
         (existingMoviesResult as { movie_id: string }[]).map(m => m.movie_id)
     );
 
-    // Build genre, director, and actor preference profiles
-    const genreScores: Map<number, { id: number; name: string; count: number }> = new Map();
-    const directorScores: Map<number, DirectorInfo> = new Map();
-    const actorScores: Map<number, ActorInfo> = new Map();
-
     // Filter by media type FIRST, then sample
     const sourceItemsOfType = sourceMovies.filter(movie => {
         const { isMovie } = parseMovieId(movie.movie_id);
@@ -724,19 +719,25 @@ export async function generateCategoryRecommendations(
         return { ...emptyResult, sourceCollections, totalSourceItems: sourceMovies.length };
     }
 
-    // Sample a subset to avoid rate limiting (max 10 for API calls)
-    const sampleSize = Math.min(sourceItemsOfType.length, 10);
+    // Sample a subset to avoid rate limiting (max 15 for category recommendations to get more variety)
+    const sampleSize = Math.min(sourceItemsOfType.length, 15);
     const sampledItems = sourceItemsOfType
         .sort(() => Math.random() - 0.5)
         .slice(0, sampleSize);
 
-    // Fetch details and credits for each sampled source item
-    const fetchPromises = sampledItems.map(async (movie) => {
-        const { id, isMovie } = parseMovieId(movie.movie_id);
+    // Build genre profile and collect all recommendations (same as For You page)
+    const genreScores: Map<number, { id: number; name: string; count: number }> = new Map();
+    const allRecommendations: Map<string, { item: TMDBMovie; score: number; sources: number }> = new Map();
+    const isMovie = mediaType === 'movie';
 
-        const [details, credits] = await Promise.all([
-            getItemDetails(id, isMovie),
-            getItemCredits(id, isMovie)
+    // Fetch details, recommendations, and similar for each sampled source item
+    const fetchPromises = sampledItems.map(async (movie) => {
+        const { id, isMovie: itemIsMovie } = parseMovieId(movie.movie_id);
+
+        const [details, recommendations, similar] = await Promise.all([
+            getItemDetails(id, itemIsMovie),
+            getRecommendationsForItem(id, itemIsMovie),
+            getSimilarForItem(id, itemIsMovie)
         ]);
 
         // Build genre profile with names
@@ -751,40 +752,50 @@ export async function generateCategoryRecommendations(
             });
         }
 
-        // Build director profile
-        const directors = extractDirectors(credits, isMovie);
-        directors.forEach(director => {
-            const existing = directorScores.get(director.id);
-            if (existing) {
-                existing.count += 1;
-            } else {
-                directorScores.set(director.id, {
-                    id: director.id,
-                    name: director.name,
-                    count: 1
-                });
-            }
-        });
-
-        // Build actor profile
-        const topCast = extractTopCast(credits);
-        topCast.forEach(actor => {
-            const existing = actorScores.get(actor.id);
-            if (existing) {
-                existing.count += 1;
-            } else {
-                actorScores.set(actor.id, {
-                    id: actor.id,
-                    name: actor.name,
-                    count: 1
-                });
-            }
-        });
-
-        return true;
+        return { recommendations, similar };
     });
 
-    await Promise.all(fetchPromises);
+    const results = await Promise.all(fetchPromises);
+
+    // Process all recommendations from TMDB recommendations/similar (same scoring as For You)
+    results.forEach(({ recommendations, similar }) => {
+        const allItems = [...recommendations, ...similar];
+        
+        allItems.forEach(item => {
+            // Create a unique key for deduplication
+            const key = isMovie ? `${item.id}` : `${item.id}tv`;
+            
+            // Skip items already in user's collections
+            if (existingMovieIds.has(key)) return;
+            
+            // Calculate genre match score
+            let genreMatchScore = 0;
+            if (item.genre_ids) {
+                item.genre_ids.forEach(genreId => {
+                    const genreInfo = genreScores.get(genreId);
+                    genreMatchScore += genreInfo?.count || 0;
+                });
+            }
+            
+            // Calculate combined score (same as For You)
+            const baseScore = (item.vote_average || 0) * 10;
+            const popularityScore = Math.min((item.popularity || 0) / 10, 50);
+            const combinedScore = baseScore + popularityScore + genreMatchScore * 5;
+            
+            const existing = allRecommendations.get(key);
+            if (existing) {
+                // Item appeared from multiple sources - boost its score
+                existing.sources += 1;
+                existing.score = combinedScore + (existing.sources * 20);
+            } else {
+                allRecommendations.set(key, {
+                    item,
+                    score: combinedScore,
+                    sources: 1
+                });
+            }
+        });
+    });
 
     // Sort genres by preference score (how often they appear in user's collections)
     const sortedGenres = Array.from(genreScores.values())
@@ -794,85 +805,28 @@ export async function generateCategoryRecommendations(
         return { ...emptyResult, sourceCollections, totalSourceItems: sourceMovies.length };
     }
 
-    // Get top directors and actors for filtering (appearing 2+ times)
-    const topDirectorIds = Array.from(directorScores.values())
-        .filter(d => d.count >= 2)
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 3)
-        .map(d => d.id);
+    // Group recommendations by genre
+    const categories: CategoryRecommendation[] = [];
 
-    const topActorIds = Array.from(actorScores.values())
-        .filter(a => a.count >= 2)
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 3)
-        .map(a => a.id);
+    for (const genre of sortedGenres) {
+        // Filter recommendations that have this genre
+        const genreRecommendations = Array.from(allRecommendations.values())
+            .filter(rec => rec.item.genre_ids?.includes(genre.id))
+            .sort((a, b) => b.score - a.score)
+            .slice(0, limit)
+            .map(rec => rec.item);
 
-    // Generate recommendations for each genre category
-    const categoryPromises = sortedGenres.map(async (genre) => {
-        const isMovie = mediaType === 'movie';
-        const mediaEndpoint = isMovie ? 'movie' : 'tv';
-        
-        // Base discover params
-        const params: Record<string, string> = {
-            with_genres: genre.id.toString(),
-            sort_by: 'vote_average.desc',
-            'vote_count.gte': '100',
-            'vote_average.gte': '6.0',
-            page: '1'
-        };
-
-        // Add director/actor filtering if we have preferences
-        // Use OR logic to broaden results while still personalizing
-        if (topDirectorIds.length > 0 || topActorIds.length > 0) {
-            // For movies, prioritize director/actor matches but don't require them
-            // We'll fetch more and score them higher instead
+        if (genreRecommendations.length > 0) {
+            categories.push({
+                genre: { id: genre.id, name: genre.name },
+                results: genreRecommendations,
+                total_results: genreRecommendations.length
+            });
         }
-
-        // Fetch discover results for this genre
-        const response = await fetchTMDB<TMDBDiscoverResponse>(
-            `/discover/${mediaEndpoint}`,
-            params
-        );
-
-        const results = response?.results || [];
-
-        // Score and filter results
-        const scoredResults: { item: TMDBMovie; score: number }[] = [];
-
-        for (const item of results) {
-            const key = isMovie ? `${item.id}` : `${item.id}tv`;
-            
-            // Skip items already in user's collections
-            if (existingMovieIds.has(key)) continue;
-
-            // Base score from TMDB rating
-            let score = (item.vote_average || 0) * 10;
-            score += Math.min((item.popularity || 0) / 10, 30);
-
-            // Genre relevance boost (how much user likes this genre)
-            score += genre.count * 5;
-
-            scoredResults.push({ item, score });
-        }
-
-        // Sort by score and take top items
-        scoredResults.sort((a, b) => b.score - a.score);
-        const topResults = scoredResults.slice(0, limit).map(r => r.item);
-
-        return {
-            genre: { id: genre.id, name: genre.name },
-            results: topResults,
-            total_results: scoredResults.length
-        };
-    });
-
-    const categories = await Promise.all(categoryPromises);
-
-    // Filter out empty categories
-    const nonEmptyCategories = categories.filter(c => c.results.length > 0);
+    }
 
     return {
-        categories: nonEmptyCategories,
+        categories,
         mediaType,
         sourceCollections,
         totalSourceItems: sourceMovies.length
@@ -935,7 +889,8 @@ export async function removeRecommendationCollection(
 
 /**
  * Generate paginated recommendations for a specific genre
- * Uses the same personalization logic as category recommendations but with pagination
+ * Uses the same algorithm as the "For You" page - fetches recommendations/similar
+ * from source items and filters by the requested genre
  */
 export async function generateGenreRecommendations(
     userId: string,
@@ -998,119 +953,102 @@ export async function generateGenreRecommendations(
         (existingMoviesResult as { movie_id: string }[]).map(m => m.movie_id)
     );
 
-    // Build genre preference profile from source items
-    const genreScores: Map<number, number> = new Map();
-
     // Filter by media type FIRST
     const sourceItemsOfType = sourceMovies.filter(movie => {
         const { isMovie } = parseMovieId(movie.movie_id);
         return isMovie === (mediaType === 'movie');
     });
 
-    // Sample a subset to avoid rate limiting (max 10 for API calls)
-    const sampleSize = Math.min(sourceItemsOfType.length, 10);
+    if (sourceItemsOfType.length === 0) {
+        return { ...emptyResult, sourceCollections, totalSourceItems: sourceMovies.length };
+    }
+
+    // Use all source items for genre-specific recommendations (up to 20) to get more results
+    const sampleSize = Math.min(sourceItemsOfType.length, 20);
     const sampledItems = sourceItemsOfType
         .sort(() => Math.random() - 0.5)
         .slice(0, sampleSize);
 
-    // Fetch details for each sampled source item to build genre profile
-    const fetchPromises = sampledItems.map(async (movie) => {
-        const { id, isMovie } = parseMovieId(movie.movie_id);
-        const details = await getItemDetails(id, isMovie);
+    const isMovie = mediaType === 'movie';
+    const genreScores: Map<number, number> = new Map();
+    const allRecommendations: Map<string, { item: TMDBMovie; score: number; sources: number }> = new Map();
 
+    // Fetch details, recommendations, and similar for each sampled source item (same as For You)
+    const fetchPromises = sampledItems.map(async (movie) => {
+        const { id, isMovie: itemIsMovie } = parseMovieId(movie.movie_id);
+
+        const [details, recommendations, similar] = await Promise.all([
+            getItemDetails(id, itemIsMovie),
+            getRecommendationsForItem(id, itemIsMovie),
+            getSimilarForItem(id, itemIsMovie)
+        ]);
+
+        // Build genre profile
         if (details?.genres) {
             details.genres.forEach(genre => {
                 genreScores.set(genre.id, (genreScores.get(genre.id) || 0) + 1);
             });
         }
+
+        return { recommendations, similar };
     });
 
-    await Promise.all(fetchPromises);
+    const results = await Promise.all(fetchPromises);
 
-    // Get the genre preference score for the requested genre
-    const genrePreferenceScore = genreScores.get(genreId) || 0;
-
-    const isMovie = mediaType === 'movie';
-    const mediaEndpoint = isMovie ? 'movie' : 'tv';
-    
-    // Calculate how many TMDB pages we need to fetch to fill the requested page
-    // We fetch extra pages to account for filtering (items in user's collections)
-    // Each TMDB page has 20 results, we need (page * limit) results minimum
-    const resultsNeeded = page * limit;
-    // Fetch 2x what we need to account for filtering, minimum 3 pages
-    const tmdbPagesToFetch = Math.max(3, Math.ceil((resultsNeeded * 2) / 20));
-    
-    // Fetch multiple pages from TMDB
-    const pagePromises = Array.from({ length: tmdbPagesToFetch }, (_, i) => i + 1).map(async (tmdbPage) => {
-        const params: Record<string, string> = {
-            with_genres: genreId.toString(),
-            sort_by: 'vote_average.desc',
-            'vote_count.gte': '100',
-            'vote_average.gte': '6.0',
-            page: tmdbPage.toString()
-        };
-
-        const response = await fetchTMDB<TMDBDiscoverResponse>(
-            `/discover/${mediaEndpoint}`,
-            params
-        );
-        return { 
-            results: response?.results || [], 
-            total_pages: response?.total_pages || 0,
-            total_results: response?.total_results || 0
-        };
-    });
-
-    const pageResults = await Promise.all(pagePromises);
-    const allResults = pageResults.flatMap(p => p.results);
-    const tmdbTotalPages = pageResults[0]?.total_pages || 0;
-    const tmdbTotalResults = pageResults[0]?.total_results || 0;
-
-    // Score and filter results
-    const scoredResults: { item: TMDBMovie; score: number }[] = [];
-    const seenIds = new Set<number>();
-
-    for (const item of allResults) {
-        // Skip duplicates
-        if (seenIds.has(item.id)) continue;
-        seenIds.add(item.id);
-
-        const key = isMovie ? `${item.id}` : `${item.id}tv`;
+    // Process all recommendations from TMDB recommendations/similar (same scoring as For You)
+    // but only keep items that have the requested genre
+    results.forEach(({ recommendations, similar }) => {
+        const allItems = [...recommendations, ...similar];
         
-        // Skip items already in user's collections
-        if (existingMovieIds.has(key)) continue;
+        allItems.forEach(item => {
+            // Only include items that have the requested genre
+            if (!item.genre_ids?.includes(genreId)) return;
 
-        // Base score from TMDB rating
-        let score = (item.vote_average || 0) * 10;
-        score += Math.min((item.popularity || 0) / 10, 30);
-
-        // Genre relevance boost (how much user likes this genre)
-        score += genrePreferenceScore * 5;
-
-        // Additional boost based on matching other genres user likes
-        if (item.genre_ids) {
-            item.genre_ids.forEach(gId => {
-                if (gId !== genreId) {
-                    score += (genreScores.get(gId) || 0) * 2;
-                }
-            });
-        }
-
-        scoredResults.push({ item, score });
-    }
+            // Create a unique key for deduplication
+            const key = isMovie ? `${item.id}` : `${item.id}tv`;
+            
+            // Skip items already in user's collections
+            if (existingMovieIds.has(key)) return;
+            
+            // Calculate genre match score
+            let genreMatchScore = 0;
+            if (item.genre_ids) {
+                item.genre_ids.forEach(gId => {
+                    genreMatchScore += genreScores.get(gId) || 0;
+                });
+            }
+            
+            // Calculate combined score (same as For You)
+            const baseScore = (item.vote_average || 0) * 10;
+            const popularityScore = Math.min((item.popularity || 0) / 10, 50);
+            const combinedScore = baseScore + popularityScore + genreMatchScore * 5;
+            
+            const existing = allRecommendations.get(key);
+            if (existing) {
+                // Item appeared from multiple sources - boost its score
+                existing.sources += 1;
+                existing.score = combinedScore + (existing.sources * 20);
+            } else {
+                allRecommendations.set(key, {
+                    item,
+                    score: combinedScore,
+                    sources: 1
+                });
+            }
+        });
+    });
 
     // Sort by score
-    scoredResults.sort((a, b) => b.score - a.score);
+    const sortedRecommendations = Array.from(allRecommendations.values())
+        .sort((a, b) => b.score - a.score);
 
-    // Estimate total results based on TMDB total and our filtering ratio
-    const filterRatio = allResults.length > 0 ? scoredResults.length / allResults.length : 1;
-    const estimatedTotalResults = Math.floor(tmdbTotalResults * filterRatio);
-    const totalPages = Math.min(Math.ceil(estimatedTotalResults / limit), tmdbTotalPages);
+    const totalResults = sortedRecommendations.length;
+    const totalPages = Math.ceil(totalResults / limit);
 
     // Paginate results
     const startIndex = (page - 1) * limit;
     const endIndex = startIndex + limit;
-    const paginatedResults = scoredResults
+    const paginatedResults = sortedRecommendations
         .slice(startIndex, endIndex)
         .map(r => r.item);
 
@@ -1118,7 +1056,7 @@ export async function generateGenreRecommendations(
         results: paginatedResults,
         page,
         total_pages: totalPages,
-        total_results: estimatedTotalResults,
+        total_results: totalResults,
         sourceCollections,
         totalSourceItems: sourceMovies.length
     };
