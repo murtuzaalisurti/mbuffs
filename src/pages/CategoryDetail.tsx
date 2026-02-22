@@ -37,7 +37,7 @@ const CategoryDetail = () => {
 
   const categoryRecommendationsEnabled = preferencesData?.preferences?.category_recommendations_enabled ?? false;
   const recommendationsEnabled = preferencesData?.preferences?.recommendations_enabled ?? false;
-  const showPersonalized = user && categoryRecommendationsEnabled && recommendationsEnabled;
+  const showPersonalized = Boolean(user && categoryRecommendationsEnabled && recommendationsEnabled);
 
   // Fetch genre name
   const { data: genreData } = useQuery({
