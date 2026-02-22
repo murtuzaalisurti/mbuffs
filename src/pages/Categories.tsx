@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Navbar } from "@/components/Navbar";
 import { GenreRow } from "@/components/GenreRow";
-import { fetchGenreListApi, fetchMoviesByGenreApi, fetchTvByGenreApi, fetchNowPlayingMoviesApi, fetchCategoryRecommendationsApi, fetchUserPreferencesApi } from "@/lib/api";
+import { fetchGenreListApi, fetchMoviesByGenreApi, fetchTvByGenreApi, fetchNowPlayingMoviesApi, fetchCategoryRecommendationsApi, fetchUserPreferencesApi, fetchTheatricalRecommendationsApi } from "@/lib/api";
 import { Genre, CategoryRecommendationsResponse } from "@/lib/types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -11,8 +11,11 @@ import { useAuth } from "@/hooks/useAuth";
 import { Link } from "react-router-dom";
 
 // Popular genres to feature (subset for better UX)
-const FEATURED_MOVIE_GENRE_IDS = [27, 53, 18, 878, 16, 28, 35, 10749]; // Horror, Thriller, Drama, Sci-Fi, Animation, Action, Comedy, Romance
-const FEATURED_TV_GENRE_IDS = [9648, 18, 10765, 16, 10759, 35, 80, 10751]; // Mystery (closest to Horror/Thriller), Drama, Sci-Fi & Fantasy, Animation, Action & Adventure, Comedy, Crime, Family
+// Movie genres: Horror (27), Thriller (53), Drama (18), Sci-Fi (878), Animation (16), Action (28), Comedy (35), Romance (10749)
+const FEATURED_MOVIE_GENRE_IDS = [27, 53, 18, 878, 16, 28, 35, 10749];
+// TV genres: Mystery (9648), Crime (80), Drama (18), Sci-Fi & Fantasy (10765), Animation (16), Action & Adventure (10759), Comedy (35), Documentary (99)
+// Note: TMDB doesn't have Horror/Thriller as separate TV genres - Mystery and Crime cover similar content
+const FEATURED_TV_GENRE_IDS = [9648, 80, 18, 10765, 16, 10759, 35, 99];
 
 const Categories = () => {
   const { user } = useAuth();
@@ -154,7 +157,7 @@ function PersonalizedCategoriesContent({ mediaType }: { mediaType: 'movie' | 'tv
 
   return (
     <div className="space-y-12">
-      {mediaType === 'movie' && <TheatricalReleasesRow />}
+      {mediaType === 'movie' && <PersonalizedTheatricalReleasesRow />}
       {data.categories.map((category) => (
         <GenreRow
           key={`personalized-${mediaType}-${category.genre.id}`}
@@ -238,6 +241,26 @@ function TheatricalReleasesRow() {
       isLoading={isLoading}
       limit={10}
       customLink="/categories/movie/now-playing"
+    />
+  );
+}
+
+function PersonalizedTheatricalReleasesRow() {
+  const { data, isLoading } = useQuery({
+    queryKey: ['recommendations', 'theatrical', 'preview'],
+    queryFn: () => fetchTheatricalRecommendationsApi(10, 1),
+    staleTime: 1000 * 60 * 10, // 10 minutes
+  });
+
+  return (
+    <GenreRow
+      title="Theatrical Releases"
+      movies={data?.results || []}
+      mediaType="movie"
+      isLoading={isLoading}
+      limit={10}
+      customLink="/categories/movie/now-playing"
+      isPersonalized
     />
   );
 }

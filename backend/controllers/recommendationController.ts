@@ -3,6 +3,8 @@ import { sql } from '../lib/db.js';
 import {
     generateRecommendations,
     generateCategoryRecommendations,
+    generateGenreRecommendations,
+    generatePersonalizedTheatricalReleases,
     addRecommendationCollection,
     removeRecommendationCollection,
     setRecommendationCollections
@@ -54,6 +56,62 @@ export const getCategoryRecommendations = async (req: Request, res: Response, ne
         res.status(200).json(recommendations);
     } catch (error) {
         console.error("Error generating category recommendations:", error);
+        next(error);
+    }
+};
+
+/**
+ * GET /api/recommendations/genre/:genreId
+ * Get personalized recommendations for a specific genre with pagination
+ * Supports ?mediaType=movie|tv&limit=20&page=1
+ */
+export const getGenreRecommendations = async (req: Request, res: Response, next: NextFunction) => {
+    if (!req.userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    try {
+        const genreId = parseInt(req.params.genreId, 10);
+        const mediaType = (req.query.mediaType as 'movie' | 'tv') || 'movie';
+        const limit = parseInt(req.query.limit as string) || 20;
+        const page = parseInt(req.query.page as string) || 1;
+
+        if (isNaN(genreId)) {
+            return res.status(400).json({ message: "Invalid genreId" });
+        }
+
+        if (mediaType !== 'movie' && mediaType !== 'tv') {
+            return res.status(400).json({ message: "mediaType must be 'movie' or 'tv'" });
+        }
+
+        const recommendations = await generateGenreRecommendations(req.userId, genreId, mediaType, limit, page);
+        
+        res.status(200).json(recommendations);
+    } catch (error) {
+        console.error("Error generating genre recommendations:", error);
+        next(error);
+    }
+};
+
+/**
+ * GET /api/recommendations/theatrical
+ * Get personalized theatrical releases (now playing movies)
+ * Supports ?limit=20&page=1
+ */
+export const getTheatricalRecommendations = async (req: Request, res: Response, next: NextFunction) => {
+    if (!req.userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    try {
+        const limit = parseInt(req.query.limit as string) || 20;
+        const page = parseInt(req.query.page as string) || 1;
+
+        const recommendations = await generatePersonalizedTheatricalReleases(req.userId, limit, page);
+        
+        res.status(200).json(recommendations);
+    } catch (error) {
+        console.error("Error generating theatrical recommendations:", error);
         next(error);
     }
 };

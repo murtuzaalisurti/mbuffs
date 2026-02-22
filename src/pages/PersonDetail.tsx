@@ -569,23 +569,74 @@ export default function PersonDetail() {
                         <section className="space-y-6 pt-4">
                             <h2 className="text-xl md:text-2xl font-semibold text-foreground/90">Timeline</h2>
                             {(() => {
-                                // Combine cast and crew into a unified structure
-                                const allCredits = [
-                                    ...(creditsData?.cast || []).map(c => ({
-                                        ...c,
-                                        role: c.character ? `as ${c.character}` : 'Actor',
-                                        year: c.release_date || c.first_air_date ? new Date(c.release_date || c.first_air_date || '').getFullYear() : null,
-                                        date: c.release_date || c.first_air_date
-                                    })),
-                                    ...(creditsData?.crew || []).map(c => ({
-                                        ...c,
-                                        role: c.job || c.department || 'Crew',
-                                        year: c.release_date || c.first_air_date ? new Date(c.release_date || c.first_air_date || '').getFullYear() : null,
-                                        date: c.release_date || c.first_air_date
-                                    }))
-                                ]
-                                    .filter(c => c.date) // Only show items with a release date
-                                    .sort((a, b) => new Date(b.date || '').getTime() - new Date(a.date || '').getTime());
+                                // Group credits by project ID to combine multiple roles
+                                const projectsMap = new Map<string, {
+                                    id: number;
+                                    title?: string;
+                                    name?: string;
+                                    poster_path?: string;
+                                    media_type: string;
+                                    roles: string[];
+                                    year: number | null;
+                                    date: string;
+                                }>();
+
+                                // Process cast credits
+                                (creditsData?.cast || []).forEach(c => {
+                                    const date = c.release_date || c.first_air_date;
+                                    if (!date) return;
+
+                                    const key = `${c.id}-${c.media_type}`;
+                                    const role = c.character ? `as ${c.character}` : 'Actor';
+
+                                    if (projectsMap.has(key)) {
+                                        const existing = projectsMap.get(key)!;
+                                        if (!existing.roles.includes(role)) {
+                                            existing.roles.push(role);
+                                        }
+                                    } else {
+                                        projectsMap.set(key, {
+                                            id: c.id,
+                                            title: c.title,
+                                            name: c.name,
+                                            poster_path: c.poster_path,
+                                            media_type: c.media_type,
+                                            roles: [role],
+                                            year: new Date(date).getFullYear(),
+                                            date
+                                        });
+                                    }
+                                });
+
+                                // Process crew credits
+                                (creditsData?.crew || []).forEach(c => {
+                                    const date = c.release_date || c.first_air_date;
+                                    if (!date) return;
+
+                                    const key = `${c.id}-${c.media_type}`;
+                                    const role = c.job || c.department || 'Crew';
+
+                                    if (projectsMap.has(key)) {
+                                        const existing = projectsMap.get(key)!;
+                                        if (!existing.roles.includes(role)) {
+                                            existing.roles.push(role);
+                                        }
+                                    } else {
+                                        projectsMap.set(key, {
+                                            id: c.id,
+                                            title: c.title,
+                                            name: c.name,
+                                            poster_path: c.poster_path,
+                                            media_type: c.media_type,
+                                            roles: [role],
+                                            year: new Date(date).getFullYear(),
+                                            date
+                                        });
+                                    }
+                                });
+
+                                const allCredits = Array.from(projectsMap.values())
+                                    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
                                 // Group credits by year
                                 const creditsByYear = allCredits.reduce((acc, credit) => {
@@ -610,9 +661,9 @@ export default function PersonDetail() {
                                                 
                                                 {/* Credits Grid */}
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                                                    {creditsByYear[year].map((credit, index) => (
+                                                    {creditsByYear[year].map((credit) => (
                                                         <Link
-                                                            key={`${credit.id}-${credit.role}-${index}`}
+                                                            key={`${credit.id}-${credit.media_type}`}
                                                             to={`/media/${credit.media_type}/${credit.id}`}
                                                             className="group flex gap-3 p-3 rounded-xl bg-card/50 border border-white/5 hover:bg-card hover:border-white/10 transition-all duration-200"
                                                         >
@@ -631,13 +682,13 @@ export default function PersonDetail() {
                                                                     </div>
                                                                 )}
                                                             </div>
-                                                            
+
                                                             {/* Info */}
                                                             <div className="flex-1 min-w-0 flex flex-col justify-center">
                                                                 <h3 className="text-sm font-medium text-foreground line-clamp-1 group-hover:text-primary transition-colors">
                                                                     {credit.title || credit.name}
                                                                 </h3>
-                                                                <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{credit.role}</p>
+                                                                <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{credit.roles.join(', ')}</p>
                                                             </div>
                                                         </Link>
                                                     ))}

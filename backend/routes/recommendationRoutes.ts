@@ -2,6 +2,8 @@ import express, { RequestHandler } from 'express';
 import {
     getRecommendations,
     getCategoryRecommendations,
+    getGenreRecommendations,
+    getTheatricalRecommendations,
     getRecommendationCollections,
     addRecommendationCollectionHandler,
     removeRecommendationCollectionHandler,
@@ -16,6 +18,12 @@ router.get('/', requireAuth as RequestHandler, getRecommendations as RequestHand
 
 // GET /api/recommendations/categories - Get personalized category-based recommendations
 router.get('/categories', requireAuth as RequestHandler, getCategoryRecommendations as RequestHandler);
+
+// GET /api/recommendations/theatrical - Get personalized theatrical releases
+router.get('/theatrical', requireAuth as RequestHandler, getTheatricalRecommendations as RequestHandler);
+
+// GET /api/recommendations/genre/:genreId - Get personalized recommendations for a specific genre
+router.get('/genre/:genreId', requireAuth as RequestHandler, getGenreRecommendations as RequestHandler);
 
 // GET /api/recommendations/collections - Get user's recommendation source collections
 router.get('/collections', requireAuth as RequestHandler, getRecommendationCollections as RequestHandler);

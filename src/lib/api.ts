@@ -142,6 +142,22 @@ export const fetchCategoryRecommendationsApi = async (
     return fetchBackend(`/recommendations/categories?mediaType=${mediaType}&limit=${limit}`);
 };
 
+export const fetchGenreRecommendationsApi = async (
+    genreId: number,
+    mediaType: 'movie' | 'tv' = 'movie',
+    limit: number = 20,
+    page: number = 1
+): Promise<RecommendationsResponse> => {
+    return fetchBackend(`/recommendations/genre/${genreId}?mediaType=${mediaType}&limit=${limit}&page=${page}`);
+};
+
+export const fetchTheatricalRecommendationsApi = async (
+    limit: number = 20,
+    page: number = 1
+): Promise<RecommendationsResponse> => {
+    return fetchBackend(`/recommendations/theatrical?limit=${limit}&page=${page}`);
+};
+
 // --- Collection API Functions (No changes needed, use fetchBackend) ---
 export const fetchUserCollectionsApi = async (): Promise<UserCollectionsResponse> => {
     return fetchBackend('/collections');
