@@ -1,0 +1,17 @@
+#!/bin/sh
+
+# Run Reddit scraper before pushing
+# This ensures fresh recommendations are scraped locally before Vercel builds
+# (Reddit blocks datacenter IPs, so scraping must happen locally)
+
+echo ""
+echo "=== Pre-push: Running Reddit scraper ==="
+echo "Scraping Reddit recommendations before push..."
+echo "(Reddit blocks CI servers, so we scrape locally)"
+echo ""
+
+cd backend && npm run scrape:reddit
+
+echo ""
+echo "=== Reddit scrape complete ==="
+echo ""
