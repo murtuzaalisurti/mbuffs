@@ -1541,16 +1541,23 @@ export async function generateCategoryRecommendations(
         return { ...emptyResult, sourceCollections, totalSourceItems: sourceMovies.length };
     }
 
-    // Group recommendations by genre
+    // Group recommendations by genre, deduplicating across categories
+    // Each movie only appears in the first (highest-priority) category it matches
     const categories: CategoryRecommendation[] = [];
+    const usedMovieIds = new Set<number>();
 
     for (const genre of sortedGenres) {
-        // Filter recommendations that have this genre
+        // Filter recommendations that have this genre and haven't been used yet
         const genreRecommendations = Array.from(allRecommendations.values())
-            .filter(rec => rec.item.genre_ids?.includes(genre.id))
+            .filter(rec => rec.item.genre_ids?.includes(genre.id) && !usedMovieIds.has(rec.item.id))
             .sort((a, b) => b.score - a.score)
             .slice(0, limit)
             .map(rec => rec.item);
+
+        // Mark these movies as used
+        for (const movie of genreRecommendations) {
+            usedMovieIds.add(movie.id);
+        }
 
         if (genreRecommendations.length > 0) {
             categories.push({

@@ -134,10 +134,13 @@ function CategoriesLoadingSkeleton() {
 }
 
 // Component to render personalized category recommendations
+const DISPLAY_LIMIT = 10;
+const FETCH_LIMIT = 50; // Fetch more to ensure each category has enough after deduplication
+
 function PersonalizedCategoriesContent({ mediaType, showNotInterested }: { mediaType: 'movie' | 'tv'; showNotInterested: boolean }) {
   const { data, isLoading, isError } = useQuery<CategoryRecommendationsResponse>({
     queryKey: ['recommendations', 'categories', mediaType],
-    queryFn: () => fetchCategoryRecommendationsApi(mediaType, 10),
+    queryFn: () => fetchCategoryRecommendationsApi(mediaType, FETCH_LIMIT),
     staleTime: 1000 * 60 * 10, // Cache for 10 minutes
   });
 
@@ -166,7 +169,7 @@ function PersonalizedCategoriesContent({ mediaType, showNotInterested }: { media
           movies={category.results}
           mediaType={mediaType}
           isLoading={false}
-          limit={10}
+          limit={DISPLAY_LIMIT}
           isPersonalized
           showNotInterested={showNotInterested}
         />
