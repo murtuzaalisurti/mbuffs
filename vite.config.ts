@@ -30,6 +30,7 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
+    allowedHosts: ["192.168.29.189.nip.io"],
   },
   plugins: [
     react(),

@@ -53,8 +53,10 @@ export const auth = betterAuth({
         // when the PWA is closed and reopened.
         // In development (HTTP) we fall back to "lax" because "none" requires HTTPS.
         defaultCookieAttributes: {
-            sameSite: (process.env.NODE_ENV === "production" ? "none" : "lax") as "none" | "lax",
-            secure: process.env.NODE_ENV === "production",
+            // Force sameSite: "none" and secure: true for local network/ngrok testing
+            // because the frontend (nip.io) and backend (ngrok) are cross-origin.
+            sameSite: "none" as const,
+            secure: true,
             // Explicit maxAge prevents iOS from treating these as session-only cookies
             // that get wiped when it kills the PWA's WKWebView process.
             maxAge: 60 * 60 * 24 * 7, // 7 days — matches session.expiresIn
