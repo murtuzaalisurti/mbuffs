@@ -11,7 +11,7 @@ import {
     removeCollaboratorApi,
     fetchTvDetailsApi
 } from '@/lib/api';
-import { CollectionDetails, MovieDetails, CollectionCollaborator, AddCollaboratorInput, UpdateCollaboratorInput, SearchResults, AddMovieInput } from '@/lib/types';
+import { CollectionDetails, MovieDetails, CollectionCollaborator, CollectionMovieEntry, AddCollaboratorInput, UpdateCollaboratorInput, SearchResults, AddMovieInput, AddMovieResponse } from '@/lib/types';
 import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -44,6 +44,7 @@ const frontendAddCollaboratorSchema = z.object({
 type FrontendAddCollaboratorInput = z.infer<typeof frontendAddCollaboratorSchema>;
 
 const ITEMS_PER_PAGE = 30;
+type ApiError = Error & { data?: { message?: string } };
 
 const CollectionDetail = () => {
     const { collectionId } = useParams<{ collectionId: string }>();
@@ -75,7 +76,7 @@ const CollectionDetail = () => {
     const {
         data: moviesDetailsMap,
         isLoading: isLoadingMovies
-    } = useQuery<Record<number, MovieDetails | null>, Error>({
+    } = useQuery<Record<string, MovieDetails | null>, Error>({
         queryKey: ['movies', 'details', ...movieIds].sort(),
         queryFn: async () => {
             if (!movieIds || movieIds.length === 0) return {};
@@ -89,12 +90,13 @@ const CollectionDetail = () => {
                 }
             });
             const results = await Promise.all(promises);
-            const map: Record<number, MovieDetails | null> = {};
+            const map: Record<string, MovieDetails | null> = {};
             movieIds.forEach((id, index) => { map[id] = results[index]; });
             return map;
         },
         enabled: movieIds.length > 0,
         staleTime: 1000 * 60 * 60,
+        placeholderData: (previousData) => previousData,
     });
 
     const filteredMedia = useMemo(() => {
@@ -225,14 +227,55 @@ const CollectionDetail = () => {
         onError: (error) => { toast.error(`Failed to leave: ${error.message}`); }
     });
 
-    const addMovieMutation = useMutation<any, Error, { collectionId: string; data: AddMovieInput }>({
+    const addMovieMutation = useMutation<AddMovieResponse, ApiError, { collectionId: string; data: AddMovieInput }, { optimisticMovieId?: string; didOptimisticUpdate: boolean }>({
         mutationFn: ({ collectionId, data }) => addMovieToCollectionApi(collectionId, data),
+        onMutate: async (variables) => {
+            await queryClient.cancelQueries({ queryKey: collectionQueryKey });
+            const currentCollectionDetails = queryClient.getQueryData<CollectionDetails>(collectionQueryKey);
+            const movieIdValue = variables.data.movieId as unknown as number | string;
+            const movieIdString = String(movieIdValue);
+
+            if (!currentCollectionDetails) {
+                return { optimisticMovieId: movieIdString, didOptimisticUpdate: false };
+            }
+
+            const hasMovie = currentCollectionDetails.movies.some((movie) => String(movie.movie_id) === movieIdString);
+
+            if (hasMovie) {
+                return { optimisticMovieId: movieIdString, didOptimisticUpdate: false };
+            }
+
+            const optimisticMovieEntry: CollectionMovieEntry = {
+                movie_id: movieIdString.includes('tv') ? movieIdString : Number(movieIdString),
+                added_at: new Date().toISOString(),
+                added_by_user_id: currentUser?.id ?? '',
+                added_by_username: currentUser?.username ?? null,
+                is_movie: !movieIdString.includes('tv'),
+            };
+
+            queryClient.setQueryData<CollectionDetails>(collectionQueryKey, {
+                ...currentCollectionDetails,
+                movies: [optimisticMovieEntry, ...currentCollectionDetails.movies],
+            });
+
+            return { optimisticMovieId: movieIdString, didOptimisticUpdate: true };
+        },
         onSuccess: (data, variables) => {
             toast.success(`Added to collection.`);
-            queryClient.invalidateQueries({ queryKey: collectionQueryKey });
             queryClient.invalidateQueries({ queryKey: ['collections', 'movie-status', String(variables.data.movieId)] });
         },
-        onError: (error: any) => {
+        onError: (error, _variables, context) => {
+            if (context?.didOptimisticUpdate && context.optimisticMovieId) {
+                queryClient.setQueryData<CollectionDetails>(collectionQueryKey, (currentCollectionDetails) => {
+                    if (!currentCollectionDetails) return currentCollectionDetails;
+                    return {
+                        ...currentCollectionDetails,
+                        movies: currentCollectionDetails.movies.filter(
+                            (movie) => String(movie.movie_id) !== context.optimisticMovieId
+                        ),
+                    };
+                });
+            }
             if (error?.data?.message?.includes('already exists')) {
                 toast.warning("Already in this collection.");
             } else {
@@ -602,17 +645,15 @@ const CollectionDetail = () => {
                                 </Button>
                             </DialogTrigger>
                             <AddMovieDialog
-                                collectionId={collectionId!}
-                                existingMovieIds={movieIds as unknown as string[]}
-                                onAddMovie={(movieId) => addMovieMutation.mutate({ collectionId: collectionId!, data: { movieId: movieId as unknown as number } })}
-                                isAddingMovie={addMovieMutation.isPending}
+                                existingMovieIds={movieIds.map((id) => String(id))}
+                                onAddMovie={(movieId) => addMovieMutation.mutateAsync({ collectionId: collectionId!, data: { movieId: movieId as unknown as number } })}
                             />
                         </Dialog>
                     )}
                 </div>
 
                 {/* Grid */}
-                {isLoadingMovies ? (
+                {isLoadingMovies && !moviesDetailsMap ? (
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                         {Array.from({ length: collectionDetails.movies.length || 12 }).map((_, i) => (
                             <Skeleton key={i} className="aspect-[2/3] rounded-lg" />
@@ -698,16 +739,14 @@ const CollectionDetail = () => {
 
 // --- Add Movie Dialog Component ---
 interface AddMovieDialogProps {
-    collectionId: string;
     existingMovieIds: string[];
-    onAddMovie: (movieId: string) => void;
-    isAddingMovie: boolean;
+    onAddMovie: (movieId: string) => Promise<unknown>;
 }
 
-const AddMovieDialog: React.FC<AddMovieDialogProps> = ({ collectionId, existingMovieIds, onAddMovie, isAddingMovie }) => {
+const AddMovieDialog: React.FC<AddMovieDialogProps> = ({ existingMovieIds, onAddMovie }) => {
     const [searchTerm, setSearchTerm] = useState("");
     const debouncedSearchTerm = useDebounce(searchTerm, 500);
-    const [selectedMovieId, setSelectedMovieId] = useState<number | string | null>(null);
+    const [pendingMovieIds, setPendingMovieIds] = useState<Set<string>>(new Set());
 
     const {
         data: searchResultsData,
@@ -729,9 +768,17 @@ const AddMovieDialog: React.FC<AddMovieDialogProps> = ({ collectionId, existingM
         initialPageParam: 1,
     });
 
-    const handleAddClick = (movieId: string) => {
-        setSelectedMovieId(movieId);
-        onAddMovie(movieId);
+    const handleAddClick = async (movieId: string) => {
+        setPendingMovieIds((prev) => new Set(prev).add(movieId));
+        try {
+            await onAddMovie(movieId);
+        } finally {
+            setPendingMovieIds((prev) => {
+                const next = new Set(prev);
+                next.delete(movieId);
+                return next;
+            });
+        }
     };
 
     const movies = searchResultsData?.pages.flatMap(page => page.results) ?? [];
@@ -786,9 +833,9 @@ const AddMovieDialog: React.FC<AddMovieDialogProps> = ({ collectionId, existingM
                     )}
                     
                     {movies.map((movie, i) => {
-                        const movieId = Object.keys(movie).includes('first_air_date') ? (String(movie.id) + 'tv') : movie.id;
-                        const alreadyAdded = existingMovieIds.map(m => m).includes(movieId as string);
-                        const isCurrentMovieAdding = isAddingMovie && selectedMovieId === movieId;
+                        const movieId = Object.keys(movie).includes('first_air_date') ? (String(movie.id) + 'tv') : String(movie.id);
+                        const alreadyAdded = existingMovieIds.includes(movieId);
+                        const isPendingForItem = pendingMovieIds.has(movieId);
                         
                         return (
                             <div 
@@ -811,13 +858,13 @@ const AddMovieDialog: React.FC<AddMovieDialogProps> = ({ collectionId, existingM
                                     size="icon" 
                                     variant={alreadyAdded ? "secondary" : "default"} 
                                     onClick={() => handleAddClick(movieId as string)} 
-                                    disabled={alreadyAdded || isCurrentMovieAdding || isAddingMovie}
+                                    disabled={alreadyAdded || isPendingForItem}
                                     className="shrink-0 h-8 w-8"
                                 >
-                                    {isCurrentMovieAdding ? (
-                                        <Loader2 className="h-4 w-4 animate-spin" />
-                                    ) : alreadyAdded ? (
+                                    {alreadyAdded ? (
                                         <Check className="h-4 w-4" />
+                                    ) : isPendingForItem ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
                                     ) : (
                                         <Plus className="h-4 w-4" />
                                     )}
