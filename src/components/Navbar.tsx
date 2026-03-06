@@ -2,10 +2,8 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Search, LogOut, UserCircle, Popcorn, List, LogIn, Loader2, LoaderCircle, Star, LayoutGrid, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { useAuth } from '../hooks/useAuth';
 import { useToast } from '@/components/ui/use-toast';
 import { useDebounce } from '@/hooks/use-debounce';
@@ -17,12 +15,11 @@ import { signIn } from '@/lib/auth-client';
 export const Navbar = () => {
   const navigate = useNavigate();
   const { user, isLoggedIn, logout, isLoggingOut, isLoadingUser } = useAuth();
-  const [searchQuery, setSearchQuery] = useState('');
   const { toast } = useToast();
   const [scrolled, setScrolled] = useState(false);
-  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
-  const [mobileSearchTerm, setMobileSearchTerm] = useState('');
-  const debouncedMobileSearch = useDebounce(mobileSearchTerm, 400);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const debouncedSearch = useDebounce(searchTerm, 400);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -33,34 +30,43 @@ export const Navbar = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Mobile search query
-  const { data: mobileSearchResults, isLoading: isMobileSearching } = useQuery({
-    queryKey: ['movies', 'search', 'mobile', debouncedMobileSearch],
-    queryFn: () => searchMoviesApi(debouncedMobileSearch),
-    enabled: !!debouncedMobileSearch && mobileSearchOpen,
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const isTypingInField =
+        !!target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable);
+
+      if (isTypingInField) {
+        return;
+      }
+
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setSearchOpen(true);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  const { data: searchResultsData, isLoading: isSearching } = useQuery({
+    queryKey: ['movies', 'search', 'navbar', debouncedSearch],
+    queryFn: () => searchMoviesApi(debouncedSearch),
+    enabled: !!debouncedSearch && searchOpen,
     staleTime: 1000 * 60 * 5,
   });
 
-  const mobileResults = mobileSearchResults?.results ?? [];
+  const searchResults = searchResultsData?.results ?? [];
 
-  const handleSearch = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (searchQuery.trim()) {
-      navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
-      setSearchQuery('');
-    } else {
-      toast({
-        title: "Search Error",
-        description: "Please enter a movie title to search.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleMobileResultClick = (movie: Movie) => {
+  const handleSearchResultClick = (movie: Movie) => {
     const mediaType = movie.first_air_date ? 'tv' : 'movie';
-    setMobileSearchOpen(false);
-    setMobileSearchTerm('');
+    setSearchOpen(false);
+    setSearchTerm('');
     navigate(`/media/${mediaType}/${movie.id}`);
   };
 
@@ -117,29 +123,16 @@ export const Navbar = () => {
         {/* Search and User Actions */}
         <div className="flex w-full items-center gap-4 md:ml-auto md:gap-2 lg:gap-4">
           <div className="flex items-center gap-3 ml-auto">
-            {/* Mobile search icon */}
+            {/* Search icon */}
             <Button
               variant="ghost"
               size="icon"
-              className="sm:hidden h-9 w-9 rounded-full bg-muted/70 backdrop-blur-md border border-border hover:bg-muted"
-              onClick={() => setMobileSearchOpen(true)}
+              className="h-9 w-9 rounded-full bg-muted/70 backdrop-blur-md border border-border hover:bg-muted"
+              onClick={() => setSearchOpen(true)}
+              aria-label="Open search"
             >
               <Search className="h-4 w-4 text-muted-foreground" />
             </Button>
-
-            {/* Desktop search input */}
-            <form onSubmit={handleSearch} className="hidden sm:block flex-1 md:flex-initial">
-              <div className="relative">
-                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/90 pointer-events-none z-10" />
-                <Input
-                  type="text"
-                  placeholder="Search movies..."
-                  className="pl-10! pr-4! h-10! sm:w-56 md:w-72 lg:w-96 bg-card/75! backdrop-blur-md! text-foreground! placeholder:text-muted-foreground/90! rounded-lg! border-border/80! shadow-xs! ring-offset-0! focus-visible:ring-2! focus-visible:ring-ring/40! focus-visible:bg-card! focus-visible:border-ring/70! transition-all"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-              </div>
-            </form>
 
             {/* Auth Section */}
             {isLoggedIn && user ? (
@@ -196,49 +189,36 @@ export const Navbar = () => {
         </div>
       </header>
 
-      {/* Mobile Search Dialog */}
-      <Dialog open={mobileSearchOpen} onOpenChange={(open) => { setMobileSearchOpen(open); if (!open) setMobileSearchTerm(''); }}>
-        <DialogContent className="w-[92%] max-w-md rounded-lg p-0 gap-0 top-[10%] translate-y-0 [&>button:last-child]:hidden">
-          <DialogHeader className="px-4 pt-4 pb-0">
-            <DialogTitle className="sr-only">Search</DialogTitle>
-            <div className="relative">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/90 pointer-events-none z-10" />
-              <Input
-                type="text"
-                placeholder="Search movies & shows..."
-                className="pl-10! h-10! rounded-lg! bg-card/80! border-border/80! text-foreground! placeholder:text-muted-foreground/90! shadow-xs! ring-offset-0! focus-visible:ring-2! focus-visible:ring-ring/40! focus-visible:border-ring/70!"
-                value={mobileSearchTerm}
-                onChange={(e) => setMobileSearchTerm(e.target.value)}
-                autoFocus
-              />
+      <CommandDialog open={searchOpen} onOpenChange={(open) => { setSearchOpen(open); if (!open) setSearchTerm(''); }}>
+        <CommandInput
+          placeholder="Search movies & shows..."
+          value={searchTerm}
+          onValueChange={setSearchTerm}
+          autoFocus
+        />
+        <CommandList className="max-h-[60vh] p-2">
+          {!debouncedSearch && (
+            <p className="text-sm text-muted-foreground text-center py-8">Start typing to search...</p>
+          )}
+
+          {isSearching && debouncedSearch && (
+            <div className="flex justify-center py-8">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
-          </DialogHeader>
+          )}
 
-          <ScrollArea className="max-h-[60vh]">
-            <div className="px-2 py-2">
-              {/* Loading */}
-              {isMobileSearching && debouncedMobileSearch && (
-                <div className="flex justify-center py-8">
-                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                </div>
-              )}
+          {debouncedSearch && !isSearching && searchResults.length === 0 && (
+            <CommandEmpty>No results found.</CommandEmpty>
+          )}
 
-              {/* Empty state */}
-              {!debouncedMobileSearch && (
-                <p className="text-sm text-muted-foreground text-center py-8">Start typing to search...</p>
-              )}
-
-              {/* No results */}
-              {debouncedMobileSearch && !isMobileSearching && mobileResults.length === 0 && (
-                <p className="text-sm text-muted-foreground text-center py-8">No results found.</p>
-              )}
-
-              {/* Results */}
-              {mobileResults.slice(0, 10).map((movie) => (
-                <button
+          {!isSearching && searchResults.length > 0 && (
+            <CommandGroup heading="Results">
+              {searchResults.slice(0, 10).map((movie) => (
+                <CommandItem
                   key={movie.id}
-                  className="flex items-center gap-3 w-full p-2 rounded-lg hover:bg-accent transition-colors text-left"
-                  onClick={() => handleMobileResultClick(movie)}
+                  value={`${movie.name || movie.title} ${movie.first_air_date || movie.release_date || ''}`}
+                  className="flex items-center gap-3 p-2 rounded-lg cursor-pointer"
+                  onSelect={() => handleSearchResultClick(movie)}
                 >
                   <img
                     src={getImageUrl(movie.poster_path, 'w92')}
@@ -261,12 +241,12 @@ export const Navbar = () => {
                       <span className="text-muted-foreground">{movie.first_air_date ? 'TV' : 'Movie'}</span>
                     </div>
                   </div>
-                </button>
+                </CommandItem>
               ))}
-            </div>
-          </ScrollArea>
-        </DialogContent>
-      </Dialog>
+            </CommandGroup>
+          )}
+        </CommandList>
+      </CommandDialog>
     </>
   );
 };
