@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "skills": {
+    "native-app-designer": {
+      "source": "/var/folders/v2/fn11vtwd06d7vwzb68vrz9h80000gn/T/tmp.PF2JxOUHgP/some_claude_skills",
+      "sourceType": "local",
+      "computedHash": "c8a0e0faae13ee40fa99980b22cc93545655db87ad634ee7dd2d5a331a4baf67"
+    },
+    "web-haptics": {
+      "source": "lochie/web-haptics",
+      "sourceType": "github",
+      "computedHash": "0f54a56bc7981d49f3447160f7e440c8963c0fdecacf05c45ddc8d58da26704e"
+    }
+  }
+}

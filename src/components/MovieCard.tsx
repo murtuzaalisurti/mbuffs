@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { useState, ReactNode } from "react";
+import { haptics } from "@/lib/haptics";
 
 interface MovieCardProps {
   movie: Movie;
@@ -132,7 +133,7 @@ export function MovieCard({
   };
 
   return (
-    <Link to={navLink} className="group block card-glow rounded-xl transition-transform duration-300 group-hover:scale-[1.03]">
+    <Link to={navLink} className="group block card-glow rounded-xl transition-transform duration-300 group-hover:scale-[1.03]" onClick={() => haptics.trigger("success")}>
       <div 
         className="relative overflow-hidden rounded-xl bg-card border border-border/60"
         onClick={onClick}
