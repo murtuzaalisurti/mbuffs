@@ -183,6 +183,29 @@ export interface SearchResults {
   total_results: number;
 }
 
+export interface MultiSearchMediaResult extends Movie {
+  media_type: 'movie' | 'tv';
+}
+
+export interface PersonSearchResult {
+  id: number;
+  name: string;
+  profile_path: string | null;
+  known_for_department: string;
+  popularity: number;
+  known_for: Movie[];
+  media_type: 'person';
+}
+
+export type MultiSearchResult = MultiSearchMediaResult | PersonSearchResult;
+
+export interface MultiSearchResults {
+  page: number;
+  results: MultiSearchResult[];
+  total_pages: number;
+  total_results: number;
+}
+
 // --- Backend User Type (Better Auth compatible) ---
 export interface User {
   id: string;

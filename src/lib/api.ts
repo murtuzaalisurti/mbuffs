@@ -8,7 +8,8 @@ import {
     UserPreferences, UpdateUserPreferencesInput,
     RecommendationsResponse, RecommendationCollectionsResponse, CategoryRecommendationsResponse,
     CombinedRatingsResponse,
-    RecommendationCacheDebugResponse
+    RecommendationCacheDebugResponse,
+    MultiSearchResults
 } from './types';
 
 const _dayjs = dayjs();
@@ -735,6 +736,26 @@ export const searchMoviesApi = async (query: string, page = 1): Promise<SearchRe
         };
     } catch (error) {
         console.error(`Failed to search movies for query "${query}":`, error);
+        return defaultResult;
+    }
+};
+
+export const searchMultiApi = async (query: string, page = 1): Promise<MultiSearchResults> => {
+    const defaultResult: MultiSearchResults = { page: 0, results: [], total_pages: 0, total_results: 0 };
+    if (!query) return defaultResult;
+    try {
+        return await fetchBackend(`/content`, {
+            method: 'POST',
+            body: JSON.stringify({
+                endpoint: `/search/multi`,
+                params: {
+                    query,
+                    page: String(page)
+                },
+            }),
+        });
+    } catch (error) {
+        console.error(`Failed to multi-search for query "${query}":`, error);
         return defaultResult;
     }
 };
