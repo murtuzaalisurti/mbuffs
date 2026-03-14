@@ -1,5 +1,6 @@
 import { defineConfig, Plugin } from "vite";
-import react from "@vitejs/plugin-react-swc";
+import react, { reactCompilerPreset } from "@vitejs/plugin-react";
+import babel from "@rolldown/plugin-babel";
 import path from "path";
 import fs from "fs";
 
@@ -34,6 +35,9 @@ export default defineConfig(({ mode }) => ({
   },
   plugins: [
     react(),
+    babel({
+      presets: [reactCompilerPreset()],
+    } as Parameters<typeof babel>[0]),
     serviceWorkerBuildPlugin(),
   ].filter(Boolean),
   resolve: {

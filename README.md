@@ -37,7 +37,7 @@ mbuffs is a full-stack movie discovery and collection app for film buffs.
 
 ## Prerequisites
 
-- Node.js 20+
+- Node.js 22.12+ (React Compiler setup uses `@rolldown/plugin-babel`)
 - npm
 - TMDB API key
 - Google OAuth credentials
