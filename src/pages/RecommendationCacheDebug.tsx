@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const CACHE_DEBUG_QUERY_KEY = ['recommendations', 'cache', 'debug'];
+const APP_LOAD_TIME_MS = Date.now();
 
 const formatDateTime = (value: string) => {
   const date = new Date(value);
@@ -120,7 +121,7 @@ const RecommendationCacheDebug = () => {
                 ) : (
                   <div className="space-y-3">
                     {cache.entries.map((entry) => {
-                      const isFresh = new Date(entry.expires_at).getTime() > Date.now();
+                      const isFresh = new Date(entry.expires_at).getTime() > APP_LOAD_TIME_MS;
 
                       return (
                         <div

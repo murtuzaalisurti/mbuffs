@@ -27,7 +27,9 @@ const corsOptions = {
     credentials: true, // Required for Better Auth cookies
 };
 
-console.log("CORS Options:", corsOptions);
+if (process.env.NODE_ENV !== 'production') {
+    console.debug('[api] CORS configured', { origin: corsOptions.origin });
+}
 
 // Apply CORS globally
 app.use(cors(corsOptions));
@@ -82,7 +84,7 @@ const globalErrorHandler: ErrorRequestHandler = (err, req, res, next) => {
 app.use(globalErrorHandler);
 
 app.listen(port, () => {
-    console.log(`Server listening on port ${port}`);
+    console.info(`[api] Server listening on port ${port}`);
 });
 
 // Export the app instance for Vercel (or other serverless platforms)

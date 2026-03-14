@@ -29,7 +29,6 @@ interface CollectionDetailsResponse {
 
 //modify collectionSummary type
 export const getUserCollections = async (req: Request, res: Response, next: NextFunction) => {
-    console.log("Fetching user collections", req.userId);
     const userId = req.userId;
     if (!userId) {
         res.sendStatus(401);
