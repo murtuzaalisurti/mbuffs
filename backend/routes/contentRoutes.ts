@@ -1,12 +1,11 @@
 import express, { RequestHandler } from 'express';
 import { fetchDetailsFromMoviesAPI } from '../controllers/contentController.js';
-import { requireAuth } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
+// Public route: used by logged-out homepage/search flows to fetch TMDB content.
 router.post(
     '/',
-    requireAuth as RequestHandler,
     fetchDetailsFromMoviesAPI as RequestHandler,
 );
 
