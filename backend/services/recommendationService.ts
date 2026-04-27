@@ -1,4 +1,5 @@
 import { sql } from '../lib/db.js';
+import { scheduleBackground } from '../lib/waitUntilHelper.js';
 import { createHash } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { getRedditRecommendations, getRedditPrimaryCandidates, type RedditPrimaryCandidate } from './redditService.js';
@@ -212,21 +213,35 @@ interface RecommendationPool {
 }
 
 type RecommendationCacheEndpoint = 'for_you' | 'for_you_pool' | 'categories' | 'genre' | 'theatrical' | 'exclusions';
+type RecommendationCacheSlot = 'active' | 'staging';
 
 interface RecommendationCacheDebugEntry {
     cache_key: string;
+    slot: RecommendationCacheSlot;
     cache_version: string;
     expires_at: string;
+    generation_started_at: string | null;
     created_at: string;
     updated_at: string;
     payload_size: number;
 }
 
-const RECOMMENDATION_CACHE_VERSION = 'v7';
+interface RecommendationCacheRow {
+    payload_json: unknown;
+    expires_at: string;
+    generation_started_at: string | null;
+}
+
+const RECOMMENDATION_CACHE_VERSION = 'v8';
 const RECOMMENDATION_CACHE_TTL_MINUTES = 30;
 const RECOMMENDATION_CACHE_EXPIRED_RETENTION_MINUTES = 60 * 24;
+const RECOMMENDATION_CACHE_STAGING_RETENTION_MINUTES = 60 * 2;
 const RECOMMENDATION_CACHE_CLEANUP_INTERVAL_MS = 1000 * 60 * 15;
-const recommendationCacheLocks = new Map<string, Promise<void>>();
+const RECOMMENDATION_CACHE_GENERATION_LOCK_TIMEOUT_MINUTES = 10;
+const RECOMMENDATION_CACHE_CLAIM_WINDOW_MS = 2000;
+const RECOMMENDATION_CACHE_WAIT_AFTER_LOCK_MS = 1500;
+const RECOMMENDATION_CACHE_ACTIVE_SLOT: RecommendationCacheSlot = 'active';
+const RECOMMENDATION_CACHE_STAGING_SLOT: RecommendationCacheSlot = 'staging';
 let lastRecommendationCacheCleanupAt = 0;
 let recommendationCacheCleanupPromise: Promise<void> | null = null;
 
@@ -667,6 +682,10 @@ function buildCollectionMovieToken(items: CollectionMovie[]): string {
     return buildStringToken(items.map((item) => item.movie_id));
 }
 
+function getRecommendationJitterEpoch(): number {
+    return Math.floor(Date.now() / (RECOMMENDATION_CACHE_TTL_MINUTES * 60 * 1000));
+}
+
 function applyProfileJitter(
     candidates: RecommendationCandidate[],
     profileToken: string,
@@ -1093,23 +1112,93 @@ async function parseCachePayload<T>(payload: unknown): Promise<T | null> {
     return null;
 }
 
-async function withRecommendationCacheLock<T>(lockKey: string, fn: () => Promise<T>): Promise<T> {
-    while (recommendationCacheLocks.has(lockKey)) {
-        await recommendationCacheLocks.get(lockKey);
-    }
-
-    let releaseLock = () => {};
-    const lockPromise = new Promise<void>((resolve) => {
-        releaseLock = resolve;
+function waitForRecommendationCache(ms: number): Promise<void> {
+    return new Promise((resolve) => {
+        setTimeout(resolve, ms);
     });
-    recommendationCacheLocks.set(lockKey, lockPromise);
+}
 
-    try {
-        return await fn();
-    } finally {
-        recommendationCacheLocks.delete(lockKey);
-        releaseLock();
+async function getRecommendationCacheSlotRow(
+    userId: string,
+    cacheKey: string,
+    slot: RecommendationCacheSlot
+): Promise<RecommendationCacheRow | null> {
+    const rows = await sql`
+        SELECT payload_json, expires_at, generation_started_at
+        FROM recommendation_cache
+        WHERE user_id = ${userId}
+          AND cache_key = ${cacheKey}
+          AND slot = ${slot}
+        LIMIT 1
+    `;
+
+    return (rows[0] as RecommendationCacheRow | undefined) ?? null;
+}
+
+function isRecommendationCacheRowFresh(row: RecommendationCacheRow): boolean {
+    return new Date(row.expires_at).getTime() > Date.now();
+}
+
+async function tryClaimGeneration(
+    userId: string,
+    cacheKey: string,
+    slot: RecommendationCacheSlot
+): Promise<boolean> {
+    const claimedRows = await sql`
+        INSERT INTO recommendation_cache (
+            id,
+            user_id,
+            cache_key,
+            slot,
+            payload_json,
+            cache_version,
+            expires_at,
+            generation_started_at,
+            created_at,
+            updated_at
+        )
+        VALUES (
+            gen_random_uuid()::text,
+            ${userId},
+            ${cacheKey},
+            ${slot},
+            'null',
+            ${RECOMMENDATION_CACHE_VERSION},
+            NOW() - INTERVAL '1 second',
+            NOW(),
+            NOW(),
+            NOW()
+        )
+        ON CONFLICT (user_id, cache_key, slot)
+        DO UPDATE SET
+            generation_started_at = NOW(),
+            updated_at = NOW()
+        WHERE recommendation_cache.generation_started_at IS NULL
+           OR recommendation_cache.generation_started_at < NOW() - (${RECOMMENDATION_CACHE_GENERATION_LOCK_TIMEOUT_MINUTES} * INTERVAL '1 minute')
+        RETURNING generation_started_at
+    `;
+
+    const generationStartedAt = (claimedRows[0] as { generation_started_at: string } | undefined)?.generation_started_at;
+    if (!generationStartedAt) {
+        return false;
     }
+
+    return Date.now() - new Date(generationStartedAt).getTime() <= RECOMMENDATION_CACHE_CLAIM_WINDOW_MS;
+}
+
+async function releaseGeneration(
+    userId: string,
+    cacheKey: string,
+    slot: RecommendationCacheSlot
+): Promise<void> {
+    await sql`
+        UPDATE recommendation_cache
+        SET generation_started_at = NULL,
+            updated_at = NOW()
+        WHERE user_id = ${userId}
+          AND cache_key = ${cacheKey}
+          AND slot = ${slot}
+    `;
 }
 
 function cleanupRecommendationCacheInBackground(): void {
@@ -1122,10 +1211,14 @@ function cleanupRecommendationCacheInBackground(): void {
     }
 
     lastRecommendationCacheCleanupAt = now;
-    recommendationCacheCleanupPromise = sql`
+    const cleanupPromise = sql`
         DELETE FROM recommendation_cache
         WHERE cache_version <> ${RECOMMENDATION_CACHE_VERSION}
            OR expires_at < NOW() - (${RECOMMENDATION_CACHE_EXPIRED_RETENTION_MINUTES} * INTERVAL '1 minute')
+           OR (
+                slot = ${RECOMMENDATION_CACHE_STAGING_SLOT}
+                AND updated_at < NOW() - (${RECOMMENDATION_CACHE_STAGING_RETENTION_MINUTES} * INTERVAL '1 minute')
+            )
     `.then(() => undefined)
         .catch((error) => {
             console.error("Error cleaning recommendation cache:", error);
@@ -1133,11 +1226,15 @@ function cleanupRecommendationCacheInBackground(): void {
         .finally(() => {
             recommendationCacheCleanupPromise = null;
         });
+
+    recommendationCacheCleanupPromise = cleanupPromise;
+    scheduleBackground(cleanupPromise);
 }
 
-async function writeCachedRecommendationResult<T>(
+async function writeCacheSlot<T>(
     userId: string,
     cacheKey: string,
+    slot: RecommendationCacheSlot,
     result: T
 ): Promise<void> {
     cleanupRecommendationCacheInBackground();
@@ -1147,9 +1244,11 @@ async function writeCachedRecommendationResult<T>(
             id,
             user_id,
             cache_key,
+            slot,
             payload_json,
             cache_version,
             expires_at,
+            generation_started_at,
             created_at,
             updated_at
         )
@@ -1157,46 +1256,146 @@ async function writeCachedRecommendationResult<T>(
             gen_random_uuid()::text,
             ${userId},
             ${cacheKey},
+            ${slot},
             ${JSON.stringify(result)},
             ${RECOMMENDATION_CACHE_VERSION},
             NOW() + (${RECOMMENDATION_CACHE_TTL_MINUTES} * INTERVAL '1 minute'),
+            NULL,
             NOW(),
             NOW()
         )
-        ON CONFLICT (user_id, cache_key)
+        ON CONFLICT (user_id, cache_key, slot)
         DO UPDATE SET
             payload_json = EXCLUDED.payload_json,
             cache_version = EXCLUDED.cache_version,
             expires_at = EXCLUDED.expires_at,
+            generation_started_at = NULL,
             updated_at = NOW()
     `;
 }
 
-function refreshRecommendationCacheInBackground<T>(
+async function writeActiveCache<T>(
+    userId: string,
+    cacheKey: string,
+    result: T
+): Promise<void> {
+    await writeCacheSlot(userId, cacheKey, RECOMMENDATION_CACHE_ACTIVE_SLOT, result);
+}
+
+async function tryPromoteStaging<T>(userId: string, cacheKey: string): Promise<T | null> {
+    const promotedRows = await sql`
+        WITH eligible_staging AS (
+            SELECT id, user_id, cache_key, payload_json, cache_version, expires_at
+            FROM recommendation_cache
+            WHERE user_id = ${userId}
+              AND cache_key = ${cacheKey}
+              AND slot = ${RECOMMENDATION_CACHE_STAGING_SLOT}
+              AND expires_at > NOW()
+              AND payload_json IS NOT NULL
+              AND payload_json <> ''
+              AND payload_json <> 'null'
+            ORDER BY updated_at DESC
+            LIMIT 1
+        ),
+        upsert_active AS (
+            INSERT INTO recommendation_cache (
+                id,
+                user_id,
+                cache_key,
+                slot,
+                payload_json,
+                cache_version,
+                expires_at,
+                generation_started_at,
+                created_at,
+                updated_at
+            )
+            SELECT
+                gen_random_uuid()::text,
+                user_id,
+                cache_key,
+                ${RECOMMENDATION_CACHE_ACTIVE_SLOT},
+                payload_json,
+                cache_version,
+                expires_at,
+                NULL,
+                NOW(),
+                NOW()
+            FROM eligible_staging
+            ON CONFLICT (user_id, cache_key, slot)
+            DO UPDATE SET
+                payload_json = EXCLUDED.payload_json,
+                cache_version = EXCLUDED.cache_version,
+                expires_at = EXCLUDED.expires_at,
+                generation_started_at = NULL,
+                updated_at = NOW()
+            WHERE recommendation_cache.slot = ${RECOMMENDATION_CACHE_ACTIVE_SLOT}
+            RETURNING payload_json
+        ),
+        delete_promoted_staging AS (
+            DELETE FROM recommendation_cache
+            WHERE id IN (SELECT id FROM eligible_staging)
+              AND EXISTS (SELECT 1 FROM upsert_active)
+        )
+        SELECT payload_json FROM upsert_active
+    `;
+
+    const promotedPayload = (promotedRows[0] as { payload_json: unknown } | undefined)?.payload_json;
+    if (typeof promotedPayload === 'undefined') {
+        return null;
+    }
+
+    return parseCachePayload<T>(promotedPayload);
+}
+
+async function generateAndWriteStaging<T>(
     userId: string,
     cacheKey: string,
     generator: () => Promise<T>
-): void {
-    const lockKey = `${userId}:${cacheKey}`;
+): Promise<boolean> {
+    const claimed = await tryClaimGeneration(userId, cacheKey, RECOMMENDATION_CACHE_STAGING_SLOT);
+    if (!claimed) {
+        return false;
+    }
 
-    void withRecommendationCacheLock(lockKey, async () => {
-        const recheckRows = await sql`
-            SELECT expires_at
-            FROM recommendation_cache
-            WHERE user_id = ${userId} AND cache_key = ${cacheKey}
-            LIMIT 1
-        `;
+    let generated = false;
 
-        const recheckRow = recheckRows[0] as { expires_at: string } | undefined;
-        if (recheckRow && new Date(recheckRow.expires_at) > new Date()) {
+    try {
+        const freshResult = await generator();
+        await writeCacheSlot(userId, cacheKey, RECOMMENDATION_CACHE_STAGING_SLOT, freshResult);
+        generated = true;
+    } catch (error) {
+        console.error("Error generating recommendation staging cache:", error);
+    } finally {
+        await releaseGeneration(userId, cacheKey, RECOMMENDATION_CACHE_STAGING_SLOT)
+            .catch((error) => {
+                console.error("Error releasing recommendation staging generation lock:", error);
+            });
+    }
+
+    return generated;
+}
+
+async function refreshStaleActiveCacheInBackground<T>(
+    userId: string,
+    cacheKey: string,
+    generator: () => Promise<T>
+): Promise<void> {
+    try {
+        const promotedExisting = await tryPromoteStaging<unknown>(userId, cacheKey);
+        if (promotedExisting) {
             return;
         }
 
-        const freshResult = await generator();
-        await writeCachedRecommendationResult(userId, cacheKey, freshResult);
-    }).catch((error) => {
-        console.error("Error refreshing recommendation cache in background:", error);
-    });
+        const generated = await generateAndWriteStaging(userId, cacheKey, generator);
+        if (!generated) {
+            return;
+        }
+
+        await tryPromoteStaging<unknown>(userId, cacheKey);
+    } catch (error) {
+        console.error("Error refreshing stale recommendation cache:", error);
+    }
 }
 
 async function getCachedRecommendationResult<T>(
@@ -1208,62 +1407,51 @@ async function getCachedRecommendationResult<T>(
     cleanupRecommendationCacheInBackground();
 
     const cacheKey = buildRecommendationCacheKey(endpoint, params);
-    const now = new Date();
+    const activeRow = await getRecommendationCacheSlotRow(userId, cacheKey, RECOMMENDATION_CACHE_ACTIVE_SLOT);
+    const activePayload = activeRow ? await parseCachePayload<T>(activeRow.payload_json) : null;
+    const activeFresh = activeRow ? isRecommendationCacheRowFresh(activeRow) : false;
 
-    const existingRows = await sql`
-        SELECT payload_json, expires_at
-        FROM recommendation_cache
-        WHERE user_id = ${userId} AND cache_key = ${cacheKey}
-        LIMIT 1
-    `;
-
-    const existingRow = existingRows[0] as { payload_json: unknown; expires_at: string } | undefined;
-    const cachedPayload = existingRow ? await parseCachePayload<T>(existingRow.payload_json) : null;
-    const isFresh = existingRow ? new Date(existingRow.expires_at) > now : false;
-
-    if (cachedPayload && isFresh) {
-        return cachedPayload;
+    if (activePayload && activeFresh) {
+        return activePayload;
     }
 
-    if (cachedPayload) {
-        refreshRecommendationCacheInBackground(userId, cacheKey, generator);
-        return cachedPayload;
+    if (activePayload) {
+        scheduleBackground(refreshStaleActiveCacheInBackground(userId, cacheKey, generator));
+        return activePayload;
     }
 
-    const lockKey = `${userId}:${cacheKey}`;
-
-    return withRecommendationCacheLock(lockKey, async () => {
-        const recheckRows = await sql`
-            SELECT payload_json, expires_at
-            FROM recommendation_cache
-            WHERE user_id = ${userId} AND cache_key = ${cacheKey}
-            LIMIT 1
-        `;
-
-        const recheckRow = recheckRows[0] as { payload_json: unknown; expires_at: string } | undefined;
-        const recheckPayload = recheckRow ? await parseCachePayload<T>(recheckRow.payload_json) : null;
-        const recheckFresh = recheckRow ? new Date(recheckRow.expires_at) > new Date() : false;
-
-        if (recheckPayload && recheckFresh) {
-            return recheckPayload;
-        }
-
+    const claimedActive = await tryClaimGeneration(userId, cacheKey, RECOMMENDATION_CACHE_ACTIVE_SLOT);
+    if (claimedActive) {
         try {
             const freshResult = await generator();
-            await writeCachedRecommendationResult(userId, cacheKey, freshResult);
+            await writeActiveCache(userId, cacheKey, freshResult);
             return freshResult;
         } catch (error) {
-            if (recheckPayload) {
-                return recheckPayload;
+            const fallbackRow = await getRecommendationCacheSlotRow(userId, cacheKey, RECOMMENDATION_CACHE_ACTIVE_SLOT);
+            const fallbackPayload = fallbackRow ? await parseCachePayload<T>(fallbackRow.payload_json) : null;
+            if (fallbackPayload) {
+                return fallbackPayload;
             }
-
-            if (cachedPayload) {
-                return cachedPayload;
-            }
-
             throw error;
+        } finally {
+            await releaseGeneration(userId, cacheKey, RECOMMENDATION_CACHE_ACTIVE_SLOT)
+                .catch((error) => {
+                    console.error("Error releasing recommendation active generation lock:", error);
+                });
         }
-    });
+    }
+
+    await waitForRecommendationCache(RECOMMENDATION_CACHE_WAIT_AFTER_LOCK_MS);
+
+    const delayedRow = await getRecommendationCacheSlotRow(userId, cacheKey, RECOMMENDATION_CACHE_ACTIVE_SLOT);
+    const delayedPayload = delayedRow ? await parseCachePayload<T>(delayedRow.payload_json) : null;
+    if (delayedPayload) {
+        return delayedPayload;
+    }
+
+    const freshResult = await generator();
+    await writeActiveCache(userId, cacheKey, freshResult);
+    return freshResult;
 }
 
 export async function invalidateRecommendationCache(userId: string): Promise<void> {
@@ -1279,6 +1467,13 @@ export async function expireRecommendationCache(userId: string): Promise<void> {
         SET expires_at = NOW() - INTERVAL '1 second',
             updated_at = NOW()
         WHERE user_id = ${userId}
+          AND slot = ${RECOMMENDATION_CACHE_ACTIVE_SLOT}
+    `;
+
+    await sql`
+        DELETE FROM recommendation_cache
+        WHERE user_id = ${userId}
+          AND slot = ${RECOMMENDATION_CACHE_STAGING_SLOT}
     `;
 }
 
@@ -1299,17 +1494,31 @@ export async function expireRecommendationCacheByCollection(collectionId: string
         FROM user_recommendation_collections urc
         WHERE rc.user_id = urc.user_id
         AND urc.collection_id = ${collectionId}
+        AND rc.slot = ${RECOMMENDATION_CACHE_ACTIVE_SLOT}
+    `;
+
+    await sql`
+        DELETE FROM recommendation_cache rc
+        USING user_recommendation_collections urc
+        WHERE rc.user_id = urc.user_id
+          AND urc.collection_id = ${collectionId}
+          AND rc.slot = ${RECOMMENDATION_CACHE_STAGING_SLOT}
     `;
 }
 
 export function warmPersonalizedRecommendationCache(userId: string): void {
-    void Promise.allSettled([
-        getOrGenerateRecommendationPoolCached(userId),
-        generatePersonalizedTheatricalReleasesCached(userId, 60, 1),
-        generatePersonalizedTheatricalReleasesCached(userId, 60, 2),
-    ]).catch((error) => {
-        console.error("Error warming personalized recommendation cache:", error);
-    });
+    scheduleBackground(
+        Promise.allSettled([
+            getOrGenerateRecommendationPoolCached(userId),
+            generatePersonalizedTheatricalReleasesCached(userId, 60, 1),
+            generatePersonalizedTheatricalReleasesCached(userId, 60, 2),
+        ]).then((results) => {
+            const rejected = results.filter((result) => result.status === 'rejected');
+            if (rejected.length > 0) {
+                console.error(`Error warming personalized recommendation cache: ${rejected.length} background task(s) failed`);
+            }
+        })
+    );
 }
 
 export async function getRecommendationCacheDebug(userId: string): Promise<{
@@ -1321,8 +1530,10 @@ export async function getRecommendationCacheDebug(userId: string): Promise<{
     const entriesResult = await sql`
         SELECT
             cache_key,
+            slot,
             cache_version,
             expires_at,
+            generation_started_at,
             created_at,
             updated_at,
             length(payload_json) AS payload_size
@@ -1333,8 +1544,10 @@ export async function getRecommendationCacheDebug(userId: string): Promise<{
 
     const entries = (entriesResult as Array<{
         cache_key: string;
+        slot: RecommendationCacheSlot;
         cache_version: string;
         expires_at: string;
+        generation_started_at: string | null;
         created_at: string;
         updated_at: string;
         payload_size: number | string;
@@ -1723,6 +1936,7 @@ async function generateColdStartRecommendations(
 ): Promise<RecommendationResult> {
     const excludedMovieIds = await getUserSystemExcludedMovieIds(userId);
     const engagementSignals = await getUserEngagementSignals(userId);
+    const jitterEpoch = getRecommendationJitterEpoch();
     const excludedToken = buildStringToken(Array.from(excludedMovieIds));
     const coldStartProfileTokenBase = buildStringToken([
         excludedToken,
@@ -1929,7 +2143,8 @@ async function generateColdStartRecommendations(
     const reranked = rerankCandidatesWithConstraints(ranked);
     const coldStartProfileToken = buildStringToken([
         coldStartProfileTokenBase,
-        buildCollectionMovieToken(sampledSeeds)
+        buildCollectionMovieToken(sampledSeeds),
+        `epoch:${jitterEpoch}`
     ]);
     const banditOrdered = applyContextualBanditPolicy(
         reranked,
@@ -2022,6 +2237,7 @@ async function generateRecommendationPool(
     
     const sourceCollectionIds = sourceCollections.map(c => c.id);
     const existingMovieIds = await getUserExcludedMovieIdsSnapshot(userId, sourceCollectionIds);
+    const jitterEpoch = getRecommendationJitterEpoch();
     const sourceCollectionsToken = buildStringToken(sourceCollectionIds);
     const sourceMoviesToken = buildCollectionMovieToken(sourceMovies);
     const exclusionsToken = buildStringToken(Array.from(existingMovieIds));
@@ -2029,7 +2245,8 @@ async function generateRecommendationPool(
         sourceCollectionsToken,
         sourceMoviesToken,
         exclusionsToken,
-        `${engagementSignals.watchedCount}:${engagementSignals.notInterestedCount}:${engagementSignals.watchRate.toFixed(3)}`
+        `${engagementSignals.watchedCount}:${engagementSignals.notInterestedCount}:${engagementSignals.watchRate.toFixed(3)}`,
+        `epoch:${jitterEpoch}`
     ]);
     
     // Build genre, director, and actor preference profiles
@@ -2899,6 +3116,7 @@ export async function generateGenreRecommendations(
 
     const sourceCollectionIds = sourceCollections.map(c => c.id);
     const existingMovieIds = await getUserExcludedMovieIdsSnapshot(userId, sourceCollectionIds);
+    const jitterEpoch = getRecommendationJitterEpoch();
     const sourceCollectionsToken = buildStringToken(sourceCollectionIds);
     const exclusionsToken = buildStringToken(Array.from(existingMovieIds));
 
@@ -2918,7 +3136,8 @@ export async function generateGenreRecommendations(
         sourceItemsToken,
         exclusionsToken,
         `${genreId}:${mediaType}`,
-        `${engagementSignals.watchedCount}:${engagementSignals.notInterestedCount}:${engagementSignals.watchRate.toFixed(3)}`
+        `${engagementSignals.watchedCount}:${engagementSignals.notInterestedCount}:${engagementSignals.watchRate.toFixed(3)}`,
+        `epoch:${jitterEpoch}`
     ]);
 
     // Use all source items for genre-specific recommendations (up to 20) to get more results
@@ -3193,6 +3412,7 @@ export async function generatePersonalizedTheatricalReleases(
 
     const sourceCollectionIds = sourceCollections.map(c => c.id);
     const existingMovieIds = await getUserExcludedMovieIdsSnapshot(userId, sourceCollectionIds);
+    const jitterEpoch = getRecommendationJitterEpoch();
     const sourceCollectionsToken = buildStringToken(sourceCollectionIds);
     const exclusionsToken = buildStringToken(Array.from(existingMovieIds));
 
@@ -3212,7 +3432,8 @@ export async function generatePersonalizedTheatricalReleases(
         sourceCollectionsToken,
         sourceMoviesOnlyToken,
         exclusionsToken,
-        `${engagementSignals.watchedCount}:${engagementSignals.notInterestedCount}:${engagementSignals.watchRate.toFixed(3)}`
+        `${engagementSignals.watchedCount}:${engagementSignals.notInterestedCount}:${engagementSignals.watchRate.toFixed(3)}`,
+        `epoch:${jitterEpoch}`
     ]);
 
     // Sample a subset to avoid rate limiting

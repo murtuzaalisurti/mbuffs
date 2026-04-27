@@ -224,14 +224,16 @@ export const recommendationCache = pgTable("recommendation_cache", {
 	id: text().primaryKey().notNull(),
 	userId: text("user_id").notNull(),
 	cacheKey: text("cache_key").notNull(),
+	slot: text().default('active').notNull(),
 	payloadJson: text("payload_json").notNull(),
 	cacheVersion: text("cache_version").default('v1').notNull(),
 	expiresAt: timestamp("expires_at", { withTimezone: true, mode: 'string' }).notNull(),
+	generationStartedAt: timestamp("generation_started_at", { withTimezone: true, mode: 'string' }),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 }, (table) => [
 	index("idx_recommendation_cache_user_id").using("btree", table.userId.asc().nullsLast().op("text_ops")),
-	unique("recommendation_cache_user_cache_key").on(table.userId, table.cacheKey),
+	unique("recommendation_cache_user_cache_key").on(table.userId, table.cacheKey, table.slot),
 	foreignKey({
 		columns: [table.userId],
 		foreignColumns: [user.id],
