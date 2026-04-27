@@ -237,9 +237,12 @@ const RECOMMENDATION_CACHE_TTL_MINUTES = 30;
 const RECOMMENDATION_CACHE_EXPIRED_RETENTION_MINUTES = 60 * 24;
 const RECOMMENDATION_CACHE_STAGING_RETENTION_MINUTES = 60 * 2;
 const RECOMMENDATION_CACHE_CLEANUP_INTERVAL_MS = 1000 * 60 * 15;
+const RECOMMENDATION_WARM_CATEGORY_OVERVIEW_LIMIT = 50;
 const RECOMMENDATION_CACHE_GENERATION_LOCK_TIMEOUT_MINUTES = 10;
 const RECOMMENDATION_CACHE_CLAIM_WINDOW_MS = 2000;
 const RECOMMENDATION_CACHE_WAIT_AFTER_LOCK_MS = 1500;
+const RECOMMENDATION_CACHE_PENDING_POLL_INTERVAL_MS = 500;
+const RECOMMENDATION_CACHE_MAX_PENDING_WAIT_MS = 6000;
 const RECOMMENDATION_CACHE_ACTIVE_SLOT: RecommendationCacheSlot = 'active';
 const RECOMMENDATION_CACHE_STAGING_SLOT: RecommendationCacheSlot = 'staging';
 let lastRecommendationCacheCleanupAt = 0;
@@ -1139,6 +1142,15 @@ function isRecommendationCacheRowFresh(row: RecommendationCacheRow): boolean {
     return new Date(row.expires_at).getTime() > Date.now();
 }
 
+function isRecommendationGenerationLockActive(generationStartedAt: string | null): boolean {
+    if (!generationStartedAt) {
+        return false;
+    }
+
+    const ageMs = Date.now() - new Date(generationStartedAt).getTime();
+    return ageMs >= 0 && ageMs < RECOMMENDATION_CACHE_GENERATION_LOCK_TIMEOUT_MINUTES * 60 * 1000;
+}
+
 async function tryClaimGeneration(
     userId: string,
     cacheKey: string,
@@ -1443,10 +1455,38 @@ async function getCachedRecommendationResult<T>(
 
     await waitForRecommendationCache(RECOMMENDATION_CACHE_WAIT_AFTER_LOCK_MS);
 
-    const delayedRow = await getRecommendationCacheSlotRow(userId, cacheKey, RECOMMENDATION_CACHE_ACTIVE_SLOT);
-    const delayedPayload = delayedRow ? await parseCachePayload<T>(delayedRow.payload_json) : null;
+    let delayedRow = await getRecommendationCacheSlotRow(userId, cacheKey, RECOMMENDATION_CACHE_ACTIVE_SLOT);
+    let delayedPayload = delayedRow ? await parseCachePayload<T>(delayedRow.payload_json) : null;
     if (delayedPayload) {
         return delayedPayload;
+    }
+
+    const promotedFromStaging = await tryPromoteStaging<T>(userId, cacheKey);
+    if (promotedFromStaging) {
+        return promotedFromStaging;
+    }
+
+    if (delayedRow && isRecommendationGenerationLockActive(delayedRow.generation_started_at)) {
+        const waitUntil = Date.now() + RECOMMENDATION_CACHE_MAX_PENDING_WAIT_MS;
+
+        while (Date.now() < waitUntil) {
+            await waitForRecommendationCache(RECOMMENDATION_CACHE_PENDING_POLL_INTERVAL_MS);
+
+            delayedRow = await getRecommendationCacheSlotRow(userId, cacheKey, RECOMMENDATION_CACHE_ACTIVE_SLOT);
+            delayedPayload = delayedRow ? await parseCachePayload<T>(delayedRow.payload_json) : null;
+            if (delayedPayload) {
+                return delayedPayload;
+            }
+
+            const promotedDuringWait = await tryPromoteStaging<T>(userId, cacheKey);
+            if (promotedDuringWait) {
+                return promotedDuringWait;
+            }
+
+            if (!delayedRow || !isRecommendationGenerationLockActive(delayedRow.generation_started_at)) {
+                break;
+            }
+        }
     }
 
     const freshResult = await generator();
@@ -1510,6 +1550,16 @@ export function warmPersonalizedRecommendationCache(userId: string): void {
     scheduleBackground(
         Promise.allSettled([
             getOrGenerateRecommendationPoolCached(userId),
+            generateCategoryRecommendationsCached(
+                userId,
+                'movie',
+                RECOMMENDATION_WARM_CATEGORY_OVERVIEW_LIMIT,
+            ),
+            generateCategoryRecommendationsCached(
+                userId,
+                'tv',
+                RECOMMENDATION_WARM_CATEGORY_OVERVIEW_LIMIT,
+            ),
             generatePersonalizedTheatricalReleasesCached(userId, 60, 1),
             generatePersonalizedTheatricalReleasesCached(userId, 60, 2),
         ]).then((results) => {
@@ -3021,7 +3071,7 @@ export async function addRecommendationCollection(
             ON CONFLICT (user_id, collection_id) DO NOTHING
         `;
 
-        await invalidateRecommendationCache(userId);
+        await expireRecommendationCache(userId);
         warmPersonalizedRecommendationCache(userId);
         
         return true;
@@ -3044,7 +3094,7 @@ export async function removeRecommendationCollection(
             WHERE user_id = ${userId} AND collection_id = ${collectionId}
         `;
 
-        await invalidateRecommendationCache(userId);
+        await expireRecommendationCache(userId);
         warmPersonalizedRecommendationCache(userId);
 
         return true;
@@ -3705,7 +3755,7 @@ export async function setRecommendationCollections(
             `;
         }
 
-        await invalidateRecommendationCache(userId);
+        await expireRecommendationCache(userId);
         warmPersonalizedRecommendationCache(userId);
         
         return true;

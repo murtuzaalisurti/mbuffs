@@ -8,6 +8,8 @@ import {
     addRecommendationCollection,
     removeRecommendationCollection,
     setRecommendationCollections,
+    expireRecommendationCache,
+    invalidateRecommendationCache,
     getRecommendationCacheDebug,
     warmPersonalizedRecommendationCache
 } from '../services/recommendationService.js';
@@ -17,6 +19,28 @@ const RECOMMENDATION_DEBUG_EMAIL = 'murtuza.creativity@gmail.com';
 const DEFAULT_PAGED_RECOMMENDATION_LIMIT = 60;
 const MAX_PAGED_RECOMMENDATION_LIMIT = 70;
 const MAX_PAGED_RECOMMENDATION_PAGE = 100;
+
+const resolveRequestEmail = async (req: Request): Promise<string | null> => {
+    const sessionEmail = req.user?.email?.toLowerCase();
+    if (sessionEmail) {
+        return sessionEmail;
+    }
+
+    if (!req.userId) {
+        return null;
+    }
+
+    const userResult = await sql`
+        SELECT email FROM "user" WHERE id = ${req.userId}
+    `;
+
+    return (userResult[0]?.email as string | undefined)?.toLowerCase() ?? null;
+};
+
+const ensureRecommendationDebugAccess = async (req: Request): Promise<boolean> => {
+    const email = await resolveRequestEmail(req);
+    return email === RECOMMENDATION_DEBUG_EMAIL;
+};
 
 const parsePositiveInt = (value: unknown, fallback: number): number => {
     const parsed = Number.parseInt(String(value ?? ''), 10);
@@ -201,17 +225,8 @@ export const getRecommendationCacheDebugHandler = async (req: Request, res: Resp
     }
 
     try {
-        const sessionEmail = req.user?.email?.toLowerCase();
-        let email = sessionEmail;
-
-        if (!email) {
-            const userResult = await sql`
-                SELECT email FROM "user" WHERE id = ${req.userId}
-            `;
-            email = (userResult[0]?.email as string | undefined)?.toLowerCase();
-        }
-
-        if (email !== RECOMMENDATION_DEBUG_EMAIL) {
+        const hasDebugAccess = await ensureRecommendationDebugAccess(req);
+        if (!hasDebugAccess) {
             return res.status(403).json({ message: "Forbidden" });
         }
 
@@ -223,6 +238,57 @@ export const getRecommendationCacheDebugHandler = async (req: Request, res: Resp
         });
     } catch (error) {
         console.error("Error fetching recommendation cache debug data:", error);
+        next(error);
+    }
+};
+
+/**
+ * POST /api/recommendations/debug/cache/invalidate
+ * Debug-only cache maintenance endpoint for authorized user.
+ */
+export const invalidateRecommendationCacheDebugHandler = async (req: Request, res: Response, next: NextFunction) => {
+    if (!req.userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    try {
+        const hasDebugAccess = await ensureRecommendationDebugAccess(req);
+        if (!hasDebugAccess) {
+            return res.status(403).json({ message: "Forbidden" });
+        }
+
+        const rawMode = typeof req.body?.mode === 'string' ? req.body.mode.toLowerCase() : 'soft';
+        if (rawMode !== 'soft' && rawMode !== 'hard') {
+            return res.status(400).json({ message: "mode must be 'soft' or 'hard'" });
+        }
+
+        const mode = rawMode as 'soft' | 'hard';
+        const warm = typeof req.body?.warm === 'boolean' ? req.body.warm : mode === 'soft';
+
+        if (mode === 'hard') {
+            await invalidateRecommendationCache(req.userId);
+        } else {
+            await expireRecommendationCache(req.userId);
+        }
+
+        if (warm) {
+            warmPersonalizedRecommendationCache(req.userId);
+        }
+
+        const cache = await getRecommendationCacheDebug(req.userId);
+
+        return res.status(200).json({
+            message: mode === 'hard'
+                ? 'Recommendation cache hard-invalidated'
+                : 'Recommendation cache soft-expired',
+            mode,
+            warm_started: warm,
+            cache,
+            ttl_minutes: 30,
+            allowed_debug_email: RECOMMENDATION_DEBUG_EMAIL,
+        });
+    } catch (error) {
+        console.error("Error invalidating recommendation cache via debug endpoint:", error);
         next(error);
     }
 };

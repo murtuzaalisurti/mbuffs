@@ -1,9 +1,16 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { warmRecommendationCacheApi, fetchUserPreferencesApi } from '@/lib/api';
+import {
+  fetchCategoryRecommendationsApi,
+  fetchUserPreferencesApi,
+  warmRecommendationCacheApi,
+} from '@/lib/api';
 import { useAuth } from './useAuth';
 import {
+  CATEGORY_OVERVIEW_FETCH_LIMIT,
+  getCategoryRecommendationsOverviewQueryKey,
   getPreferencesQueryKey,
+  getSharedPersonalizedTheatricalInfiniteQueryOptions,
   getSharedForYouInfiniteQueryOptions,
   FOR_YOU_QUERY_STALE_TIME,
 } from '@/lib/recommendationQueries';
@@ -21,7 +28,8 @@ import type { UserPreferences } from '@/lib/types';
  * server cache in the background.
  */
 export function useRecommendationPrefetch() {
-  const { user, isLoggedIn } = useAuth();
+  const { user, session } = useAuth();
+  const hasConfirmedSession = Boolean(session?.user);
   const queryClient = useQueryClient();
   const hasPrefetchedRef = useRef(false);
 
@@ -31,14 +39,14 @@ export function useRecommendationPrefetch() {
    * concurrent regeneration for the same user.
    */
   const warmRecommendations = useCallback(() => {
-    if (!isLoggedIn) return;
+    if (!hasConfirmedSession) return;
     void warmRecommendationCacheApi().catch(() => {
       // Swallow errors - this is best-effort background work
     });
-  }, [isLoggedIn]);
+  }, [hasConfirmedSession]);
 
   useEffect(() => {
-    if (!isLoggedIn || !user?.id || hasPrefetchedRef.current) return;
+    if (!hasConfirmedSession || !user?.id || hasPrefetchedRef.current) return;
     hasPrefetchedRef.current = true;
 
     const prefetch = async () => {
@@ -54,6 +62,34 @@ export function useRecommendationPrefetch() {
         });
 
         if (!preferencesData?.preferences?.recommendations_enabled) return;
+
+        if (preferencesData.preferences.category_recommendations_enabled) {
+          await Promise.allSettled([
+            queryClient.prefetchQuery({
+              queryKey: getCategoryRecommendationsOverviewQueryKey(
+                user.id,
+                'movie',
+                CATEGORY_OVERVIEW_FETCH_LIMIT,
+              ),
+              queryFn: () => fetchCategoryRecommendationsApi('movie', CATEGORY_OVERVIEW_FETCH_LIMIT),
+              staleTime: 1000 * 60 * 10,
+            }),
+            queryClient.prefetchQuery({
+              queryKey: getCategoryRecommendationsOverviewQueryKey(
+                user.id,
+                'tv',
+                CATEGORY_OVERVIEW_FETCH_LIMIT,
+              ),
+              queryFn: () => fetchCategoryRecommendationsApi('tv', CATEGORY_OVERVIEW_FETCH_LIMIT),
+              staleTime: 1000 * 60 * 10,
+            }),
+            queryClient.prefetchInfiniteQuery({
+              ...getSharedPersonalizedTheatricalInfiniteQueryOptions(user.id),
+              staleTime: FOR_YOU_QUERY_STALE_TIME,
+              pages: 1,
+            }),
+          ]);
+        }
       } catch {
         // If we can't check preferences, skip prefetch - not critical
         return;
@@ -76,14 +112,14 @@ export function useRecommendationPrefetch() {
     };
 
     void prefetch();
-  }, [isLoggedIn, user?.id, queryClient, warmRecommendations]);
+  }, [hasConfirmedSession, user?.id, queryClient, warmRecommendations]);
 
   // Reset the prefetch flag on logout so it re-triggers on next login
   useEffect(() => {
-    if (!isLoggedIn) {
+    if (!hasConfirmedSession) {
       hasPrefetchedRef.current = false;
     }
-  }, [isLoggedIn]);
+  }, [hasConfirmedSession]);
 
   return { warmRecommendations };
 }

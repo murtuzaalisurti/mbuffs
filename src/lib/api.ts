@@ -9,6 +9,8 @@ import {
     RecommendationsResponse, RecommendationCollectionsResponse, CategoryRecommendationsResponse,
     CombinedRatingsResponse,
     RecommendationCacheDebugResponse,
+    RecommendationCacheDebugInvalidateMode,
+    RecommendationCacheDebugInvalidateResponse,
     MultiSearchResults,
     ReviewSummaryResponse,
     PaginatedCommentsResponse,
@@ -183,6 +185,21 @@ export const fetchTheatricalRecommendationsApi = async (
 
 export const fetchRecommendationCacheDebugApi = async (): Promise<RecommendationCacheDebugResponse> => {
     return fetchBackend('/recommendations/debug/cache');
+};
+
+export const invalidateRecommendationCacheDebugApi = async (
+    mode: RecommendationCacheDebugInvalidateMode = 'soft',
+    options?: { warm?: boolean }
+): Promise<RecommendationCacheDebugInvalidateResponse> => {
+    const payload: { mode: RecommendationCacheDebugInvalidateMode; warm?: boolean } = { mode };
+    if (typeof options?.warm === 'boolean') {
+        payload.warm = options.warm;
+    }
+
+    return fetchBackend('/recommendations/debug/cache/invalidate', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+    });
 };
 
 /**

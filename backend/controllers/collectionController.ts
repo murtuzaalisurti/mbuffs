@@ -18,8 +18,7 @@ import {
 } from '../lib/types.js'; 
 import {
     expireRecommendationCache,
-    invalidateRecommendationCache,
-    invalidateRecommendationCacheByCollection,
+    expireRecommendationCacheByCollection,
     warmPersonalizedRecommendationCache
 } from '../services/recommendationService.js';
 
@@ -229,6 +228,14 @@ export const deleteCollection = async (req: Request, res: Response, next: NextFu
         return;
     }
     try {
+        const affectedRecommendationUsersResult = await sql`
+            SELECT DISTINCT user_id
+            FROM user_recommendation_collections
+            WHERE collection_id = ${collectionId}
+        `;
+        const affectedRecommendationUsers = (affectedRecommendationUsersResult as Array<{ user_id: string }>)
+            .map((row) => row.user_id);
+
         const deleteResult = await sql`
             DELETE FROM collections
             WHERE id = ${collectionId} AND owner_id = ${userId}
@@ -245,8 +252,13 @@ export const deleteCollection = async (req: Request, res: Response, next: NextFu
             return;
         }
 
-        await invalidateRecommendationCacheByCollection(collectionId);
-        await invalidateRecommendationCache(userId);
+        if (affectedRecommendationUsers.length > 0) {
+            await Promise.all(
+                affectedRecommendationUsers.map((affectedUserId) =>
+                    expireRecommendationCache(affectedUserId)
+                )
+            );
+        }
 
         res.status(204).send();
     } catch(error) {
@@ -302,8 +314,7 @@ export const addMovieToCollection = async (req: Request, res: Response, next: Ne
                 RETURNING id, movie_id, added_at
             `;
 
-            await invalidateRecommendationCacheByCollection(collectionId);
-            await invalidateRecommendationCache(userId);
+            await expireRecommendationCacheByCollection(collectionId);
 
             res.status(201).json({ movieEntry: result[0] as {id: string, movie_id: number, added_at: string} });
         } catch (insertError: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -372,8 +383,7 @@ export const removeMovieFromCollection = async (req: Request, res: Response, nex
             return;
         }
 
-        await invalidateRecommendationCacheByCollection(collectionId);
-        await invalidateRecommendationCache(userId);
+        await expireRecommendationCacheByCollection(collectionId);
 
         res.status(204).send();
     } catch (error) {

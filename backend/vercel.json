@@ -2,6 +2,14 @@
     "installCommand": "npm install --include=dev --legacy-peer-deps",
     "rewrites": [
         {
+            "source": "/api/auth",
+            "destination": "/api/auth"
+        },
+        {
+            "source": "/api/auth/(.*)",
+            "destination": "/api/auth"
+        },
+        {
             "source": "/(.*)",
             "destination": "/api"
         }

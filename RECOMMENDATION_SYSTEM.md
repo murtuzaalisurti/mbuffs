@@ -228,6 +228,7 @@ Indexed on `tmdb_id`, `media_type`, `subreddit`.
 | DELETE | `/api/recommendations/collections/:id` | `removeRecommendationCollectionHandler` | Remove source collection |
 | POST | `/api/recommendations/warm` | `warmRecommendationCacheHandler` | Fire-and-forget cache warming |
 | GET | `/api/recommendations/debug/cache` | `getRecommendationCacheDebugHandler` | Cache debug (restricted) |
+| POST | `/api/recommendations/debug/cache/invalidate` | `invalidateRecommendationCacheDebugHandler` | Debug-only soft/hard invalidate + optional warm |
 
 **Source:** `backend/controllers/recommendationController.ts`
 
@@ -664,16 +665,20 @@ Four invalidation functions in `recommendationService.ts`:
 |-------|----------|----------------------|
 | Toggle watched | `collectionController.ts:667-668, 677-678` | `expireRecommendationCache` + `warmPersonalizedRecommendationCache` |
 | Toggle not interested | `collectionController.ts:832-833, 841-842` | `expireRecommendationCache` + `warmPersonalizedRecommendationCache` |
-| Add recommendation collection | `recommendationService.ts` | `invalidateRecommendationCache` + `warmPersonalizedRecommendationCache` |
-| Remove recommendation collection | `recommendationService.ts` | `invalidateRecommendationCache` + `warmPersonalizedRecommendationCache` |
-| Set recommendation collections (replace all) | `recommendationService.ts` | `invalidateRecommendationCache` + `warmPersonalizedRecommendationCache` |
-| Add movie to collection | `collectionController.ts:248-249` | `invalidateRecommendationCacheByCollection` + `invalidateRecommendationCache` |
-| Remove movie from collection | `collectionController.ts:305-306` | `invalidateRecommendationCacheByCollection` + `invalidateRecommendationCache` |
-| Delete collection | `collectionController.ts:375-376` | `invalidateRecommendationCacheByCollection` + `invalidateRecommendationCache` |
+| Add recommendation collection | `recommendationService.ts` | `expireRecommendationCache` + `warmPersonalizedRecommendationCache` |
+| Remove recommendation collection | `recommendationService.ts` | `expireRecommendationCache` + `warmPersonalizedRecommendationCache` |
+| Set recommendation collections (replace all) | `recommendationService.ts` | `expireRecommendationCache` + `warmPersonalizedRecommendationCache` |
+| Add movie to collection | `collectionController.ts` | `expireRecommendationCacheByCollection` |
+| Remove movie from collection | `collectionController.ts` | `expireRecommendationCacheByCollection` |
+| Delete collection | `collectionController.ts` | Pre-fetch affected recommendation users, then `expireRecommendationCache` for those users |
+| Update preferences: `show_adult_items` | `userController.ts` | `invalidateRecommendationCache` + optional warm (strict correctness) |
+| Update preferences: recommendations flags | `userController.ts` | `expireRecommendationCache` + optional warm |
 
 **Design choice:**
 - Watched/not-interested toggles use **soft expire** so requests keep serving stale `active` cache while regeneration runs in background.
-- Collection source changes use **hard delete** since the entire recommendation basis has changed.
+- Source collection content changes (add/remove items, delete source collection) use **soft expire** to avoid user-visible latency.
+- Source selection changes (adding/removing/replacing recommendation source collections) also use **soft expire** to keep reload/scroll latency low.
+- `show_adult_items` preference changes still use **hard delete** to avoid serving stale responses with the wrong adult-content policy.
 - This keeps infinite scroll responsive during regeneration: users get immediate responses from expired `active` cache until refreshed `active` is promoted.
 
 ### Client-Side Invalidation
@@ -723,8 +728,10 @@ function warmPersonalizedRecommendationCache(userId: string): void {
 
 Generates in parallel:
 1. Full recommendation pool (shared by For You + Categories)
-2. Theatrical releases page 1
-3. Theatrical releases page 2
+2. Category overview cache (`movie`, limit 50)
+3. Category overview cache (`tv`, limit 50)
+4. Theatrical releases page 1
+5. Theatrical releases page 2
 
 Fire-and-forget with Vercel-aware lifetime extension via `waitUntil()`. Duplicate generation is prevented by DB-level generation locks.
 
@@ -737,7 +744,10 @@ Runs once on app init when user is authenticated:
 ```
 Phase 1: POST /api/recommendations/warm (fire-and-forget)
 Phase 2: Check preferences (recommendations_enabled?)
-Phase 3: If enabled, prefetchInfiniteQuery for first page of For You
+Phase 3: If enabled, prefetch first page of For You
+Phase 4: If category recommendations are enabled, prefetch:
+         - categories overview (movie + tv, limit 50)
+         - theatrical personalized page 1
 ```
 
 - Uses `hasPrefetchedRef` guard to prevent re-runs

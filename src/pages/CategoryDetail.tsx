@@ -125,8 +125,11 @@ const CategoryDetail = () => {
     return categoryOverviewData?.categories.find((category) => category.genre.id === genreIdNum)?.results ?? [];
   }, [showPersonalized, isTheatrical, categoryOverviewData, genreIdNum]);
 
+  const hasPagedData = (data?.pages?.length ?? 0) > 0;
+  const hasSeedData = showPersonalized && !isTheatrical && personalizedSeedResults.length > 0;
+
   const isLoading = showPersonalized
-    ? isLoadingPersonalized || (!isTheatrical && isLoadingCategoryOverview)
+    ? !hasPagedData && !hasSeedData && (isLoadingPersonalized || (!isTheatrical && isLoadingCategoryOverview))
     : isLoadingDefault;
 
   // Deduplicate movies by ID

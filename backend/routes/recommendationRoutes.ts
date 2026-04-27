@@ -6,6 +6,7 @@ import {
     getTheatricalRecommendations,
     getRecommendationCollections,
     getRecommendationCacheDebugHandler,
+    invalidateRecommendationCacheDebugHandler,
     addRecommendationCollectionHandler,
     removeRecommendationCollectionHandler,
     setRecommendationCollectionsHandler,
@@ -32,6 +33,9 @@ router.get('/collections', requireAuth as RequestHandler, getRecommendationColle
 
 // GET /api/recommendations/debug/cache - Recommendation cache debug endpoint (restricted)
 router.get('/debug/cache', requireAuth as RequestHandler, getRecommendationCacheDebugHandler as RequestHandler);
+
+// POST /api/recommendations/debug/cache/invalidate - Debug-only cache invalidate/expire endpoint
+router.post('/debug/cache/invalidate', requireAuth as RequestHandler, invalidateRecommendationCacheDebugHandler as RequestHandler);
 
 // POST /api/recommendations/warm - Fire-and-forget cache warming
 router.post('/warm', requireAuth as RequestHandler, warmRecommendationCacheHandler as RequestHandler);

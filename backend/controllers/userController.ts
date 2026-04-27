@@ -1,7 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
 import { sql } from '../lib/db.js';
 import { UserPreferences, UpdateUserPreferencesInput } from '../lib/types.js';
-import { invalidateRecommendationCache, warmPersonalizedRecommendationCache } from '../services/recommendationService.js';
+import {
+    expireRecommendationCache,
+    invalidateRecommendationCache,
+    warmPersonalizedRecommendationCache
+} from '../services/recommendationService.js';
 // Import to ensure Express Request extension is applied
 import '../middleware/authMiddleware.js';
 
@@ -126,15 +130,20 @@ export const updateUserPreferences = async (req: Request, res: Response, next: N
 
         const updatedUser = result[0];
 
-        const shouldInvalidateRecommendationCache = (
+        const recommendationShapeChanged = (
             newRecommendationsEnabled !== current.recommendations_enabled ||
             newCollectionId !== current.recommendations_collection_id ||
-            newCategoryRecommendations !== current.category_recommendations_enabled ||
-            newShowAdultItems !== current.show_adult_items
+            newCategoryRecommendations !== current.category_recommendations_enabled
         );
+        const showAdultChanged = newShowAdultItems !== current.show_adult_items;
 
-        if (shouldInvalidateRecommendationCache) {
+        if (showAdultChanged) {
             await invalidateRecommendationCache(req.userId);
+            if (newRecommendationsEnabled) {
+                warmPersonalizedRecommendationCache(req.userId);
+            }
+        } else if (recommendationShapeChanged) {
+            await expireRecommendationCache(req.userId);
             if (newRecommendationsEnabled) {
                 warmPersonalizedRecommendationCache(req.userId);
             }

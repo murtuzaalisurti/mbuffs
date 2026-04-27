@@ -327,8 +327,10 @@ export interface CategoryRecommendationsResponse {
 
 export interface RecommendationCacheDebugEntry {
   cache_key: string;
+  slot: 'active' | 'staging';
   cache_version: string;
   expires_at: string;
+  generation_started_at: string | null;
   created_at: string;
   updated_at: string;
   payload_size: number;
@@ -343,6 +345,14 @@ export interface RecommendationCacheDebugResponse {
   };
   ttl_minutes: number;
   allowed_debug_email: string;
+}
+
+export type RecommendationCacheDebugInvalidateMode = 'soft' | 'hard';
+
+export interface RecommendationCacheDebugInvalidateResponse extends RecommendationCacheDebugResponse {
+  message: string;
+  mode: RecommendationCacheDebugInvalidateMode;
+  warm_started: boolean;
 }
 
 // --- Backend Collection Types ---

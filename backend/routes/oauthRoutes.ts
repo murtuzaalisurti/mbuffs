@@ -5,6 +5,41 @@ import { deserializeUser, requireAuth } from '../middleware/authMiddleware.js';
 import { sql } from '../lib/db.js';
 
 const router = express.Router();
+const SESSION_TIMING_LOG_THRESHOLD_MS = 1000;
+
+const authSessionTimingMiddleware: RequestHandler = (req, res, next) => {
+    const start = process.hrtime.bigint();
+    const cookieHeader = req.headers.cookie;
+    const hasSessionTokenCookie = Boolean(cookieHeader?.includes('session_token'));
+    const hasSessionDataCookie = Boolean(cookieHeader?.includes('session_data'));
+    const cookieHeaderBytes = cookieHeader?.length ?? 0;
+
+    res.on('finish', () => {
+        const elapsedMs = Number(process.hrtime.bigint() - start) / 1_000_000;
+        const shouldLog = process.env.NODE_ENV !== 'production' || elapsedMs >= SESSION_TIMING_LOG_THRESHOLD_MS;
+
+        if (!shouldLog) {
+            return;
+        }
+
+        const requestIdHeader = req.headers['x-vercel-id'];
+        const requestId = Array.isArray(requestIdHeader) ? requestIdHeader[0] : requestIdHeader;
+
+        console.info('[auth] Session endpoint timing', {
+            method: req.method,
+            path: req.originalUrl,
+            statusCode: res.statusCode,
+            durationMs: Number(elapsedMs.toFixed(1)),
+            hasCookieHeader: Boolean(cookieHeader),
+            hasSessionTokenCookie,
+            hasSessionDataCookie,
+            cookieHeaderBytes,
+            requestId,
+        });
+    });
+
+    next();
+};
 
 // Custom /me endpoint to get current user with additional fields
 // This must be defined BEFORE the catch-all handler
@@ -47,6 +82,10 @@ const getCurrentUser: RequestHandler = async (req: Request, res: Response, next:
 };
 
 router.get('/me', deserializeUser as RequestHandler, requireAuth as RequestHandler, getCurrentUser);
+
+// Session timing diagnostics to isolate auth latency in production logs.
+router.use('/get-session', authSessionTimingMiddleware);
+router.use('/session', authSessionTimingMiddleware);
 
 // Better Auth handles all other auth routes at /api/auth/*
 // This includes: /sign-in/social, /callback/google, /sign-out, /session, etc.
