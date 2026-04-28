@@ -138,7 +138,7 @@ backend/db/schema.ts:223-240
 | `cache_key` | text | SHA-256 hash of `{endpoint, params, version}` |
 | `slot` | text | `'active'` or `'staging'` |
 | `payload_json` | text | Stringified recommendation result |
-| `cache_version` | text | Current: `'v8'` |
+| `cache_version` | text | Current: `'v9'` |
 | `expires_at` | timestamp | TTL expiry (30 minutes from write) |
 | `generation_started_at` | timestamp (nullable) | DB-level generation lock timestamp |
 | `created_at` | timestamp | Creation time |
@@ -265,7 +265,7 @@ All public-facing functions use a caching wrapper. The actual generation functio
 | Export | Cache Endpoint | Params | Behavior |
 |--------|---------------|--------|----------|
 | `generateRecommendationsCached(userId, limit, page)` | — | — | Calls `generateRecommendations` directly (no per-page cache; the pool is cached) |
-| `generateCategoryRecommendationsCached(userId, mediaType, limit)` | `'categories'` | `{mediaType, limit}` | Caches the full category result |
+| `generateCategoryRecommendationsCached(userId, mediaType, limit)` | — | — | Calls `generateCategoryRecommendations` directly; category rows are derived cheaply from the cached pool per request |
 | `generateGenreRecommendationsCached(userId, genreId, mediaType, limit, page)` | `'genre'` | `{genreId, mediaType, limit, page}` | Caches each genre+page combo |
 | `generatePersonalizedTheatricalReleasesCached(userId, limit, page)` | `'theatrical'` | `{limit, page}` | Caches each theatrical page |
 | `getOrGenerateRecommendationPoolCached(userId)` | `'for_you_pool'` | `{}` | Caches the full ranked pool |
@@ -291,30 +291,32 @@ This is the core function. It builds a shared, fully-ranked candidate pool used 
 6. Sample up to 20 source items (deterministic sampling)
 7. For each sampled item, fetch in parallel:
    - TMDB details (genre profiling)
-   - TMDB credits (director + actor profiling)
+   - TMDB credits (director + writer + actor profiling)
    - TMDB recommendations
    - TMDB similar
-8. Build profiles: genre scores, director scores (top 2 with count ≥ 2), actor scores (top 2 with count ≥ 2)
+8. Build profiles: genre scores, director scores (top 2 with count ≥ 2), writer scores (top 2 with count ≥ 2), actor scores (top 2 with count ≥ 2)
 9. Process TMDB recommendations/similar → candidate map
 10. Fetch director works (top 3 per director, filtered by top 3 genres)
-11. Fetch actor works (top 3 per actor, filtered by top 3 genres)
-12. Inject Reddit primary candidates (min 2 mentions, min score 50, up to 100)
-13. Apply Reddit signal boosts to entire pool
-14. Apply multi-objective ranking
-15. Apply diversity reranking
-16. Apply contextual bandit
-17. Apply profile jitter
-18. Return full ranked pool
+11. Fetch writer works (top 3 per writer, filtered by top 3 genres)
+12. Fetch actor works (top 3 per actor, filtered by top 3 genres)
+13. Inject Reddit primary candidates (min 2 mentions, min score 50, up to 100)
+14. Apply Reddit signal boosts to entire pool
+15. Apply multi-objective ranking
+16. Apply diversity reranking
+17. Apply contextual bandit
+18. Apply profile jitter
+19. Return full ranked pool
 ```
 
 ### Candidate Retrieval
 
-**Channels (7 total):**
+**Channels:**
 
 | Channel | Source | Description |
 |---------|--------|-------------|
 | `tmdb_graph` | TMDB recommendations + similar API | Primary retrieval from source items |
 | `director_discover` | TMDB discover by crew ID | Top directors (count ≥ 2), filtered by genre |
+| `writer_discover` | TMDB discover by crew ID | Top writers (count ≥ 2), filtered by genre |
 | `actor_discover` | TMDB discover by cast ID | Top actors (count ≥ 2), filtered by genre |
 | `discover_supplement` | TMDB discover API | Genre-specific discover (used in genre recs) |
 | `trending_explore` | TMDB trending/all/week | Cold start trending fill |
@@ -331,10 +333,11 @@ baseScore     = vote_average * 10                    // 0-100
 popularityScore = min(popularity / 10, 50)           // 0-50
 genreBoost    = genreMatchScore * 5                  // varies
 sourceBoost   = sources * 20                         // per additional source
-directorBoost = director.count * 3                   // for director channel
+directorBoost = director.count * 5                   // for director channel
+writerBoost   = writer.count * 5                     // for writer channel
 actorBoost    = actor.count * 3                      // for actor channel
 primaryBoost  = 100                                  // for genre-specific primary recs
-combinedScore = base + popularity + genre + source + director + actor + primary
+combinedScore = base + popularity + genre + source + director + writer + actor + primary
 ```
 
 ### Multi-Objective Ranking
@@ -358,10 +361,10 @@ Three objectives with dynamic weights based on engagement signals:
 
 **CVR Score (Conversion Rate proxy):**
 ```
-0.45 * genreAffinityNorm +
-0.20 * directorAffinityNorm +
+0.40 * genreAffinityNorm +
+0.30 * creativeAffinityNorm +
 0.15 * actorAffinityNorm +
-0.20 * ratingNorm
+0.15 * ratingNorm
 ```
 
 **Long-Term Engagement Score:**
@@ -382,7 +385,7 @@ rankingScore = retrievalNorm * 45 + objectiveScore * 165
 - Vote count: maxRef = 12000
 - Source: `/5`, clamped
 - Reddit: `/100`, clamped
-- Director: `/24`, clamped
+- Creative affinity: `(director_boost + writer_boost) / 32`, clamped
 - Actor: `/20`, clamped
 
 **Freshness scoring (line 534):**
@@ -451,7 +454,7 @@ Where:
 
 Deterministic shuffle to prevent stale-feeling rankings while maintaining consistency per user.
 
-As of cache version `v8`, the profile token also includes a time epoch:
+As of cache version `v9`, the profile token also includes a time epoch:
 
 ```typescript
 epoch = floor(Date.now() / (RECOMMENDATION_CACHE_TTL_MINUTES * 60 * 1000))
@@ -466,6 +469,53 @@ updatedScore = score + jitter
 ```
 
 High-uncertainty items get more jitter. The hash ensures the same user sees the same order for a given profile state.
+
+### Presentation Shuffle
+
+**Function:** `applyPresentationShuffle()`
+
+Request-time shuffle used for presentation freshness after the expensive recommendation pool has already been generated and cached.
+
+This is separate from `applyProfileJitter()`:
+- `applyProfileJitter()` is part of pool generation and is cached with the pool.
+- `applyPresentationShuffle()` runs after reading the cached pool, so the visible order can change without regenerating TMDB/Reddit/ranking work.
+
+The shuffle epoch rotates every minute:
+
+```typescript
+RECOMMENDATION_PRESENTATION_SHUFFLE_WINDOW_MS = 60 * 1000
+epoch = floor(Date.now() / RECOMMENDATION_PRESENTATION_SHUFFLE_WINDOW_MS)
+```
+
+For You uses:
+
+```typescript
+applyPresentationShuffle(
+  pool.candidates,
+  `${userId}:for-you:presentation:${epoch}`,
+  45
+)
+```
+
+Categories use:
+
+```typescript
+applyPresentationShuffle(
+  pool.candidates,
+  `${userId}:categories:presentation:${mediaType}:${epoch}`,
+  45
+)
+```
+
+The presentation shuffle uses a stronger jitter than profile jitter and less damping for confident items:
+
+```typescript
+jitterBase = (hash(profileToken + candidateKey) - 0.5) * 2    // [-1, 1]
+jitter = jitterBase * magnitude * (0.75 + uncertainty * 0.25) // magnitude: 45
+presentationScore = cachedScore + jitter
+```
+
+This is intentionally strong enough to rotate items that would otherwise stay pinned at the top due to large score gaps, while still preserving a quality-weighted ordering because the cached recommendation score remains the base.
 
 ### Pagination
 
@@ -504,9 +554,9 @@ Hybrid approach:
 
 **Function:** `generatePersonalizedTheatricalReleases()` — Line 3145
 
-1. Build genre/director/actor profiles from source movies (sample 10)
+1. Build genre/director/writer/actor profiles from source movies (sample 10)
 2. Fetch TMDB `/movie/now_playing` (3-12 pages depending on how many are needed)
-3. Score each theatrical item against user profile: genre affinity + director match + actor match + rating + popularity
+3. Score each theatrical item against user profile: genre affinity + director match + writer match + actor match + rating + popularity
 4. Run full pipeline
 5. Paginate
 
@@ -517,10 +567,15 @@ Hybrid approach:
 Not a separate retrieval. Instead:
 
 1. Fetch the same shared pool from `getOrGenerateRecommendationPoolCached()`
-2. Filter pool to requested media type
-3. Build genre list, sorted by: source collection genre affinity first, then recommendation frequency
-4. For each genre: fill a row from the pool (items that include that genre), deduplicating across rows
-5. Each genre row gets up to `limit` items (default 10 for overview, 50 for category page)
+2. Apply request-time presentation shuffle to the cached pool, using a 1-minute epoch
+3. Filter pool to requested media type
+4. Build genre list, sorted by: source collection genre affinity first, then recommendation frequency
+5. For each genre: fill a row from the shuffled pool (items that include that genre), deduplicating across rows
+6. Each genre row gets up to `limit` items (default 10 for overview, 50 for category page)
+
+Categories intentionally do not cache the already-sliced final category rows. Caching final rows would store only the first `limit` items per genre and discard alternates, making presentation shuffle ineffective. The expensive source data is still cached in `for_you_pool`; category rows are cheap to derive from that cached pool on each request.
+
+Duplicate prevention: category generation uses a shared `usedItemKeys` set across all rows in a single response. Once an item appears in one category row, later category rows skip it, so the same movie/show should not appear in multiple category sections for that response.
 
 ---
 
@@ -532,19 +587,20 @@ Not a separate retrieval. Instead:
 
 **Constants:**
 ```typescript
-RECOMMENDATION_CACHE_VERSION = 'v8'
+RECOMMENDATION_CACHE_VERSION = 'v9'
 RECOMMENDATION_CACHE_TTL_MINUTES = 30
 RECOMMENDATION_CACHE_EXPIRED_RETENTION_MINUTES = 60 * 24  // 24 hours
 RECOMMENDATION_CACHE_STAGING_RETENTION_MINUTES = 60 * 2    // 2 hours
 RECOMMENDATION_CACHE_CLEANUP_INTERVAL_MS = 1000 * 60 * 15  // 15 minutes
 RECOMMENDATION_CACHE_GENERATION_LOCK_TIMEOUT_MINUTES = 10
 RECOMMENDATION_CACHE_WAIT_AFTER_LOCK_MS = 1500
+RECOMMENDATION_PRESENTATION_SHUFFLE_WINDOW_MS = 60 * 1000
 ```
 
 **Cache key generation:**
 ```typescript
 function buildRecommendationCacheKey(endpoint, params) {
-    const serialized = JSON.stringify({ endpoint, params, version: 'v8' });
+    const serialized = JSON.stringify({ endpoint, params, version: 'v9' });
     return createHash('sha256').update(serialized).digest('hex');
 }
 ```
@@ -596,7 +652,7 @@ This avoids duplicate-key races under concurrent requests.
 **Background cleanup — `cleanupRecommendationCacheInBackground()`:**
 
 Runs at most every 15 minutes. Deletes rows where:
-- `cache_version <> 'v8'` (old versions)
+- `cache_version <> 'v9'` (old versions)
 - `expires_at < NOW() - 24 hours` (long-expired)
 - `slot = 'staging' AND updated_at < NOW() - 2 hours` (stale staging rows)
 
@@ -728,10 +784,10 @@ function warmPersonalizedRecommendationCache(userId: string): void {
 
 Generates in parallel:
 1. Full recommendation pool (shared by For You + Categories)
-2. Category overview cache (`movie`, limit 50)
-3. Category overview cache (`tv`, limit 50)
-4. Theatrical releases page 1
-5. Theatrical releases page 2
+2. Theatrical releases page 1
+3. Theatrical releases page 2
+
+Category overview responses are not warmed as final cached payloads. They are derived from the warmed `for_you_pool` on request so presentation shuffle can rotate visible rows without recomputing the expensive pool.
 
 Fire-and-forget with Vercel-aware lifetime extension via `waitUntil()`. Duplicate generation is prevented by DB-level generation locks.
 

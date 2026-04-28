@@ -50,6 +50,7 @@ export interface Movie {
       genre: number;
       source_boost: number;
       director_boost: number;
+      writer_boost: number;
       actor_boost: number;
       primary_boost: number;
       reddit_boost?: number;
