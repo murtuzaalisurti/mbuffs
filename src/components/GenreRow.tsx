@@ -33,7 +33,13 @@ export function GenreRow({
   isPersonalized = false,
   showNotInterested = false
 }: GenreRowProps) {
-  const candidateMovies = isPersonalized ? movies : movies.slice(0, limit);
+  const candidateMovies = useMemo(
+    () => {
+      const candidates = isPersonalized ? movies : movies.slice(0, limit);
+      return isPersonalized ? candidates.filter((movie) => movie.poster_path) : candidates;
+    },
+    [isPersonalized, movies, limit]
+  );
   
   // Generate media IDs for watched status lookup
   const mediaIds = useMemo(

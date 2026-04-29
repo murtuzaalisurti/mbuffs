@@ -81,7 +81,7 @@ const Index = () => {
         recommendationCandidates,
         watchedMap,
         recommendationsEnabled ? notInterestedMap : {},
-      ),
+      ).filter((movie) => movie.poster_path),
     ),
     [recommendationCandidates, watchedMap, notInterestedMap, recommendationsEnabled]
   );

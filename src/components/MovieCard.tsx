@@ -22,6 +22,7 @@ interface MovieCardProps {
   isWatched?: boolean;
   isNotInterested?: boolean;
   showNotInterested?: boolean;
+  hideIfNoPoster?: boolean;
   /** Additional menu items to render after the watched option */
   additionalMenuItems?: ReactNode;
 }
@@ -32,8 +33,13 @@ export function MovieCard({
   isWatched = false,
   isNotInterested = false,
   showNotInterested = false,
+  hideIfNoPoster = false,
   additionalMenuItems
 }: MovieCardProps) {
+  if (hideIfNoPoster && !movie.poster_path) {
+    return null;
+  }
+
   const releaseYear = (movie.release_date || movie.first_air_date)
     ? new Date(movie.first_air_date || movie.release_date).getFullYear()
     : "Unknown";

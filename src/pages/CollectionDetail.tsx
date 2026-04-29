@@ -668,9 +668,9 @@ const CollectionDetail = () => {
                                     <div key={movieEntry.movie_id} className="relative group">
                                         <Skeleton className="aspect-[2/3] rounded-lg" />
                                     </div>
-                                );
-                                const isAddedByMember = movieEntry.added_by_user_id === collection.owner_id || 
-                                    collectionDetails.collaborators.some(c => c.user_id === movieEntry.added_by_user_id);
+                                 );
+                                 const isAddedByMember = movieEntry.added_by_user_id === collection.owner_id || 
+                                     collectionDetails.collaborators.some(c => c.user_id === movieEntry.added_by_user_id);
                                 // Owner can remove any item, edit members can only remove their own items
                                 const canRemoveItem = isOwner || movieEntry.added_by_user_id === currentUser?.id;
                                 const isItemWatched = watchedMap[String(movieEntry.movie_id)] ?? false;
@@ -680,6 +680,7 @@ const CollectionDetail = () => {
                                         <MovieCard 
                                             movie={movie} 
                                             isWatched={isItemWatched}
+                                            hideIfNoPoster={false}
                                             additionalMenuItems={showRemoveOption ? (
                                                 <DropdownMenuItem
                                                     className="cursor-pointer rounded-lg px-3 py-2.5 text-sm font-medium text-destructive focus:bg-destructive/10 focus:text-destructive data-[highlighted]:bg-destructive/10 data-[highlighted]:text-destructive"

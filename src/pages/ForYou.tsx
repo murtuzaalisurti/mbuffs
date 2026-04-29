@@ -69,7 +69,7 @@ const ForYou = () => {
       allMovies,
       watchedMap,
       recommendationsEnabled ? notInterestedMap : {},
-    ),
+    ).filter((movie) => movie.poster_path),
     [allMovies, watchedMap, notInterestedMap, recommendationsEnabled]
   );
 

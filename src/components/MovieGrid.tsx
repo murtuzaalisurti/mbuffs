@@ -8,22 +8,28 @@ interface MovieGridProps {
   movies: Movie[];
   title?: string;
   showNotInterested?: boolean;
+  hideItemsWithoutPoster?: boolean;
 }
 
-export function MovieGrid({ movies, title, showNotInterested = false }: MovieGridProps) {
+export function MovieGrid({ movies, title, showNotInterested = false, hideItemsWithoutPoster = false }: MovieGridProps) {
+  const displayMovies = useMemo(
+    () => hideItemsWithoutPoster ? movies.filter((movie) => movie.poster_path) : movies,
+    [movies, hideItemsWithoutPoster]
+  );
+
   // Generate media IDs for watched status lookup
   const mediaIds = useMemo(() => 
-    movies.map(movie => {
+    displayMovies.map(movie => {
       const isTV = !!movie.first_air_date;
       return isTV ? `${movie.id}tv` : String(movie.id);
     }),
-    [movies]
+    [displayMovies]
   );
 
   const { watchedMap } = useWatchedStatus(mediaIds);
   const { notInterestedMap } = useNotInterestedStatus(showNotInterested ? mediaIds : []);
 
-  if (movies.length === 0) {
+  if (displayMovies.length === 0) {
     return (
       <div className="text-center py-16 rounded-2xl bg-muted/30 border border-border">
         <h2 className="text-xl font-semibold mb-2">
@@ -45,7 +51,7 @@ export function MovieGrid({ movies, title, showNotInterested = false }: MovieGri
         </div>
       )}
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 md:gap-5 lg:grid-cols-5">
-        {movies.map((movie) => {
+        {displayMovies.map((movie) => {
           const isTV = !!movie.first_air_date;
           const mediaId = isTV ? `${movie.id}tv` : String(movie.id);
           return (
@@ -55,6 +61,7 @@ export function MovieGrid({ movies, title, showNotInterested = false }: MovieGri
               isWatched={watchedMap[mediaId] ?? false}
               isNotInterested={notInterestedMap[mediaId] ?? false}
               showNotInterested={showNotInterested}
+              hideIfNoPoster={hideItemsWithoutPoster}
             />
           );
         })}

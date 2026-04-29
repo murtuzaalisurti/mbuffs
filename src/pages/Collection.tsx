@@ -117,6 +117,7 @@ const CollectionPage = () => {
             <MovieGrid
               movies={collection.movies}
               title="Movies in this collection"
+              hideItemsWithoutPoster={false}
             />
           </div>
         ) : (

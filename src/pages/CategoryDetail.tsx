@@ -172,7 +172,7 @@ const CategoryDetail = () => {
           watchedMap,
           showNotInterested ? notInterestedMap : {},
           mediaType as 'movie' | 'tv',
-        )
+        ).filter((movie) => movie.poster_path)
       : allMovies,
     [allMovies, watchedMap, notInterestedMap, showPersonalized, showNotInterested, mediaType]
   );
