@@ -3685,7 +3685,8 @@ export async function generateGenreRecommendations(
 export async function generatePersonalizedTheatricalReleases(
     userId: string,
     limit: number = 60,
-    page: number = 1
+    page: number = 1,
+    region?: string
 ): Promise<{
     results: TMDBMovie[];
     page: number;
@@ -3754,6 +3755,7 @@ export async function generatePersonalizedTheatricalReleases(
         sourceCollectionsToken,
         sourceMoviesOnlyToken,
         exclusionsToken,
+        `region:${region ?? 'global'}`,
         `${engagementSignals.watchedCount}:${engagementSignals.notInterestedCount}:${engagementSignals.watchRate.toFixed(3)}`,
         `epoch:${jitterEpoch}`
     ]);
@@ -3859,7 +3861,10 @@ export async function generatePersonalizedTheatricalReleases(
     const pagePromises = Array.from({ length: tmdbPagesToFetch }, (_, i) => i + 1).map(async (tmdbPage) => {
         const response = await fetchTMDB<TMDBDiscoverResponse>(
             '/movie/now_playing',
-            { page: tmdbPage.toString() }
+            {
+                page: tmdbPage.toString(),
+                ...(region ? { region } : {})
+            }
         );
         return {
             results: response?.results || [],
@@ -4127,7 +4132,8 @@ export async function generateGenreRecommendationsCached(
 export async function generatePersonalizedTheatricalReleasesCached(
     userId: string,
     limit: number = 60,
-    page: number = 1
+    page: number = 1,
+    region?: string
 ): Promise<{
     results: TMDBMovie[];
     page: number;
@@ -4140,8 +4146,8 @@ export async function generatePersonalizedTheatricalReleasesCached(
         getCachedRecommendationResult(
             userId,
             'theatrical',
-            { limit, page },
-            () => generatePersonalizedTheatricalReleases(userId, limit, page)
+            { limit, page, region: region ?? 'global' },
+            () => generatePersonalizedTheatricalReleases(userId, limit, page, region)
         )
     );
 }

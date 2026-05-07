@@ -47,13 +47,16 @@ export const getPersonalizedGenreRecommendationsPageQueryKey = (
   limit: number = CATEGORY_FULL_PAGE_ITEMS_PER_PAGE,
 ) => [...getPersonalizedGenreRecommendationsQueryKey(userId, mediaType, genreId), limit] as const;
 
-export const getPersonalizedTheatricalRecommendationsQueryKey = (userId?: string | null) =>
-  [...getCategoryRecommendationsQueryKey(userId), 'theatrical'] as const;
+export const getPersonalizedTheatricalRecommendationsQueryKey = (
+  userId?: string | null,
+  region?: string | null,
+) => [...getCategoryRecommendationsQueryKey(userId), 'theatrical', region ?? null] as const;
 
 export const getPersonalizedTheatricalRecommendationsPageQueryKey = (
   userId?: string | null,
+  region?: string | null,
   limit: number = CATEGORY_FULL_PAGE_ITEMS_PER_PAGE,
-) => [...getPersonalizedTheatricalRecommendationsQueryKey(userId), limit] as const;
+) => [...getPersonalizedTheatricalRecommendationsQueryKey(userId, region), limit] as const;
 
 const getPagedRecommendationsInfiniteQueryOptions = (
   queryKey: readonly unknown[],
@@ -218,11 +221,15 @@ export const getSharedPersonalizedGenreInfiniteQueryOptions = (
   ),
 );
 
-export const getSharedPersonalizedTheatricalInfiniteQueryOptions = (userId?: string | null) =>
+export const getSharedPersonalizedTheatricalInfiniteQueryOptions = (
+  userId?: string | null,
+  region?: string | null,
+) =>
   getPagedRecommendationsInfiniteQueryOptions(
     getPersonalizedTheatricalRecommendationsPageQueryKey(
       userId,
+      region,
       CATEGORY_FULL_PAGE_ITEMS_PER_PAGE,
     ),
-    (pageParam) => fetchTheatricalRecommendationsApi(CATEGORY_FULL_PAGE_ITEMS_PER_PAGE, pageParam),
+    (pageParam) => fetchTheatricalRecommendationsApi(CATEGORY_FULL_PAGE_ITEMS_PER_PAGE, pageParam, region ?? undefined),
   );

@@ -1,7 +1,7 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { Navbar } from "@/components/Navbar";
 import { GenreRow } from "@/components/GenreRow";
-import { fetchGenreListApi, fetchMoviesByGenreApi, fetchTvByGenreApi, fetchNowPlayingMoviesApi, fetchCategoryRecommendationsApi, fetchUserPreferencesApi } from "@/lib/api";
+import { fetchGenreListApi, fetchMoviesByGenreApi, fetchTvByGenreApi, fetchNowPlayingMoviesApi, fetchCategoryRecommendationsApi, fetchUserPreferencesApi, fetchUserRegion } from "@/lib/api";
 import { Genre, CategoryRecommendationsResponse } from "@/lib/types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -239,9 +239,15 @@ function GenreRowWithData({ genre, mediaType, showNotInterested = false }: { gen
 }
 
 function TheatricalReleasesRow({ showNotInterested = false }: { showNotInterested?: boolean }) {
+  const { data: userRegion } = useQuery({
+    queryKey: ['userRegion'],
+    queryFn: fetchUserRegion,
+    staleTime: Infinity,
+  });
+
   const { data, isLoading } = useQuery({
-    queryKey: ['movies', 'now_playing'],
-    queryFn: () => fetchNowPlayingMoviesApi(1),
+    queryKey: ['movies', 'now_playing', userRegion ?? null],
+    queryFn: () => fetchNowPlayingMoviesApi(1, userRegion),
     staleTime: 1000 * 60 * 30, // 30 minutes
   });
 
@@ -259,8 +265,14 @@ function TheatricalReleasesRow({ showNotInterested = false }: { showNotIntereste
 }
 
 function PersonalizedTheatricalReleasesRow({ userId, showNotInterested = true }: { userId?: string | null; showNotInterested?: boolean }) {
+  const { data: userRegion } = useQuery({
+    queryKey: ['userRegion'],
+    queryFn: fetchUserRegion,
+    staleTime: Infinity,
+  });
+
   const { data, isLoading } = useInfiniteQuery({
-    ...getSharedPersonalizedTheatricalInfiniteQueryOptions(userId),
+    ...getSharedPersonalizedTheatricalInfiniteQueryOptions(userId, userRegion),
     enabled: !!userId,
   });
 

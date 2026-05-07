@@ -178,9 +178,18 @@ export const fetchGenreRecommendationsApi = async (
 
 export const fetchTheatricalRecommendationsApi = async (
     limit: number = 20,
-    page: number = 1
+    page: number = 1,
+    region?: string
 ): Promise<RecommendationsResponse> => {
-    return fetchBackend(`/recommendations/theatrical?limit=${limit}&page=${page}`);
+    const params = new URLSearchParams({
+        limit: String(limit),
+        page: String(page),
+    });
+    if (region) {
+        params.set('region', region);
+    }
+
+    return fetchBackend(`/recommendations/theatrical?${params.toString()}`);
 };
 
 export const fetchRecommendationCacheDebugApi = async (): Promise<RecommendationCacheDebugResponse> => {

@@ -59,11 +59,13 @@ describe("category query consistency", () => {
 
   it("uses the same query key for the theatrical row and full page", () => {
     const userId = "test-user";
-    const sharedOptions = getSharedPersonalizedTheatricalInfiniteQueryOptions(userId);
+    const region = "US";
+    const sharedOptions = getSharedPersonalizedTheatricalInfiniteQueryOptions(userId, region);
 
     expect(sharedOptions.queryKey).toEqual(
       getPersonalizedTheatricalRecommendationsPageQueryKey(
         userId,
+        region,
         CATEGORY_FULL_PAGE_ITEMS_PER_PAGE,
       )
     );

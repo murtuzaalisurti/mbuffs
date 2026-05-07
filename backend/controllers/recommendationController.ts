@@ -74,6 +74,19 @@ const parseRecommendationPage = (value: unknown): { page: number; error: string 
     return { page, error: null };
 };
 
+const parseRecommendationRegion = (value: unknown): { region?: string; error: string | null } => {
+    if (value === undefined || value === null || value === '') {
+        return { region: undefined, error: null };
+    }
+
+    const region = String(value).trim().toUpperCase();
+    if (!/^[A-Z]{2}$/.test(region)) {
+        return { error: 'region must be a 2-letter ISO 3166-1 code' };
+    }
+
+    return { region, error: null };
+};
+
 /**
  * GET /api/recommendations
  * Get personalized recommendations for the authenticated user
@@ -167,7 +180,7 @@ export const getGenreRecommendations = async (req: Request, res: Response, next:
 /**
  * GET /api/recommendations/theatrical
  * Get personalized theatrical releases (now playing movies)
- * Supports ?limit=60&page=1
+ * Supports ?limit=60&page=1&region=US
  */
 export const getTheatricalRecommendations = async (req: Request, res: Response, next: NextFunction) => {
     if (!req.userId) {
@@ -177,11 +190,15 @@ export const getTheatricalRecommendations = async (req: Request, res: Response, 
     try {
         const limit = parseRecommendationLimit(req.query.limit);
         const { page, error: pageError } = parseRecommendationPage(req.query.page);
+        const { region, error: regionError } = parseRecommendationRegion(req.query.region);
         if (pageError) {
             return res.status(400).json({ message: pageError });
         }
+        if (regionError) {
+            return res.status(400).json({ message: regionError });
+        }
 
-        const recommendations = await generatePersonalizedTheatricalReleasesCached(req.userId, limit, page);
+        const recommendations = await generatePersonalizedTheatricalReleasesCached(req.userId, limit, page, region);
         
         res.status(200).json(recommendations);
     } catch (error) {

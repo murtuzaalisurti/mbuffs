@@ -9,7 +9,8 @@ import {
   fetchMoviesByGenreApi, 
   fetchTvByGenreApi, 
   fetchNowPlayingMoviesApi,
-  fetchUserPreferencesApi
+  fetchUserPreferencesApi,
+  fetchUserRegion,
 } from "@/lib/api";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -50,6 +51,12 @@ const CategoryDetail = () => {
   const showPersonalized = Boolean(user && categoryRecommendationsEnabled && recommendationsEnabled);
   const showNotInterested = recommendationsEnabled && categoryRecommendationsEnabled;
 
+  const { data: userRegion } = useQuery({
+    queryKey: ['userRegion'],
+    queryFn: fetchUserRegion,
+    staleTime: Infinity,
+  });
+
   // Fetch genre name
   const { data: genreData } = useQuery({
     queryKey: ['genres', mediaType],
@@ -78,7 +85,7 @@ const CategoryDetail = () => {
     fetchNextPage: fetchNextPagePersonalized,
   } = useInfiniteQuery({
     ...(isTheatrical
-      ? getSharedPersonalizedTheatricalInfiniteQueryOptions(user?.id)
+      ? getSharedPersonalizedTheatricalInfiniteQueryOptions(user?.id, userRegion)
       : getSharedPersonalizedGenreInfiniteQueryOptions(user?.id, mediaType as 'movie' | 'tv', genreIdNum)),
     enabled: showPersonalized && !!mediaType && (!!genreIdNum || isTheatrical),
   });
@@ -91,10 +98,12 @@ const CategoryDetail = () => {
     hasNextPage: hasNextPageDefault,
     fetchNextPage: fetchNextPageDefault,
   } = useInfiniteQuery({
-    queryKey: ['genre', mediaType, genreIdNum, 'all'],
+    queryKey: isTheatrical
+      ? ['movies', 'now_playing', userRegion ?? null, 'all']
+      : ['genre', mediaType, genreIdNum, 'all'],
     queryFn: ({ pageParam = 1 }) => {
       if (isTheatrical) {
-        return fetchNowPlayingMoviesApi(pageParam);
+        return fetchNowPlayingMoviesApi(pageParam, userRegion);
       }
       return mediaType === 'movie'
         ? fetchMoviesByGenreApi(genreIdNum, pageParam)
