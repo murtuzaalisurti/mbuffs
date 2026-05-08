@@ -250,12 +250,32 @@ const RECOMMENDATION_CACHE_GENERATION_LOCK_TIMEOUT_MINUTES = 10;
 const RECOMMENDATION_CACHE_CLAIM_WINDOW_MS = 2000;
 const RECOMMENDATION_CACHE_WAIT_AFTER_LOCK_MS = 1500;
 const RECOMMENDATION_CACHE_PENDING_POLL_INTERVAL_MS = 500;
-const RECOMMENDATION_CACHE_MAX_PENDING_WAIT_MS = 6000;
+const RECOMMENDATION_CACHE_MAX_PENDING_WAIT_MS = 120000;
 const RECOMMENDATION_PRESENTATION_SHUFFLE_WINDOW_MS = 60 * 1000;
 const RECOMMENDATION_CACHE_ACTIVE_SLOT: RecommendationCacheSlot = 'active';
 const RECOMMENDATION_CACHE_STAGING_SLOT: RecommendationCacheSlot = 'staging';
+const RECOMMENDATION_SLOW_THRESHOLD_MS = 2000;
 let lastRecommendationCacheCleanupAt = 0;
 let recommendationCacheCleanupPromise: Promise<void> | null = null;
+
+const shouldLogRecommendationTiming = (durationMs: number): boolean =>
+    process.env.NODE_ENV !== 'production' || durationMs >= RECOMMENDATION_SLOW_THRESHOLD_MS;
+
+const logRecommendationTiming = (
+    message: string,
+    startedAt: bigint,
+    meta: Record<string, unknown> = {}
+): void => {
+    const durationMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
+    if (!shouldLogRecommendationTiming(durationMs)) {
+        return;
+    }
+
+    console.info(`[recommendation] ${message}`, {
+        ...meta,
+        durationMs: Number(durationMs.toFixed(1)),
+    });
+};
 
 // Reddit boost configuration
 const REDDIT_BOOST_ENABLED = true;
@@ -1459,6 +1479,7 @@ async function getCachedRecommendationResult<T>(
     params: Record<string, string | number>,
     generator: () => Promise<T>
 ): Promise<T> {
+    const startedAt = process.hrtime.bigint();
     cleanupRecommendationCacheInBackground();
 
     const cacheKey = buildRecommendationCacheKey(endpoint, params);
@@ -1467,11 +1488,13 @@ async function getCachedRecommendationResult<T>(
     const activeFresh = activeRow ? isRecommendationCacheRowFresh(activeRow) : false;
 
     if (activePayload && activeFresh) {
+        logRecommendationTiming('cache hit', startedAt, { endpoint, cacheKey });
         return activePayload;
     }
 
     if (activePayload) {
         scheduleBackground(refreshStaleActiveCacheInBackground(userId, cacheKey, generator));
+        logRecommendationTiming('stale cache hit', startedAt, { endpoint, cacheKey });
         return activePayload;
     }
 
@@ -1480,11 +1503,13 @@ async function getCachedRecommendationResult<T>(
         try {
             const freshResult = await generator();
             await writeActiveCache(userId, cacheKey, freshResult);
+            logRecommendationTiming('generated active cache', startedAt, { endpoint, cacheKey });
             return freshResult;
         } catch (error) {
             const fallbackRow = await getRecommendationCacheSlotRow(userId, cacheKey, RECOMMENDATION_CACHE_ACTIVE_SLOT);
             const fallbackPayload = fallbackRow ? await parseCachePayload<T>(fallbackRow.payload_json) : null;
             if (fallbackPayload) {
+                logRecommendationTiming('fallback cache hit after generation error', startedAt, { endpoint, cacheKey });
                 return fallbackPayload;
             }
             throw error;
@@ -1501,11 +1526,13 @@ async function getCachedRecommendationResult<T>(
     let delayedRow = await getRecommendationCacheSlotRow(userId, cacheKey, RECOMMENDATION_CACHE_ACTIVE_SLOT);
     let delayedPayload = delayedRow ? await parseCachePayload<T>(delayedRow.payload_json) : null;
     if (delayedPayload) {
+        logRecommendationTiming('cache hit after lock wait', startedAt, { endpoint, cacheKey });
         return delayedPayload;
     }
 
     const promotedFromStaging = await tryPromoteStaging<T>(userId, cacheKey);
     if (promotedFromStaging) {
+        logRecommendationTiming('promoted staging cache', startedAt, { endpoint, cacheKey });
         return promotedFromStaging;
     }
 
@@ -1518,11 +1545,13 @@ async function getCachedRecommendationResult<T>(
             delayedRow = await getRecommendationCacheSlotRow(userId, cacheKey, RECOMMENDATION_CACHE_ACTIVE_SLOT);
             delayedPayload = delayedRow ? await parseCachePayload<T>(delayedRow.payload_json) : null;
             if (delayedPayload) {
+                logRecommendationTiming('cache hit during pending wait', startedAt, { endpoint, cacheKey });
                 return delayedPayload;
             }
 
             const promotedDuringWait = await tryPromoteStaging<T>(userId, cacheKey);
             if (promotedDuringWait) {
+                logRecommendationTiming('promoted staging cache during pending wait', startedAt, { endpoint, cacheKey });
                 return promotedDuringWait;
             }
 
@@ -1530,10 +1559,16 @@ async function getCachedRecommendationResult<T>(
                 break;
             }
         }
+
+        if (delayedRow && isRecommendationGenerationLockActive(delayedRow.generation_started_at)) {
+            logRecommendationTiming('generation still pending after wait', startedAt, { endpoint, cacheKey });
+            throw new Error(`Recommendation cache generation still pending for ${endpoint}`);
+        }
     }
 
     const freshResult = await generator();
     await writeActiveCache(userId, cacheKey, freshResult);
+    logRecommendationTiming('generated cache without claim', startedAt, { endpoint, cacheKey });
     return freshResult;
 }
 
@@ -1591,26 +1626,29 @@ export async function expireRecommendationCacheByCollection(collectionId: string
 
 export function warmPersonalizedRecommendationCache(userId: string): void {
     scheduleBackground(
-        Promise.allSettled([
-            getOrGenerateRecommendationPoolCached(userId),
-            generateCategoryRecommendationsCached(
-                userId,
-                'movie',
-                RECOMMENDATION_WARM_CATEGORY_OVERVIEW_LIMIT,
-            ),
-            generateCategoryRecommendationsCached(
-                userId,
-                'tv',
-                RECOMMENDATION_WARM_CATEGORY_OVERVIEW_LIMIT,
-            ),
-            generatePersonalizedTheatricalReleasesCached(userId, 60, 1),
-            generatePersonalizedTheatricalReleasesCached(userId, 60, 2),
-        ]).then((results) => {
+        (async () => {
+            await getOrGenerateRecommendationPoolCached(userId);
+
+            const results = await Promise.allSettled([
+                generateCategoryRecommendationsCached(
+                    userId,
+                    'movie',
+                    RECOMMENDATION_WARM_CATEGORY_OVERVIEW_LIMIT,
+                ),
+                generateCategoryRecommendationsCached(
+                    userId,
+                    'tv',
+                    RECOMMENDATION_WARM_CATEGORY_OVERVIEW_LIMIT,
+                ),
+                generatePersonalizedTheatricalReleasesCached(userId, 60, 1),
+                generatePersonalizedTheatricalReleasesCached(userId, 60, 2),
+            ]);
+
             const rejected = results.filter((result) => result.status === 'rejected');
             if (rejected.length > 0) {
                 console.error(`Error warming personalized recommendation cache: ${rejected.length} background task(s) failed`);
             }
-        })
+        })()
     );
 }
 
@@ -3647,7 +3685,8 @@ export async function generateGenreRecommendations(
 export async function generatePersonalizedTheatricalReleases(
     userId: string,
     limit: number = 60,
-    page: number = 1
+    page: number = 1,
+    region?: string
 ): Promise<{
     results: TMDBMovie[];
     page: number;
@@ -3716,6 +3755,7 @@ export async function generatePersonalizedTheatricalReleases(
         sourceCollectionsToken,
         sourceMoviesOnlyToken,
         exclusionsToken,
+        `region:${region ?? 'global'}`,
         `${engagementSignals.watchedCount}:${engagementSignals.notInterestedCount}:${engagementSignals.watchRate.toFixed(3)}`,
         `epoch:${jitterEpoch}`
     ]);
@@ -3821,7 +3861,10 @@ export async function generatePersonalizedTheatricalReleases(
     const pagePromises = Array.from({ length: tmdbPagesToFetch }, (_, i) => i + 1).map(async (tmdbPage) => {
         const response = await fetchTMDB<TMDBDiscoverResponse>(
             '/movie/now_playing',
-            { page: tmdbPage.toString() }
+            {
+                page: tmdbPage.toString(),
+                ...(region ? { region } : {})
+            }
         );
         return {
             results: response?.results || [],
@@ -4040,7 +4083,16 @@ export async function generateRecommendationsCached(
     limit: number = 60,
     page: number = 1
 ): Promise<RecommendationResult> {
-    return generateRecommendations(userId, limit, page);
+    const startedAt = process.hrtime.bigint();
+    const result = await generateRecommendations(userId, limit, page);
+    logRecommendationTiming('served for you page', startedAt, {
+        endpoint: 'for_you',
+        limit,
+        page,
+        totalResults: result.total_results,
+        resultCount: result.results.length,
+    });
+    return result;
 }
 
 export async function generateCategoryRecommendationsCached(
@@ -4080,7 +4132,8 @@ export async function generateGenreRecommendationsCached(
 export async function generatePersonalizedTheatricalReleasesCached(
     userId: string,
     limit: number = 60,
-    page: number = 1
+    page: number = 1,
+    region?: string
 ): Promise<{
     results: TMDBMovie[];
     page: number;
@@ -4093,8 +4146,8 @@ export async function generatePersonalizedTheatricalReleasesCached(
         getCachedRecommendationResult(
             userId,
             'theatrical',
-            { limit, page },
-            () => generatePersonalizedTheatricalReleases(userId, limit, page)
+            { limit, page, region: region ?? 'global' },
+            () => generatePersonalizedTheatricalReleases(userId, limit, page, region)
         )
     );
 }

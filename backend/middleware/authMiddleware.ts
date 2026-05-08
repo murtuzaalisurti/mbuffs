@@ -3,6 +3,7 @@ import { fromNodeHeaders } from "better-auth/node";
 import { auth, type User } from "../lib/auth.js";
 
 const isDev = process.env.NODE_ENV !== "production";
+const AUTH_SESSION_SLOW_THRESHOLD_MS = 1000;
 
 const authDebug = (message: string, meta?: Record<string, unknown>) => {
     if (!isDev) {
@@ -31,6 +32,7 @@ declare global {
 
 // Middleware to get session and attach user info to request
 export const deserializeUser = async (req: Request, res: Response, next: NextFunction) => {
+    const startedAt = process.hrtime.bigint();
     req.userId = null;
     req.user = null;
     req.session = null;
@@ -66,6 +68,21 @@ export const deserializeUser = async (req: Request, res: Response, next: NextFun
             method: req.method,
             path: req.path,
             error,
+        });
+    }
+
+    const durationMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
+    if (isDev || durationMs >= AUTH_SESSION_SLOW_THRESHOLD_MS) {
+        const cookieHeader = req.headers.cookie;
+        console.info("[auth] getSession timing", {
+            method: req.method,
+            path: req.originalUrl,
+            durationMs: Number(durationMs.toFixed(1)),
+            authenticated: Boolean(req.userId),
+            hasCookieHeader: Boolean(cookieHeader),
+            hasSessionTokenCookie: Boolean(cookieHeader?.includes('session_token')),
+            hasSessionDataCookie: Boolean(cookieHeader?.includes('session_data')),
+            cookieHeaderBytes: cookieHeader?.length ?? 0,
         });
     }
 
