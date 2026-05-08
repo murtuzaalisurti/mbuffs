@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Search, LogOut, UserCircle, Popcorn, List, LogIn, Loader2, LoaderCircle, Star, LayoutGrid, User, Shield } from 'lucide-react';
+import { Search, LogOut, UserCircle, List, LogIn, Loader2, LoaderCircle, Star, LayoutGrid, User, Shield } from 'lucide-react';
+import { LogoIcon } from '@/components/LogoIcon';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
@@ -228,20 +229,12 @@ export const Navbar = () => {
         }}
       >
         {/* Logo / Home Link */}
-        <nav className="flex-col gap-6 text-lg font-medium md:flex md:flex-row md:items-center md:gap-5 md:text-sm lg:gap-6">
+        <nav className="flex shrink-0 items-center gap-6 text-lg font-medium md:gap-5 md:text-sm lg:gap-6">
           <Link
             to="/"
             className="flex items-center gap-2.5 text-lg font-bold tracking-tight md:text-base group"
           >
-            <Popcorn className="h-5 w-5 transition-transform group-hover:scale-110" style={{ stroke: 'url(#logo-gradient)' }} />
-            <svg width="0" height="0" className="absolute">
-              <defs>
-                <linearGradient id="logo-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="var(--foreground)" />
-                  <stop offset="100%" stopColor="var(--muted-foreground)" />
-                </linearGradient>
-              </defs>
-            </svg>
+            <LogoIcon className="h-7 w-7 transition-transform group-hover:scale-110" />
             <span className="bg-linear-to-r from-foreground to-muted-foreground bg-clip-text text-transparent">mbuffs</span>
           </Link>
           <Link

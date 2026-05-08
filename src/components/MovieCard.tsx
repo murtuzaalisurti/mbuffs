@@ -13,7 +13,7 @@ import { useWarmRecommendations } from "@/App";
 import { toast } from "sonner";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { useState, ReactNode } from "react";
+import { useState, useRef, ReactNode } from "react";
 import { haptics } from "@/lib/haptics";
 
 interface MovieCardProps {
@@ -70,6 +70,7 @@ export function MovieCard({
   const showMovieCardInfo = preferencesData?.preferences?.show_movie_card_info ?? false;
   const queryClient = useQueryClient();
   const [menuOpen, setMenuOpen] = useState(false);
+  const lastPointerTypeRef = useRef<string>('');
   const menuItemClass = "cursor-pointer rounded-lg px-3 py-2.5 text-sm font-medium text-foreground/90 focus:bg-accent focus:text-accent-foreground data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground";
 
   // Local optimistic overlays. We only use them while they differ from server props.
@@ -249,7 +250,19 @@ export function MovieCard({
                     className={`h-7 w-7 rounded-full bg-background/70 border border-border/70 hover:bg-background/90 transition-opacity ${
                       menuOpen ? 'opacity-100' : 'opacity-100 md:opacity-0 md:group-hover:opacity-100'
                     }`}
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                    onPointerDown={(e) => {
+                      lastPointerTypeRef.current = e.pointerType;
+                      if (e.pointerType === 'touch') {
+                        e.preventDefault();
+                      }
+                    }}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (lastPointerTypeRef.current === 'touch') {
+                        setMenuOpen(prev => !prev);
+                      }
+                    }}
                   >
                     <MoreVertical className="h-4 w-4 text-foreground" />
                   </Button>
