@@ -222,8 +222,8 @@ const buildCollectionPayload = async (backendUrl: string, absoluteUrl: string, i
     image: `${absoluteUrl}/api/og-image/collection/${encodeURIComponent(id)}.jpg`,
     imageAlt: `${name} collection collage`,
     imageType: "image/jpeg",
-    imageWidth: 1200,
-    imageHeight: 630,
+    imageWidth: 600,
+    imageHeight: 600,
     ogType: "website",
     canonicalPath: `/collection/${id}`,
   };

@@ -6,9 +6,8 @@ const WIDTH = 1200;
 const HEIGHT = 630;
 const FOREGROUND = "#fafafa";
 const MUTED = "#a1a1aa";
-const APP_NAME = "mbuffs";
 const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w342";
-const PANEL = { left: 44, top: 44, width: 716, height: 542 };
+const COLLAGE_SIZE = 600;
 
 type CollectionResponse = {
   collection?: {
@@ -137,48 +136,13 @@ const getCollectionPosters = async (backendUrl: string, collectionId: string) =>
     })
   )).filter(Boolean) as string[];
 
-  return {
-    name: collection.collection?.name?.trim() || "Collection",
-    itemCount: collection.movies?.length ?? 0,
-    posters: posters.slice(0, 4),
-  };
+  return { posters: posters.slice(0, 4) };
 };
 
 
 const svgBytes = (svg: string) => Buffer.from(svg);
 
-const buildBackdropSvg = (name: string, itemCount: number) => {
-  const fontSize = name.length > 22 ? 50 : 60;
-  const safeName = escapeXml(truncate(name, 40));
-  const safeCount = escapeXml(`${itemCount} item${itemCount === 1 ? "" : "s"}`);
 
-  return `
-    <svg width="${WIDTH}" height="${HEIGHT}" viewBox="0 0 ${WIDTH} ${HEIGHT}" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <radialGradient id="bg" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(120 40) rotate(35) scale(980 760)">
-          <stop offset="0" stop-color="#27272a" />
-          <stop offset="1" stop-color="#09090b" />
-        </radialGradient>
-        <linearGradient id="panel" x1="44" y1="44" x2="760" y2="586" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stop-color="#ffffff" stop-opacity="0.06" />
-          <stop offset="1" stop-color="#ffffff" stop-opacity="0.02" />
-        </linearGradient>
-      </defs>
-      <rect width="${WIDTH}" height="${HEIGHT}" fill="url(#bg)" />
-      <rect x="${PANEL.left}" y="${PANEL.top}" width="${PANEL.width}" height="${PANEL.height}" rx="36" fill="url(#panel)" stroke="#ffffff" stroke-opacity="0.06" />
-      <text x="800" y="224" fill="${MUTED}" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="500">Collection</text>
-      <text x="800" y="326" fill="${FOREGROUND}" font-family="Arial, Helvetica, sans-serif" font-size="${fontSize}" font-weight="700">${safeName}</text>
-      <text x="800" y="390" fill="#d4d4d8" font-family="Arial, Helvetica, sans-serif" font-size="32">${safeCount}</text>
-      <text x="800" y="458" fill="${MUTED}" font-family="Arial, Helvetica, sans-serif" font-size="24">${APP_NAME}</text>
-    </svg>
-  `;
-};
-
-const roundedMask = (width: number, height: number, radius: number) => svgBytes(`
-  <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
-    <rect width="${width}" height="${height}" rx="${radius}" ry="${radius}" fill="#fff" />
-  </svg>
-`);
 
 
 const buildFallbackImage = async (title: string) => {
@@ -211,38 +175,38 @@ const buildFallbackImage = async (title: string) => {
     .toBuffer();
 };
 
-const buildCollectionImage = async (name: string, itemCount: number, posters: string[]) => {
+const buildCollectionImage = async (posters: string[]) => {
+  const size = COLLAGE_SIZE;
   const gap = 4;
-  const radius = 24;
   const count = posters.length;
 
   type TileSpec = { x: number; y: number; w: number; h: number };
   let tiles: TileSpec[];
 
   if (count <= 1) {
-    tiles = [{ x: 0, y: 0, w: PANEL.width, h: PANEL.height }];
+    tiles = [{ x: 0, y: 0, w: size, h: size }];
   } else if (count === 2) {
-    const w = Math.floor((PANEL.width - gap) / 2);
+    const w = Math.floor((size - gap) / 2);
     tiles = [
-      { x: 0, y: 0, w, h: PANEL.height },
-      { x: w + gap, y: 0, w: PANEL.width - w - gap, h: PANEL.height },
+      { x: 0, y: 0, w, h: size },
+      { x: w + gap, y: 0, w: size - w - gap, h: size },
     ];
   } else if (count === 3) {
-    const w = Math.floor((PANEL.width - gap) / 2);
-    const h = Math.floor((PANEL.height - gap) / 2);
+    const w = Math.floor((size - gap) / 2);
+    const h = Math.floor((size - gap) / 2);
     tiles = [
-      { x: 0, y: 0, w, h: PANEL.height },
-      { x: w + gap, y: 0, w: PANEL.width - w - gap, h },
-      { x: w + gap, y: h + gap, w: PANEL.width - w - gap, h: PANEL.height - h - gap },
+      { x: 0, y: 0, w, h: size },
+      { x: w + gap, y: 0, w: size - w - gap, h },
+      { x: w + gap, y: h + gap, w: size - w - gap, h: size - h - gap },
     ];
   } else {
-    const w = Math.floor((PANEL.width - gap) / 2);
-    const h = Math.floor((PANEL.height - gap) / 2);
+    const w = Math.floor((size - gap) / 2);
+    const h = Math.floor((size - gap) / 2);
     tiles = [
       { x: 0, y: 0, w, h },
-      { x: w + gap, y: 0, w: PANEL.width - w - gap, h },
-      { x: 0, y: h + gap, w, h: PANEL.height - h - gap },
-      { x: w + gap, y: h + gap, w: PANEL.width - w - gap, h: PANEL.height - h - gap },
+      { x: w + gap, y: 0, w: size - w - gap, h },
+      { x: 0, y: h + gap, w, h: size - h - gap },
+      { x: w + gap, y: h + gap, w: size - w - gap, h: size - h - gap },
     ];
   }
 
@@ -258,35 +222,15 @@ const buildCollectionImage = async (name: string, itemCount: number, posters: st
     tileComposites.push({ input: resized, left: tile.x, top: tile.y });
   }
 
-  let collage = await sharp({
+  return sharp({
     create: {
-      width: PANEL.width,
-      height: PANEL.height,
-      channels: 4,
-      background: { r: 24, g: 24, b: 27, alpha: 255 },
+      width: size,
+      height: size,
+      channels: 3,
+      background: { r: 24, g: 24, b: 27 },
     },
   })
     .composite(tileComposites)
-    .png()
-    .toBuffer();
-
-  collage = await sharp(collage)
-    .composite([{ input: roundedMask(PANEL.width, PANEL.height, radius), blend: "dest-in" }])
-    .png()
-    .toBuffer();
-
-  return sharp({
-    create: {
-      width: WIDTH,
-      height: HEIGHT,
-      channels: 3,
-      background: "#09090b",
-    },
-  })
-    .composite([
-      { input: svgBytes(buildBackdropSvg(name, itemCount)), left: 0, top: 0 },
-      { input: collage, left: PANEL.left, top: PANEL.top },
-    ])
     .jpeg({ quality: 82, mozjpeg: true })
     .toBuffer();
 };
@@ -300,8 +244,8 @@ export default async function handler(req: any, res: any) {
     let image: Uint8Array;
 
     if (type === "collection" && id && id.length <= 60 && backendUrl) {
-      const { name, itemCount, posters } = await getCollectionPosters(backendUrl, id);
-      image = await buildCollectionImage(name, itemCount, posters);
+      const { posters } = await getCollectionPosters(backendUrl, id);
+      image = await buildCollectionImage(posters);
     } else {
       image = await buildFallbackImage("Collection");
     }
