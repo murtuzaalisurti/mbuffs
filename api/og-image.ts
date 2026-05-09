@@ -7,7 +7,8 @@ const HEIGHT = 630;
 const FOREGROUND = "#fafafa";
 const MUTED = "#a1a1aa";
 const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w342";
-const COLLAGE_SIZE = 400;
+const COLLAGE_WIDTH = 342;
+const COLLAGE_HEIGHT = 513;
 
 type CollectionResponse = {
   collection?: {
@@ -176,7 +177,8 @@ const buildFallbackImage = async (title: string) => {
 };
 
 const buildCollectionImage = async (posters: string[]) => {
-  const size = COLLAGE_SIZE;
+  const w = COLLAGE_WIDTH;
+  const h = COLLAGE_HEIGHT;
   const gap = 4;
   const count = posters.length;
 
@@ -184,29 +186,29 @@ const buildCollectionImage = async (posters: string[]) => {
   let tiles: TileSpec[];
 
   if (count <= 1) {
-    tiles = [{ x: 0, y: 0, w: size, h: size }];
+    tiles = [{ x: 0, y: 0, w, h }];
   } else if (count === 2) {
-    const w = Math.floor((size - gap) / 2);
+    const tw = Math.floor((w - gap) / 2);
     tiles = [
-      { x: 0, y: 0, w, h: size },
-      { x: w + gap, y: 0, w: size - w - gap, h: size },
+      { x: 0, y: 0, w: tw, h },
+      { x: tw + gap, y: 0, w: w - tw - gap, h },
     ];
   } else if (count === 3) {
-    const w = Math.floor((size - gap) / 2);
-    const h = Math.floor((size - gap) / 2);
+    const tw = Math.floor((w - gap) / 2);
+    const th = Math.floor((h - gap) / 2);
     tiles = [
-      { x: 0, y: 0, w, h: size },
-      { x: w + gap, y: 0, w: size - w - gap, h },
-      { x: w + gap, y: h + gap, w: size - w - gap, h: size - h - gap },
+      { x: 0, y: 0, w: tw, h },
+      { x: tw + gap, y: 0, w: w - tw - gap, h: th },
+      { x: tw + gap, y: th + gap, w: w - tw - gap, h: h - th - gap },
     ];
   } else {
-    const w = Math.floor((size - gap) / 2);
-    const h = Math.floor((size - gap) / 2);
+    const tw = Math.floor((w - gap) / 2);
+    const th = Math.floor((h - gap) / 2);
     tiles = [
-      { x: 0, y: 0, w, h },
-      { x: w + gap, y: 0, w: size - w - gap, h },
-      { x: 0, y: h + gap, w, h: size - h - gap },
-      { x: w + gap, y: h + gap, w: size - w - gap, h: size - h - gap },
+      { x: 0, y: 0, w: tw, h: th },
+      { x: tw + gap, y: 0, w: w - tw - gap, h: th },
+      { x: 0, y: th + gap, w: tw, h: h - th - gap },
+      { x: tw + gap, y: th + gap, w: w - tw - gap, h: h - th - gap },
     ];
   }
 
@@ -224,8 +226,8 @@ const buildCollectionImage = async (posters: string[]) => {
 
   return sharp({
     create: {
-      width: size,
-      height: size,
+      width: w,
+      height: h,
       channels: 3,
       background: { r: 24, g: 24, b: 27 },
     },
