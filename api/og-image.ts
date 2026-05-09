@@ -7,7 +7,7 @@ const HEIGHT = 630;
 const FOREGROUND = "#fafafa";
 const MUTED = "#a1a1aa";
 const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w342";
-const COLLAGE_SIZE = 600;
+const COLLAGE_SIZE = 400;
 
 type CollectionResponse = {
   collection?: {
@@ -51,8 +51,6 @@ const truncate = (value: string, max = 48) => {
   }
   return `${value.slice(0, max - 1).trimEnd()}...`;
 };
-
-const isNumericId = (value: string) => /^\d+$/.test(value);
 
 const fetchJson = async (url: string, init: RequestInit): Promise<unknown> => {
   const controller = new AbortController();
@@ -119,14 +117,16 @@ const fetchImageBytes = async (url: string) => {
 
 const getCollectionPosters = async (backendUrl: string, collectionId: string) => {
   const collection = await fetchCollection(backendUrl, collectionId);
-  const items = (collection.movies ?? [])
-    .filter((item) => isNumericId(String(item.movie_id)))
-    .slice(0, 6);
+  const items = (collection.movies ?? []).slice(0, 6);
 
   const posters = (await Promise.all(
     items.map(async (item) => {
       try {
-        const endpoint = item.is_movie === false ? `/tv/${item.movie_id}` : `/movie/${item.movie_id}`;
+        const idStr = String(item.movie_id);
+        const isTv = item.is_movie === false || idStr.includes("tv");
+        const numericId = idStr.replace(/\D/g, "");
+        if (!numericId) return null;
+        const endpoint = isTv ? `/tv/${numericId}` : `/movie/${numericId}`;
         const content = await fetchContent(backendUrl, endpoint);
         const poster = imageFromPath(content.poster_path);
         return poster || null;
