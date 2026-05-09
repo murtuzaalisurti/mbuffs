@@ -34,6 +34,10 @@
       "destination": "/api/og?type=collection&id=:collectionId"
     },
     {
+      "source": "/api/og-image/collection/:collectionId.jpg",
+      "destination": "/api/og-image?type=collection&id=:collectionId"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

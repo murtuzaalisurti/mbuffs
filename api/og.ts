@@ -15,6 +15,10 @@ type OgPayload = {
   title: string;
   description: string;
   image: string;
+  imageAlt?: string;
+  imageType?: string;
+  imageWidth?: number;
+  imageHeight?: number;
   ogType: string;
   canonicalPath: string;
 };
@@ -136,6 +140,10 @@ const buildOgHtml = (payload: OgPayload, absoluteUrl: string) => {
   const description = escapeHtml(payload.description);
   const image = escapeHtml(payload.image);
   const pageUrl = escapeHtml(`${absoluteUrl}${payload.canonicalPath}`);
+  const imageAlt = payload.imageAlt ? escapeHtml(payload.imageAlt) : "";
+  const imageType = payload.imageType ? escapeHtml(payload.imageType) : "";
+  const imageWidth = payload.imageWidth ? String(payload.imageWidth) : "";
+  const imageHeight = payload.imageHeight ? String(payload.imageHeight) : "";
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -147,6 +155,12 @@ const buildOgHtml = (payload: OgPayload, absoluteUrl: string) => {
   <meta property="og:title" content="${title}" />
   <meta property="og:description" content="${description}" />
   <meta property="og:image" content="${image}" />
+  <meta property="og:image:url" content="${image}" />
+  <meta property="og:image:secure_url" content="${image}" />
+  ${imageAlt ? `<meta property="og:image:alt" content="${imageAlt}" />` : ""}
+  ${imageType ? `<meta property="og:image:type" content="${imageType}" />` : ""}
+  ${imageWidth ? `<meta property="og:image:width" content="${imageWidth}" />` : ""}
+  ${imageHeight ? `<meta property="og:image:height" content="${imageHeight}" />` : ""}
   <meta property="og:url" content="${pageUrl}" />
   <meta property="og:type" content="${escapeHtml(payload.ogType)}" />
   <meta property="og:site_name" content="${APP_NAME}" />
@@ -154,6 +168,7 @@ const buildOgHtml = (payload: OgPayload, absoluteUrl: string) => {
   <meta name="twitter:title" content="${title}" />
   <meta name="twitter:description" content="${description}" />
   <meta name="twitter:image" content="${image}" />
+  ${imageAlt ? `<meta name="twitter:image:alt" content="${imageAlt}" />` : ""}
 </head>
 <body></body>
 </html>`;
@@ -204,7 +219,11 @@ const buildCollectionPayload = async (backendUrl: string, absoluteUrl: string, i
   return {
     title: withBrand(name),
     description: truncate(desc || `${itemCount} items`),
-    image: `${absoluteUrl}/api/og-image?type=collection&id=${encodeURIComponent(id)}`,
+    image: `${absoluteUrl}/api/og-image/collection/${encodeURIComponent(id)}.jpg`,
+    imageAlt: `${name} collection collage`,
+    imageType: "image/jpeg",
+    imageWidth: 1200,
+    imageHeight: 630,
     ogType: "website",
     canonicalPath: `/collection/${id}`,
   };

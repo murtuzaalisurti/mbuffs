@@ -1,19 +1,14 @@
-import { ImageResponse } from "@vercel/og";
-import { createElement } from "react";
+/// <reference types="node" />
 
-export const config = {
-  runtime: "edge",
-};
+import sharp from "sharp";
 
 const WIDTH = 1200;
 const HEIGHT = 630;
 const FOREGROUND = "#fafafa";
 const MUTED = "#a1a1aa";
 const APP_NAME = "mbuffs";
-const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w500";
-
-type Style = Record<string, string | number>;
-type RenderChild = ReturnType<typeof createElement> | string | number;
+const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w342";
+const PANEL = { left: 44, top: 44, width: 716, height: 542 };
 
 type CollectionResponse = {
   collection?: {
@@ -29,6 +24,15 @@ type ContentResponse = {
   poster_path?: string;
 };
 
+type PosterLayout = {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  angle: number;
+  radius: number;
+};
+
 const getEnvVar = (key: string): string | undefined => {
   const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env;
   return env?.[key];
@@ -40,6 +44,21 @@ const buildBackendUrl = () => {
     return "";
   }
   return rawUrl.endsWith("/") ? rawUrl.slice(0, -1) : rawUrl;
+};
+
+const escapeXml = (value: string) =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+const truncate = (value: string, max = 48) => {
+  if (value.length <= max) {
+    return value;
+  }
+  return `${value.slice(0, max - 1).trimEnd()}...`;
 };
 
 const isNumericId = (value: string) => /^\d+$/.test(value);
@@ -92,19 +111,19 @@ const imageFromPath = (path?: string) => {
   return `${TMDB_IMAGE_BASE}${path}`;
 };
 
-const truncate = (value: string, max = 48) => {
-  if (value.length <= max) {
-    return value;
+const fetchImageBytes = async (url: string) => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 4500);
+
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    if (!response.ok) {
+      throw new Error(`Image request failed with ${response.status}`);
+    }
+    return Buffer.from(await response.arrayBuffer());
+  } finally {
+    clearTimeout(timeoutId);
   }
-  return `${value.slice(0, max - 1).trimEnd()}...`;
-};
-
-const div = (style: Style, ...children: RenderChild[]) => {
-  return createElement("div", { style }, ...children);
-};
-
-const img = (src: string, width: number, height: number, style: Style) => {
-  return createElement("img", { src, width, height, style });
 };
 
 const getCollectionPosters = async (backendUrl: string, collectionId: string) => {
@@ -133,166 +152,204 @@ const getCollectionPosters = async (backendUrl: string, collectionId: string) =>
   };
 };
 
-const getPosterFrameStyle = (count: number) => {
+const getPosterLayouts = (count: number): PosterLayout[] => {
   if (count <= 1) {
-    return { width: 360, height: 540 };
+    return [{ left: 198, top: 28, width: 320, height: 480, angle: 0, radius: 28 }];
   }
 
   if (count === 2) {
-    return { width: 300, height: 450 };
+    return [
+      { left: 92, top: 82, width: 270, height: 405, angle: -5, radius: 28 },
+      { left: 374, top: 92, width: 270, height: 405, angle: 5, radius: 28 },
+    ];
   }
 
-  return { width: 240, height: 360 };
+  return [
+    { left: 8, top: 92, width: 220, height: 330, angle: -8, radius: 28 },
+    { left: 236, top: 78, width: 240, height: 360, angle: 0, radius: 28 },
+    { left: 484, top: 92, width: 220, height: 330, angle: 8, radius: 28 },
+  ];
 };
 
-const renderPosterStrip = (posters: string[]) => {
-  const count = Math.max(1, Math.min(posters.length, 3));
-  const frame = getPosterFrameStyle(count);
+const svgBytes = (svg: string) => Buffer.from(svg);
 
-  if (posters.length === 0) {
-    return div(
-      {
-        display: "flex",
-        width: 360,
-        height: 540,
-        borderRadius: 32,
-        background: "linear-gradient(180deg, #18181b 0%, #09090b 100%)",
-        border: "1px solid rgba(255,255,255,0.08)",
-        alignItems: "center",
-        justifyContent: "center",
-        color: MUTED,
-        fontSize: 42,
-        fontWeight: 600,
-      },
-      APP_NAME
-    );
-  }
+const buildBackdropSvg = (name: string, itemCount: number) => {
+  const fontSize = name.length > 22 ? 50 : 60;
+  const safeName = escapeXml(truncate(name, 40));
+  const safeCount = escapeXml(`${itemCount} item${itemCount === 1 ? "" : "s"}`);
 
-  return div(
-    {
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: count === 3 ? 18 : 28,
+  return `
+    <svg width="${WIDTH}" height="${HEIGHT}" viewBox="0 0 ${WIDTH} ${HEIGHT}" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <radialGradient id="bg" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(120 40) rotate(35) scale(980 760)">
+          <stop offset="0" stop-color="#27272a" />
+          <stop offset="1" stop-color="#09090b" />
+        </radialGradient>
+        <linearGradient id="panel" x1="44" y1="44" x2="760" y2="586" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stop-color="#ffffff" stop-opacity="0.06" />
+          <stop offset="1" stop-color="#ffffff" stop-opacity="0.02" />
+        </linearGradient>
+      </defs>
+      <rect width="${WIDTH}" height="${HEIGHT}" fill="url(#bg)" />
+      <rect x="${PANEL.left}" y="${PANEL.top}" width="${PANEL.width}" height="${PANEL.height}" rx="36" fill="url(#panel)" stroke="#ffffff" stroke-opacity="0.06" />
+      <text x="800" y="224" fill="${MUTED}" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="500">Collection</text>
+      <text x="800" y="326" fill="${FOREGROUND}" font-family="Arial, Helvetica, sans-serif" font-size="${fontSize}" font-weight="700">${safeName}</text>
+      <text x="800" y="390" fill="#d4d4d8" font-family="Arial, Helvetica, sans-serif" font-size="32">${safeCount}</text>
+      <text x="800" y="458" fill="${MUTED}" font-family="Arial, Helvetica, sans-serif" font-size="24">${APP_NAME}</text>
+    </svg>
+  `;
+};
+
+const roundedMask = (width: number, height: number, radius: number) => svgBytes(`
+  <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
+    <rect width="${width}" height="${height}" rx="${radius}" ry="${radius}" fill="#fff" />
+  </svg>
+`);
+
+const posterShadow = (width: number, height: number, radius: number) => svgBytes(`
+  <svg width="${width + 32}" height="${height + 32}" xmlns="http://www.w3.org/2000/svg">
+    <rect x="16" y="20" width="${width}" height="${height}" rx="${radius}" ry="${radius}" fill="#000000" fill-opacity="0.28" />
+    <rect x="16" y="12" width="${width}" height="${height}" rx="${radius}" ry="${radius}" fill="#000000" fill-opacity="0.14" />
+  </svg>
+`);
+
+const buildPosterComposite = async (posterUrl: string, layout: PosterLayout) => {
+  const source = await fetchImageBytes(posterUrl);
+  const maskedPoster = await sharp(source)
+    .resize(layout.width, layout.height, { fit: "cover" })
+    .composite([{ input: roundedMask(layout.width, layout.height, layout.radius), blend: "dest-in" }])
+    .png()
+    .toBuffer();
+
+  const posterWithBorder = await sharp({
+    create: {
+      width: layout.width + 2,
+      height: layout.height + 2,
+      channels: 4,
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
     },
-    ...posters.map((poster, index) => {
-      const rotation = count === 3 ? ["-8deg", "0deg", "8deg"][index] : count === 2 ? ["-5deg", "5deg"][index] : "0deg";
+  })
+    .composite([
+      {
+        input: svgBytes(`
+          <svg width="${layout.width + 2}" height="${layout.height + 2}" xmlns="http://www.w3.org/2000/svg">
+            <rect x="1" y="1" width="${layout.width}" height="${layout.height}" rx="${layout.radius}" ry="${layout.radius}" fill="none" stroke="#ffffff" stroke-opacity="0.08" />
+          </svg>
+        `),
+      },
+      { input: maskedPoster, left: 1, top: 1 },
+    ])
+    .png()
+    .toBuffer();
 
-      return createElement(
-        "div",
-        {
-          key: `${poster}-${index}`,
-          style: {
-            display: "flex",
-            width: frame.width,
-            height: frame.height,
-            overflow: "hidden",
-            borderRadius: 28,
-            border: "1px solid rgba(255,255,255,0.08)",
-            boxShadow: "0 24px 80px rgba(0,0,0,0.45)",
-            transform: `rotate(${rotation})`,
-            background: "#111827",
-          },
-        },
-        img(poster, frame.width, frame.height, { objectFit: "cover" })
-      );
-    })
-  );
+  const canvasWidth = layout.width + 80;
+  const canvasHeight = layout.height + 96;
+
+  return sharp({
+    create: {
+      width: canvasWidth,
+      height: canvasHeight,
+      channels: 4,
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+    },
+  })
+    .composite([
+      { input: posterShadow(layout.width, layout.height, layout.radius), left: 0, top: 0 },
+      { input: posterWithBorder, left: 15, top: 7 },
+    ])
+    .rotate(layout.angle, { background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .png()
+    .toBuffer();
 };
 
-const buildFallbackImage = (title: string) => {
-  return new ImageResponse(
-    div(
-      {
-        display: "flex",
-        width: "100%",
-        height: "100%",
-        background: "linear-gradient(135deg, #18181b 0%, #09090b 100%)",
-        color: FOREGROUND,
-        alignItems: "center",
-        justifyContent: "center",
-        flexDirection: "column",
-        padding: 48,
-      },
-      div({ fontSize: 28, color: MUTED, marginBottom: 20 }, "Collection"),
-      div({ fontSize: 72, fontWeight: 700, textAlign: "center" }, truncate(title, 28))
-    ),
-    {
+const buildFallbackImage = async (title: string) => {
+  return sharp({
+    create: {
       width: WIDTH,
       height: HEIGHT,
-    }
-  );
+      channels: 3,
+      background: "#09090b",
+    },
+  })
+    .composite([
+      {
+        input: svgBytes(`
+          <svg width="${WIDTH}" height="${HEIGHT}" viewBox="0 0 ${WIDTH} ${HEIGHT}" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stop-color="#18181b" />
+                <stop offset="1" stop-color="#09090b" />
+              </linearGradient>
+            </defs>
+            <rect width="${WIDTH}" height="${HEIGHT}" fill="url(#bg)" />
+            <text x="600" y="250" text-anchor="middle" fill="${MUTED}" font-family="Arial, Helvetica, sans-serif" font-size="28">Collection</text>
+            <text x="600" y="340" text-anchor="middle" fill="${FOREGROUND}" font-family="Arial, Helvetica, sans-serif" font-size="72" font-weight="700">${escapeXml(truncate(title, 24))}</text>
+          </svg>
+        `),
+      },
+    ])
+    .jpeg({ quality: 82, mozjpeg: true })
+    .toBuffer();
 };
 
-export default async function handler(request: Request) {
-  const url = new URL(request.url);
-  const type = url.searchParams.get("type");
-  const id = url.searchParams.get("id")?.trim() ?? "";
-  const backendUrl = buildBackendUrl();
+const buildCollectionImage = async (name: string, itemCount: number, posters: string[]) => {
+  const layouts = getPosterLayouts(posters.length || 1);
+  const composites: sharp.OverlayOptions[] = [
+    { input: svgBytes(buildBackdropSvg(name, itemCount)), left: 0, top: 0 },
+  ];
 
-  if (type !== "collection" || !id || id.length > 60 || !backendUrl) {
-    return buildFallbackImage("Collection");
+  for (const [index, posterUrl] of posters.entries()) {
+    const layout = layouts[index];
+    if (!layout) {
+      break;
+    }
+
+    const poster = await buildPosterComposite(posterUrl, layout);
+    const metadata = await sharp(poster).metadata();
+    composites.push({
+      input: poster,
+      left: PANEL.left + layout.left - Math.round(((metadata.width ?? layout.width) - layout.width) / 2),
+      top: PANEL.top + layout.top - Math.round(((metadata.height ?? layout.height) - layout.height) / 2),
+    });
   }
 
-  try {
-    const { name, itemCount, posters } = await getCollectionPosters(backendUrl, id);
+  return sharp({
+    create: {
+      width: WIDTH,
+      height: HEIGHT,
+      channels: 3,
+      background: "#09090b",
+    },
+  })
+    .composite(composites)
+    .jpeg({ quality: 82, mozjpeg: true })
+    .toBuffer();
+};
 
-    return new ImageResponse(
-      div(
-        {
-          display: "flex",
-          width: "100%",
-          height: "100%",
-          background: "radial-gradient(circle at top left, #27272a 0%, #09090b 58%)",
-          color: FOREGROUND,
-          padding: 44,
-          gap: 36,
-          fontFamily: "sans-serif",
-        },
-        div(
-          {
-            display: "flex",
-            flex: 1,
-            alignItems: "center",
-            justifyContent: "center",
-            borderRadius: 36,
-            background: "linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%)",
-            border: "1px solid rgba(255,255,255,0.06)",
-            padding: 28,
-          },
-          renderPosterStrip(posters)
-        ),
-        div(
-          {
-            display: "flex",
-            width: 360,
-            flexDirection: "column",
-            justifyContent: "center",
-          },
-          div({ display: "flex", fontSize: 26, fontWeight: 500, color: MUTED, marginBottom: 18 }, "Collection"),
-          div(
-            {
-              display: "flex",
-              fontSize: name.length > 22 ? 50 : 60,
-              lineHeight: 1.05,
-              fontWeight: 700,
-              marginBottom: 20,
-            },
-            truncate(name, 48)
-          ),
-          div({ display: "flex", fontSize: 32, color: "#d4d4d8", marginBottom: 28 }, `${itemCount} item${itemCount === 1 ? "" : "s"}`),
-          div({ display: "flex", fontSize: 24, color: MUTED }, APP_NAME)
-        )
-      ),
-      {
-        width: WIDTH,
-        height: HEIGHT,
-        headers: {
-          "Cache-Control": "public, max-age=60, s-maxage=300, stale-while-revalidate=600",
-        },
-      }
-    );
+export default async function handler(req: any, res: any) {
+  const type = String(req.query?.type ?? "").trim();
+  const id = String(req.query?.id ?? "").trim();
+  const backendUrl = buildBackendUrl();
+
+  try {
+    let image: Uint8Array;
+
+    if (type === "collection" && id && id.length <= 60 && backendUrl) {
+      const { name, itemCount, posters } = await getCollectionPosters(backendUrl, id);
+      image = await buildCollectionImage(name, itemCount, posters);
+    } else {
+      image = await buildFallbackImage("Collection");
+    }
+
+    res.setHeader("Content-Type", "image/jpeg");
+    res.setHeader("Content-Length", String(image.byteLength));
+    res.setHeader("Cache-Control", "public, max-age=60, s-maxage=300, stale-while-revalidate=600");
+    return res.status(200).send(image);
   } catch {
-    return buildFallbackImage("Collection");
+    const image = await buildFallbackImage("Collection");
+    res.setHeader("Content-Type", "image/jpeg");
+    res.setHeader("Content-Length", String(image.byteLength));
+    res.setHeader("Cache-Control", "public, max-age=60, s-maxage=300, stale-while-revalidate=600");
+    return res.status(200).send(image);
   }
 }
