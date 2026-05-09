@@ -6,10 +6,42 @@ import { DropdownMenu as DropdownMenuPrimitive } from "radix-ui"
 
 import { cn } from "@/lib/utils"
 
+const TouchToggleCtx = React.createContext<(() => void) | null>(null)
+
 function DropdownMenu({
+  open: controlledOpen,
+  onOpenChange: controlledOnOpenChange,
+  defaultOpen,
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Root>) {
-  return <DropdownMenuPrimitive.Root data-slot="dropdown-menu" {...props} />
+  const [uncontrolledOpen, setUncontrolledOpen] = React.useState(
+    defaultOpen ?? false
+  )
+  const isControlled = controlledOpen !== undefined
+  const open = isControlled ? controlledOpen : uncontrolledOpen
+
+  const handleOpenChange = React.useCallback(
+    (newOpen: boolean) => {
+      if (!isControlled) setUncontrolledOpen(newOpen)
+      controlledOnOpenChange?.(newOpen)
+    },
+    [isControlled, controlledOnOpenChange]
+  )
+
+  const toggle = React.useCallback(() => {
+    handleOpenChange(!open)
+  }, [handleOpenChange, open])
+
+  return (
+    <TouchToggleCtx.Provider value={toggle}>
+      <DropdownMenuPrimitive.Root
+        data-slot="dropdown-menu"
+        open={open}
+        onOpenChange={handleOpenChange}
+        {...props}
+      />
+    </TouchToggleCtx.Provider>
+  )
 }
 
 function DropdownMenuPortal({
@@ -23,10 +55,26 @@ function DropdownMenuPortal({
 function DropdownMenuTrigger({
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Trigger>) {
+  const toggle = React.useContext(TouchToggleCtx)
+  const lastPointerTypeRef = React.useRef("")
+
   return (
     <DropdownMenuPrimitive.Trigger
       data-slot="dropdown-menu-trigger"
       {...props}
+      onPointerDown={(e) => {
+        lastPointerTypeRef.current = e.pointerType
+        if (e.pointerType === "touch") {
+          e.preventDefault()
+        }
+        props.onPointerDown?.(e)
+      }}
+      onClick={(e) => {
+        if (lastPointerTypeRef.current === "touch") {
+          toggle?.()
+        }
+        props.onClick?.(e)
+      }}
     />
   )
 }
