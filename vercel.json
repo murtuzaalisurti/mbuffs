@@ -1,8 +1,41 @@
 {
-    "rewrites": [
+  "rewrites": [
+    {
+      "source": "/media/:mediaType/:mediaId",
+      "has": [
         {
-            "source": "/(.*)",
-            "destination": "/index.html"
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*([Ff]acebookexternalhit|[Ff]acebot|[Ff]acebook[Bb]ot|[Ff]acebookcatalog|[Ii]nstagram|[Ii]nstagram[Bb]ot|[Mm]eta[Ii]nspector|[Ww]hats[Aa]pp|[Tt]witter[Bb]ot|[Ll]inked[Ii]n[Bb]ot|[Dd]iscord[Bb]ot|[Tt]elegram[Bb]ot|[Ss]lack[Bb]ot|[Aa]pple[Bb]ot|[Gg]oogle[Bb]ot|[Bb]ing[Bb]ot).*"
         }
-    ]
+      ],
+      "destination": "/api/og?type=media&mediaType=:mediaType&id=:mediaId"
+    },
+    {
+      "source": "/person/:personId",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*([Ff]acebookexternalhit|[Ff]acebot|[Ff]acebook[Bb]ot|[Ff]acebookcatalog|[Ii]nstagram|[Ii]nstagram[Bb]ot|[Mm]eta[Ii]nspector|[Ww]hats[Aa]pp|[Tt]witter[Bb]ot|[Ll]inked[Ii]n[Bb]ot|[Dd]iscord[Bb]ot|[Tt]elegram[Bb]ot|[Ss]lack[Bb]ot|[Aa]pple[Bb]ot|[Gg]oogle[Bb]ot|[Bb]ing[Bb]ot).*"
+        }
+      ],
+      "destination": "/api/og?type=person&id=:personId"
+    },
+    {
+      "source": "/collection/:collectionId",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*([Ff]acebookexternalhit|[Ff]acebot|[Ff]acebook[Bb]ot|[Ff]acebookcatalog|[Ii]nstagram|[Ii]nstagram[Bb]ot|[Mm]eta[Ii]nspector|[Ww]hats[Aa]pp|[Tt]witter[Bb]ot|[Ll]inked[Ii]n[Bb]ot|[Dd]iscord[Bb]ot|[Tt]elegram[Bb]ot|[Ss]lack[Bb]ot|[Aa]pple[Bb]ot|[Gg]oogle[Bb]ot|[Bb]ing[Bb]ot).*"
+        }
+      ],
+      "destination": "/api/og?type=collection&id=:collectionId"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
 }
