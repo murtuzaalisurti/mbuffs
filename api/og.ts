@@ -4,6 +4,11 @@ const DEFAULT_DESCRIPTION = "mbuffs - collaborative movie lists";
 const DEFAULT_IMAGE = "https://mbuffs.murtuzaalisurti.com/apple-touch-icon.png";
 const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w780";
 
+const getEnvVar = (key: string): string | undefined => {
+  const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env;
+  return env?.[key];
+};
+
 type OgType = "media" | "person" | "collection";
 
 type OgPayload = {
@@ -36,7 +41,7 @@ type CollectionResponse = {
 };
 
 const buildBackendUrl = () => {
-  const rawUrl = process.env.VITE_BACKEND_URL;
+  const rawUrl = getEnvVar("VITE_BACKEND_URL");
   if (!rawUrl) {
     return "";
   }
