@@ -195,29 +195,16 @@ const buildPersonPayload = async (backendUrl: string, id: string): Promise<OgPay
   };
 };
 
-const buildCollectionPayload = async (backendUrl: string, id: string): Promise<OgPayload> => {
+const buildCollectionPayload = async (backendUrl: string, absoluteUrl: string, id: string): Promise<OgPayload> => {
   const collection = await fetchCollection(backendUrl, id);
   const name = collection.collection?.name ?? "Collection";
   const desc = collection.collection?.description?.trim();
   const itemCount = collection.movies?.length ?? 0;
 
-  let image = DEFAULT_IMAGE;
-
-  const firstMedia = collection.movies?.find((m) => m.is_movie !== false) ?? collection.movies?.[0];
-  if (firstMedia && isNumericId(String(firstMedia.movie_id))) {
-    try {
-      const endpoint = firstMedia.is_movie === false ? `/tv/${firstMedia.movie_id}` : `/movie/${firstMedia.movie_id}`;
-      const content = await fetchContent(backendUrl, endpoint);
-      image = imageFromPath(content.poster_path);
-    } catch {
-      image = DEFAULT_IMAGE;
-    }
-  }
-
   return {
     title: withBrand(name),
     description: truncate(desc || `${itemCount} items`),
-    image,
+    image: `${absoluteUrl}/api/og-image?type=collection&id=${encodeURIComponent(id)}`,
     ogType: "website",
     canonicalPath: `/collection/${id}`,
   };
@@ -228,6 +215,7 @@ const resolvePayload = async (req: any): Promise<OgPayload> => {
   const id = String(req.query?.id ?? "").trim();
   const backendUrl = buildBackendUrl();
   const pathName = req.url ? String(req.url).split("?")[0] : "/";
+  const absoluteUrl = getRequestHost(req);
 
   if (!backendUrl) {
     return buildGenericPayload(pathName);
@@ -247,7 +235,7 @@ const resolvePayload = async (req: any): Promise<OgPayload> => {
   }
 
   if (type === "collection") {
-    return buildCollectionPayload(backendUrl, id);
+    return buildCollectionPayload(backendUrl, absoluteUrl, id);
   }
 
   return buildGenericPayload(pathName);
