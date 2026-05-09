@@ -1,4 +1,5 @@
 import { ImageResponse } from "@vercel/og";
+import { createElement } from "react";
 
 export const config = {
   runtime: "edge",
@@ -10,6 +11,9 @@ const FOREGROUND = "#fafafa";
 const MUTED = "#a1a1aa";
 const APP_NAME = "mbuffs";
 const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w500";
+
+type Style = Record<string, string | number>;
+type RenderChild = ReturnType<typeof createElement> | string | number;
 
 type CollectionResponse = {
   collection?: {
@@ -26,7 +30,8 @@ type ContentResponse = {
 };
 
 const getEnvVar = (key: string): string | undefined => {
-  return process.env?.[key];
+  const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env;
+  return env?.[key];
 };
 
 const buildBackendUrl = () => {
@@ -94,6 +99,14 @@ const truncate = (value: string, max = 48) => {
   return `${value.slice(0, max - 1).trimEnd()}...`;
 };
 
+const div = (style: Style, ...children: RenderChild[]) => {
+  return createElement("div", { style }, ...children);
+};
+
+const img = (src: string, width: number, height: number, style: Style) => {
+  return createElement("img", { src, width, height, style });
+};
+
 const getCollectionPosters = async (backendUrl: string, collectionId: string) => {
   const collection = await fetchCollection(backendUrl, collectionId);
   const items = (collection.movies ?? [])
@@ -137,87 +150,72 @@ const renderPosterStrip = (posters: string[]) => {
   const frame = getPosterFrameStyle(count);
 
   if (posters.length === 0) {
-    return (
-      <div
-        style={{
-          display: "flex",
-          width: 360,
-          height: 540,
-          borderRadius: 32,
-          background: "linear-gradient(180deg, #18181b 0%, #09090b 100%)",
-          border: "1px solid rgba(255,255,255,0.08)",
-          alignItems: "center",
-          justifyContent: "center",
-          color: MUTED,
-          fontSize: 42,
-          fontWeight: 600,
-        }}
-      >
-        {APP_NAME}
-      </div>
+    return div(
+      {
+        display: "flex",
+        width: 360,
+        height: 540,
+        borderRadius: 32,
+        background: "linear-gradient(180deg, #18181b 0%, #09090b 100%)",
+        border: "1px solid rgba(255,255,255,0.08)",
+        alignItems: "center",
+        justifyContent: "center",
+        color: MUTED,
+        fontSize: 42,
+        fontWeight: 600,
+      },
+      APP_NAME
     );
   }
 
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: count === 3 ? 18 : 28,
-      }}
-    >
-      {posters.map((poster, index) => {
-        const rotation =
-          count === 3 ? ["-8deg", "0deg", "8deg"][index] : count === 2 ? ["-5deg", "5deg"][index] : "0deg";
+  return div(
+    {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: count === 3 ? 18 : 28,
+    },
+    ...posters.map((poster, index) => {
+      const rotation = count === 3 ? ["-8deg", "0deg", "8deg"][index] : count === 2 ? ["-5deg", "5deg"][index] : "0deg";
 
-        return (
-          <div
-            key={`${poster}-${index}`}
-            style={{
-              display: "flex",
-              width: frame.width,
-              height: frame.height,
-              overflow: "hidden",
-              borderRadius: 28,
-              border: "1px solid rgba(255,255,255,0.08)",
-              boxShadow: "0 24px 80px rgba(0,0,0,0.45)",
-              transform: `rotate(${rotation})`,
-              background: "#111827",
-            }}
-          >
-            <img
-              src={poster}
-              width={frame.width}
-              height={frame.height}
-              style={{ objectFit: "cover" }}
-            />
-          </div>
-        );
-      })}
-    </div>
+      return createElement(
+        "div",
+        {
+          key: `${poster}-${index}`,
+          style: {
+            display: "flex",
+            width: frame.width,
+            height: frame.height,
+            overflow: "hidden",
+            borderRadius: 28,
+            border: "1px solid rgba(255,255,255,0.08)",
+            boxShadow: "0 24px 80px rgba(0,0,0,0.45)",
+            transform: `rotate(${rotation})`,
+            background: "#111827",
+          },
+        },
+        img(poster, frame.width, frame.height, { objectFit: "cover" })
+      );
+    })
   );
 };
 
 const buildFallbackImage = (title: string) => {
   return new ImageResponse(
-    (
-      <div
-        style={{
-          display: "flex",
-          width: "100%",
-          height: "100%",
-          background: "linear-gradient(135deg, #18181b 0%, #09090b 100%)",
-          color: FOREGROUND,
-          alignItems: "center",
-          justifyContent: "center",
-          flexDirection: "column",
-          padding: 48,
-        }}
-      >
-        <div style={{ fontSize: 28, color: MUTED, marginBottom: 20 }}>Collection</div>
-        <div style={{ fontSize: 72, fontWeight: 700, textAlign: "center" }}>{truncate(title, 28)}</div>
-      </div>
+    div(
+      {
+        display: "flex",
+        width: "100%",
+        height: "100%",
+        background: "linear-gradient(135deg, #18181b 0%, #09090b 100%)",
+        color: FOREGROUND,
+        alignItems: "center",
+        justifyContent: "center",
+        flexDirection: "column",
+        padding: 48,
+      },
+      div({ fontSize: 28, color: MUTED, marginBottom: 20 }, "Collection"),
+      div({ fontSize: 72, fontWeight: 700, textAlign: "center" }, truncate(title, 28))
     ),
     {
       width: WIDTH,
@@ -240,62 +238,51 @@ export default async function handler(request: Request) {
     const { name, itemCount, posters } = await getCollectionPosters(backendUrl, id);
 
     return new ImageResponse(
-      (
-        <div
-          style={{
+      div(
+        {
+          display: "flex",
+          width: "100%",
+          height: "100%",
+          background: "radial-gradient(circle at top left, #27272a 0%, #09090b 58%)",
+          color: FOREGROUND,
+          padding: 44,
+          gap: 36,
+          fontFamily: "sans-serif",
+        },
+        div(
+          {
             display: "flex",
-            width: "100%",
-            height: "100%",
-            background: "radial-gradient(circle at top left, #27272a 0%, #09090b 58%)",
-            color: FOREGROUND,
-            padding: 44,
-            gap: 36,
-            fontFamily: "sans-serif",
-          }}
-        >
-          <div
-            style={{
+            flex: 1,
+            alignItems: "center",
+            justifyContent: "center",
+            borderRadius: 36,
+            background: "linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%)",
+            border: "1px solid rgba(255,255,255,0.06)",
+            padding: 28,
+          },
+          renderPosterStrip(posters)
+        ),
+        div(
+          {
+            display: "flex",
+            width: 360,
+            flexDirection: "column",
+            justifyContent: "center",
+          },
+          div({ display: "flex", fontSize: 26, fontWeight: 500, color: MUTED, marginBottom: 18 }, "Collection"),
+          div(
+            {
               display: "flex",
-              flex: 1,
-              alignItems: "center",
-              justifyContent: "center",
-              borderRadius: 36,
-              background: "linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%)",
-              border: "1px solid rgba(255,255,255,0.06)",
-              padding: 28,
-            }}
-          >
-            {renderPosterStrip(posters)}
-          </div>
-
-          <div
-            style={{
-              display: "flex",
-              width: 360,
-              flexDirection: "column",
-              justifyContent: "center",
-            }}
-          >
-            <div style={{ display: "flex", fontSize: 26, fontWeight: 500, color: MUTED, marginBottom: 18 }}>
-              Collection
-            </div>
-            <div
-              style={{
-                display: "flex",
-                fontSize: name.length > 22 ? 50 : 60,
-                lineHeight: 1.05,
-                fontWeight: 700,
-                marginBottom: 20,
-              }}
-            >
-              {truncate(name, 48)}
-            </div>
-            <div style={{ display: "flex", fontSize: 32, color: "#d4d4d8", marginBottom: 28 }}>
-              {itemCount} item{itemCount === 1 ? "" : "s"}
-            </div>
-            <div style={{ display: "flex", fontSize: 24, color: MUTED }}>{APP_NAME}</div>
-          </div>
-        </div>
+              fontSize: name.length > 22 ? 50 : 60,
+              lineHeight: 1.05,
+              fontWeight: 700,
+              marginBottom: 20,
+            },
+            truncate(name, 48)
+          ),
+          div({ display: "flex", fontSize: 32, color: "#d4d4d8", marginBottom: 28 }, `${itemCount} item${itemCount === 1 ? "" : "s"}`),
+          div({ display: "flex", fontSize: 24, color: MUTED }, APP_NAME)
+        )
       ),
       {
         width: WIDTH,
