@@ -1,8 +1,41 @@
 {
-    "rewrites": [
+  "rewrites": [
+    {
+      "source": "/media/:mediaType/:mediaId",
+      "has": [
         {
-            "source": "/(.*)",
-            "destination": "/index.html"
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*(facebookexternalhit|FacebookBot|Twitterbot|LinkedInBot|Discordbot|WhatsApp|TelegramBot|Slackbot|Applebot|Googlebot|bingbot).*"
         }
-    ]
+      ],
+      "destination": "/api/og?type=media&mediaType=:mediaType&id=:mediaId"
+    },
+    {
+      "source": "/person/:personId",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*(facebookexternalhit|FacebookBot|Twitterbot|LinkedInBot|Discordbot|WhatsApp|TelegramBot|Slackbot|Applebot|Googlebot|bingbot).*"
+        }
+      ],
+      "destination": "/api/og?type=person&id=:personId"
+    },
+    {
+      "source": "/collection/:collectionId",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*(facebookexternalhit|FacebookBot|Twitterbot|LinkedInBot|Discordbot|WhatsApp|TelegramBot|Slackbot|Applebot|Googlebot|bingbot).*"
+        }
+      ],
+      "destination": "/api/og?type=collection&id=:collectionId"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
 }
