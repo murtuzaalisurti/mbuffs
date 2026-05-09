@@ -24,14 +24,6 @@ type ContentResponse = {
   poster_path?: string;
 };
 
-type PosterLayout = {
-  left: number;
-  top: number;
-  width: number;
-  height: number;
-  angle: number;
-  radius: number;
-};
 
 const getEnvVar = (key: string): string | undefined => {
   const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env;
@@ -148,28 +140,10 @@ const getCollectionPosters = async (backendUrl: string, collectionId: string) =>
   return {
     name: collection.collection?.name?.trim() || "Collection",
     itemCount: collection.movies?.length ?? 0,
-    posters: posters.slice(0, 3),
+    posters: posters.slice(0, 4),
   };
 };
 
-const getPosterLayouts = (count: number): PosterLayout[] => {
-  if (count <= 1) {
-    return [{ left: 198, top: 28, width: 320, height: 480, angle: 0, radius: 28 }];
-  }
-
-  if (count === 2) {
-    return [
-      { left: 92, top: 82, width: 270, height: 405, angle: -5, radius: 28 },
-      { left: 374, top: 92, width: 270, height: 405, angle: 5, radius: 28 },
-    ];
-  }
-
-  return [
-    { left: 8, top: 92, width: 220, height: 330, angle: -8, radius: 28 },
-    { left: 236, top: 78, width: 240, height: 360, angle: 0, radius: 28 },
-    { left: 484, top: 92, width: 220, height: 330, angle: 8, radius: 28 },
-  ];
-};
 
 const svgBytes = (svg: string) => Buffer.from(svg);
 
@@ -206,61 +180,6 @@ const roundedMask = (width: number, height: number, radius: number) => svgBytes(
   </svg>
 `);
 
-const posterShadow = (width: number, height: number, radius: number) => svgBytes(`
-  <svg width="${width + 32}" height="${height + 32}" xmlns="http://www.w3.org/2000/svg">
-    <rect x="16" y="20" width="${width}" height="${height}" rx="${radius}" ry="${radius}" fill="#000000" fill-opacity="0.28" />
-    <rect x="16" y="12" width="${width}" height="${height}" rx="${radius}" ry="${radius}" fill="#000000" fill-opacity="0.14" />
-  </svg>
-`);
-
-const buildPosterComposite = async (posterUrl: string, layout: PosterLayout) => {
-  const source = await fetchImageBytes(posterUrl);
-  const maskedPoster = await sharp(source)
-    .resize(layout.width, layout.height, { fit: "cover" })
-    .composite([{ input: roundedMask(layout.width, layout.height, layout.radius), blend: "dest-in" }])
-    .png()
-    .toBuffer();
-
-  const posterWithBorder = await sharp({
-    create: {
-      width: layout.width + 2,
-      height: layout.height + 2,
-      channels: 4,
-      background: { r: 0, g: 0, b: 0, alpha: 0 },
-    },
-  })
-    .composite([
-      {
-        input: svgBytes(`
-          <svg width="${layout.width + 2}" height="${layout.height + 2}" xmlns="http://www.w3.org/2000/svg">
-            <rect x="1" y="1" width="${layout.width}" height="${layout.height}" rx="${layout.radius}" ry="${layout.radius}" fill="none" stroke="#ffffff" stroke-opacity="0.08" />
-          </svg>
-        `),
-      },
-      { input: maskedPoster, left: 1, top: 1 },
-    ])
-    .png()
-    .toBuffer();
-
-  const canvasWidth = layout.width + 80;
-  const canvasHeight = layout.height + 96;
-
-  return sharp({
-    create: {
-      width: canvasWidth,
-      height: canvasHeight,
-      channels: 4,
-      background: { r: 0, g: 0, b: 0, alpha: 0 },
-    },
-  })
-    .composite([
-      { input: posterShadow(layout.width, layout.height, layout.radius), left: 0, top: 0 },
-      { input: posterWithBorder, left: 15, top: 7 },
-    ])
-    .rotate(layout.angle, { background: { r: 0, g: 0, b: 0, alpha: 0 } })
-    .png()
-    .toBuffer();
-};
 
 const buildFallbackImage = async (title: string) => {
   return sharp({
@@ -293,25 +212,68 @@ const buildFallbackImage = async (title: string) => {
 };
 
 const buildCollectionImage = async (name: string, itemCount: number, posters: string[]) => {
-  const layouts = getPosterLayouts(posters.length || 1);
-  const composites: sharp.OverlayOptions[] = [
-    { input: svgBytes(buildBackdropSvg(name, itemCount)), left: 0, top: 0 },
-  ];
+  const gap = 4;
+  const radius = 24;
+  const count = posters.length;
 
-  for (const [index, posterUrl] of posters.entries()) {
-    const layout = layouts[index];
-    if (!layout) {
-      break;
-    }
+  type TileSpec = { x: number; y: number; w: number; h: number };
+  let tiles: TileSpec[];
 
-    const poster = await buildPosterComposite(posterUrl, layout);
-    const metadata = await sharp(poster).metadata();
-    composites.push({
-      input: poster,
-      left: PANEL.left + layout.left - Math.round(((metadata.width ?? layout.width) - layout.width) / 2),
-      top: PANEL.top + layout.top - Math.round(((metadata.height ?? layout.height) - layout.height) / 2),
-    });
+  if (count <= 1) {
+    tiles = [{ x: 0, y: 0, w: PANEL.width, h: PANEL.height }];
+  } else if (count === 2) {
+    const w = Math.floor((PANEL.width - gap) / 2);
+    tiles = [
+      { x: 0, y: 0, w, h: PANEL.height },
+      { x: w + gap, y: 0, w: PANEL.width - w - gap, h: PANEL.height },
+    ];
+  } else if (count === 3) {
+    const w = Math.floor((PANEL.width - gap) / 2);
+    const h = Math.floor((PANEL.height - gap) / 2);
+    tiles = [
+      { x: 0, y: 0, w, h: PANEL.height },
+      { x: w + gap, y: 0, w: PANEL.width - w - gap, h },
+      { x: w + gap, y: h + gap, w: PANEL.width - w - gap, h: PANEL.height - h - gap },
+    ];
+  } else {
+    const w = Math.floor((PANEL.width - gap) / 2);
+    const h = Math.floor((PANEL.height - gap) / 2);
+    tiles = [
+      { x: 0, y: 0, w, h },
+      { x: w + gap, y: 0, w: PANEL.width - w - gap, h },
+      { x: 0, y: h + gap, w, h: PANEL.height - h - gap },
+      { x: w + gap, y: h + gap, w: PANEL.width - w - gap, h: PANEL.height - h - gap },
+    ];
   }
+
+  const tileComposites: sharp.OverlayOptions[] = [];
+  for (const [i, posterUrl] of posters.entries()) {
+    const tile = tiles[i];
+    if (!tile) break;
+    const source = await fetchImageBytes(posterUrl);
+    const resized = await sharp(source)
+      .resize(tile.w, tile.h, { fit: "cover" })
+      .png()
+      .toBuffer();
+    tileComposites.push({ input: resized, left: tile.x, top: tile.y });
+  }
+
+  let collage = await sharp({
+    create: {
+      width: PANEL.width,
+      height: PANEL.height,
+      channels: 4,
+      background: { r: 24, g: 24, b: 27, alpha: 255 },
+    },
+  })
+    .composite(tileComposites)
+    .png()
+    .toBuffer();
+
+  collage = await sharp(collage)
+    .composite([{ input: roundedMask(PANEL.width, PANEL.height, radius), blend: "dest-in" }])
+    .png()
+    .toBuffer();
 
   return sharp({
     create: {
@@ -321,7 +283,10 @@ const buildCollectionImage = async (name: string, itemCount: number, posters: st
       background: "#09090b",
     },
   })
-    .composite(composites)
+    .composite([
+      { input: svgBytes(buildBackdropSvg(name, itemCount)), left: 0, top: 0 },
+      { input: collage, left: PANEL.left, top: PANEL.top },
+    ])
     .jpeg({ quality: 82, mozjpeg: true })
     .toBuffer();
 };
