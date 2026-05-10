@@ -288,8 +288,9 @@ export const scrapeMetadata = pgTable("scrape_metadata", {
 // ============================================================================
 export const redditRecommendations = pgTable("reddit_recommendations", {
 	id: text().primaryKey().notNull(),
-	title: text().notNull(), // Movie/TV title as mentioned on Reddit
+	title: text().notNull(), // TMDB canonical title
 	tmdbId: text("tmdb_id"), // Matched TMDB ID (null if not found)
+	releaseYear: integer("release_year"), // TMDB canonical release year for disambiguation
 	mediaType: text("media_type").notNull().default('movie'), // 'movie' or 'tv'
 	subreddit: text().notNull(), // Source subreddit
 	postId: text("post_id").notNull(), // Reddit post ID
@@ -304,7 +305,7 @@ export const redditRecommendations = pgTable("reddit_recommendations", {
 	index("idx_reddit_recommendations_tmdb_id").using("btree", table.tmdbId.asc().nullsLast().op("text_ops")),
 	index("idx_reddit_recommendations_media_type").using("btree", table.mediaType.asc().nullsLast().op("text_ops")),
 	index("idx_reddit_recommendations_subreddit").using("btree", table.subreddit.asc().nullsLast().op("text_ops")),
-	unique("reddit_recommendations_title_key").on(table.title),
+	unique("reddit_recommendations_tmdb_id_key").on(table.tmdbId),
 ]);
 
 // ============================================================================

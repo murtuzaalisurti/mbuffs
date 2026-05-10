@@ -12,7 +12,11 @@
 
 import { neon } from '@neondatabase/serverless';
 import { Codex } from '@openai/codex-sdk';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
 import dotenv from 'dotenv';
+
+const execFileAsync = promisify(execFile);
 
 dotenv.config();
 
@@ -92,6 +96,8 @@ const MOVIE_SUBREDDITS = process.env.REDDIT_SUBREDDITS
 const POSTS_PER_SUBREDDIT = getEnvInt('REDDIT_POSTS_PER_SUB', 25, 1);
 const MIN_SCORE = getEnvInt('REDDIT_MIN_SCORE', 10, 0);
 const TIMEFRAME = process.env.REDDIT_TIMEFRAME || 'all'; // hour, day, week, month, year, all
+const AI_PROVIDER = process.env.AI_PROVIDER || 'codex'; // 'codex' | 'gemini'
+const GEMINI_MODEL = process.env.GEMINI_MODEL || ''; // empty = use CLI default
 const AI_BATCH_SIZE = getEnvInt('REDDIT_AI_BATCH_SIZE', 80, 10);
 const AI_CONCURRENCY = getEnvInt('REDDIT_AI_CONCURRENCY', 3, 1);
 const AI_BATCH_DELAY_MS = getEnvInt('REDDIT_AI_BATCH_DELAY_MS', 0, 0);
@@ -290,9 +296,10 @@ const MOVIE_EXTRACTION_SCHEMA = {
                 properties: {
                     title: { type: 'string' },
                     year: { type: ['number', 'null'] },
+                    mediaType: { type: 'string', enum: ['movie', 'tv', 'unknown'] },
                     sentiment: { type: 'string', enum: ['positive', 'negative', 'neutral'] },
                 },
-                required: ['title', 'year', 'sentiment'],
+                required: ['title', 'year', 'mediaType', 'sentiment'],
                 additionalProperties: false,
             },
         },
@@ -321,7 +328,7 @@ function parseMovieExtractionResponse(raw) {
     return movies.filter(m => m && typeof m.title === 'string' && m.title.trim());
 }
 
-async function extractMoviesWithAI(texts) {
+async function extractMoviesWithCodex(texts) {
     const combinedText = texts
         .map(t => t.text)
         .join('\n---\n');
@@ -336,6 +343,7 @@ These are from movie recommendation subreddits, so users are recommending films 
 For each title found, return:
 - title: The exact movie/show name
 - year: Release year if mentioned, otherwise null
+- mediaType: "movie" if it's clearly a film, "tv" if it's clearly a series/show/season, "unknown" if unclear
 - sentiment: "positive" if recommended/praised, "negative" if criticized, "neutral" otherwise
 
 If no titles are found, return an empty movies array.
@@ -385,6 +393,64 @@ ${combinedText}`;
     }
 
     return [];
+}
+
+async function extractMoviesWithGemini(texts) {
+    const combinedText = texts.map(t => t.text).join('\n---\n');
+    if (!combinedText.trim()) return [];
+
+    const prompt = `Extract all movie and TV show titles mentioned in the following Reddit posts/comments.
+These are from movie recommendation subreddits, so users are recommending films to watch.
+
+For each title found, return:
+- title: The exact movie/show name
+- year: Release year if mentioned, otherwise null
+- sentiment: "positive" if recommended/praised, "negative" if criticized, "neutral" otherwise
+
+Return ONLY valid JSON with this exact structure, no other text:
+{"movies": [{"title": "string", "year": number_or_null, "mediaType": "movie|tv|unknown", "sentiment": "positive|negative|neutral"}]}
+
+If no titles are found, return {"movies": []}.
+
+Text to analyze:
+${combinedText}`;
+
+    const args = ['-p', prompt, '-o', 'json', '-y'];
+    if (GEMINI_MODEL) args.push('-m', GEMINI_MODEL);
+
+    for (let attempt = 0; attempt <= AI_MAX_RETRIES; attempt++) {
+        try {
+            const { stdout } = await withTimeout(
+                () => execFileAsync('gemini', args, { maxBuffer: 10 * 1024 * 1024 }),
+                AI_TIMEOUT_MS,
+                'Gemini CLI extraction'
+            );
+
+            const cliOutput = JSON.parse(stdout);
+            const raw = (cliOutput.response || '').trim();
+            if (!raw) return [];
+            return parseMovieExtractionResponse(raw);
+        } catch (error) {
+            if (attempt < AI_MAX_RETRIES) {
+                const delayMs = getRetryDelayMs(attempt);
+                console.warn(
+                    `  Gemini extraction failed (${attempt + 1}/${AI_MAX_RETRIES + 1}): ${error.message}. Retrying in ${(delayMs / 1000).toFixed(1)}s...`
+                );
+                await sleep(delayMs);
+                continue;
+            }
+            console.error(`  Gemini extraction error: ${error.message}`);
+            return [];
+        }
+    }
+
+    return [];
+}
+
+async function extractMoviesWithAI(texts) {
+    return AI_PROVIDER === 'gemini'
+        ? extractMoviesWithGemini(texts)
+        : extractMoviesWithCodex(texts);
 }
 
 /**
@@ -511,6 +577,7 @@ function addMovieMention(allMentions, movie, avgScore, postInfo) {
     allMentions.set(key, {
         title: movie.title,
         year: movie.year,
+        mediaType: movie.mediaType || 'unknown',
         sentiment: movie.sentiment || 'neutral',
         subreddit: sourceMeta.subreddit,
         postId: sourceMeta.postId,
@@ -526,39 +593,85 @@ function addMovieMention(allMentions, movie, avgScore, postInfo) {
 // TMDB INTEGRATION
 // ============================================================================
 
-async function searchTMDB(title, year, mediaType = 'movie') {
+function selectBestTMDBResult(results, year, mediaType) {
+    if (!results?.length) return null;
+
+    const dateField = mediaType === 'tv' ? 'first_air_date' : 'release_date';
+
+    // Prefer results with at least one vote so we avoid placeholder/stub entries
+    const pool = results.filter(r => (r.vote_count || 0) >= 1);
+    const candidates = pool.length > 0 ? pool : results;
+
+    if (!year) {
+        // No year hint: take the most popular result (TMDB already ranks by relevance+popularity)
+        return candidates[0];
+    }
+
+    // Find exact year match(es) and pick the one with most votes
+    const exactMatches = candidates.filter(r => {
+        const y = parseInt((r[dateField] || '').slice(0, 4), 10);
+        return y === year;
+    });
+    if (exactMatches.length > 0) {
+        return exactMatches.reduce((a, b) => (b.vote_count || 0) > (a.vote_count || 0) ? b : a);
+    }
+
+    // No exact match: pick the result with the closest release year
+    return candidates.reduce((best, curr) => {
+        const bestY = parseInt((best[dateField] || '').slice(0, 4), 10) || 0;
+        const currY = parseInt((curr[dateField] || '').slice(0, 4), 10) || 0;
+        return Math.abs(currY - year) < Math.abs(bestY - year) ? curr : best;
+    });
+}
+
+async function searchTMDBEndpoint(title, year, mediaType, apiKey, baseUrl) {
+    const yearParam = mediaType === 'tv' ? 'first_air_date_year' : 'primary_release_year';
+
+    const buildUrl = (withYear) => {
+        const url = new URL(`${baseUrl}/search/${mediaType}`);
+        url.searchParams.append('api_key', apiKey);
+        url.searchParams.append('query', title);
+        if (withYear && year) url.searchParams.append(yearParam, year.toString());
+        return url.toString();
+    };
+
+    // Try with year first for a tighter match
+    if (year) {
+        const data = await fetchTMDBJson(buildUrl(true));
+        const best = selectBestTMDBResult(data?.results, year, mediaType);
+        if (best) {
+            const canonicalTitle = best.title || best.name || title;
+            const canonicalYear = parseInt((best.release_date || best.first_air_date || '').slice(0, 4), 10) || year;
+            return { tmdbId: best.id.toString(), mediaType, canonicalTitle, canonicalYear };
+        }
+    }
+
+    // Fall back without year filter
+    const data = await fetchTMDBJson(buildUrl(false));
+    const best = selectBestTMDBResult(data?.results, year, mediaType);
+    if (best) {
+        const canonicalTitle = best.title || best.name || title;
+        const canonicalYear = parseInt((best.release_date || best.first_air_date || '').slice(0, 4), 10) || year || null;
+        return { tmdbId: best.id.toString(), mediaType, canonicalTitle, canonicalYear };
+    }
+
+    return null;
+}
+
+async function searchTMDB(title, year, mediaTypeHint = 'unknown') {
     const TMDB_API_KEY = process.env.TMDB_API_KEY;
     const TMDB_BASE_URL = process.env.TMDB_BASE_URL || 'https://api.themoviedb.org/3';
 
-    if (!TMDB_API_KEY) {
-        return null;
-    }
+    if (!TMDB_API_KEY) return null;
+
+    // Route by hint: if explicitly tv, try tv first; otherwise movie → tv
+    const endpoints = mediaTypeHint === 'tv' ? ['tv', 'movie'] : ['movie', 'tv'];
 
     try {
-        let url = new URL(`${TMDB_BASE_URL}/search/${mediaType}`);
-        url.searchParams.append('api_key', TMDB_API_KEY);
-        url.searchParams.append('query', title);
-        if (year) {
-            url.searchParams.append(mediaType === 'movie' ? 'year' : 'first_air_date_year', year.toString());
+        for (const endpoint of endpoints) {
+            const result = await searchTMDBEndpoint(title, year, endpoint, TMDB_API_KEY, TMDB_BASE_URL);
+            if (result) return result;
         }
-
-        let data = await fetchTMDBJson(url.toString());
-        if (data?.results?.length > 0) {
-            return { tmdbId: data.results[0].id.toString(), mediaType };
-        }
-
-        // Try TV if movie fails
-        if (mediaType === 'movie') {
-            url = new URL(`${TMDB_BASE_URL}/search/tv`);
-            url.searchParams.append('api_key', TMDB_API_KEY);
-            url.searchParams.append('query', title);
-            
-            data = await fetchTMDBJson(url.toString());
-            if (data?.results?.length > 0) {
-                return { tmdbId: data.results[0].id.toString(), mediaType: 'tv' };
-            }
-        }
-
         return null;
     } catch (error) {
         console.error(`Error searching TMDB for "${title}":`, error.message);
@@ -626,7 +739,11 @@ const POSTS_TO_FETCH_COMMENTS = 5;
 
 async function scrapeReddit() {
     console.log('Starting Reddit scrape...');
-    console.log('  (Codex SDK will use credentials from `codex login`)');
+    if (AI_PROVIDER === 'gemini') {
+        console.log('  (Gemini CLI will use credentials from `gemini auth login`)');
+    } else {
+        console.log('  (Codex SDK will use credentials from `codex login`)');
+    }
 
     const allPosts = [];
     const allComments = [];
@@ -735,7 +852,7 @@ async function scrapeReddit() {
             }
 
             const [_key, data] = mentionsToValidate[currentIndex];
-            const tmdbResult = await searchTMDB(data.title, data.year);
+            const tmdbResult = await searchTMDB(data.title, data.year, data.mediaType);
 
             checkedCount++;
 
@@ -743,8 +860,9 @@ async function scrapeReddit() {
                 matchedCount++;
                 recommendationsByIndex[currentIndex] = {
                     id: generateId(15),
-                    title: data.title,
+                    title: tmdbResult.canonicalTitle,
                     tmdbId: tmdbResult.tmdbId,
+                    releaseYear: tmdbResult.canonicalYear,
                     mediaType: tmdbResult.mediaType,
                     subreddit: data.subreddit,
                     postId: data.postId,
@@ -788,16 +906,17 @@ async function saveToDatabase(recommendations) {
         try {
             await sql`
                 INSERT INTO reddit_recommendations (
-                    id, title, tmdb_id, media_type, subreddit, post_id, post_title,
+                    id, title, tmdb_id, release_year, media_type, subreddit, post_id, post_title,
                     mention_count, total_score, sentiment, genres, scraped_at, updated_at
                 ) VALUES (
-                    ${rec.id}, ${rec.title}, ${rec.tmdbId}, ${rec.mediaType},
+                    ${rec.id}, ${rec.title}, ${rec.tmdbId}, ${rec.releaseYear ?? null}, ${rec.mediaType},
                     ${rec.subreddit}, ${rec.postId}, ${rec.postTitle},
                     ${rec.mentionCount}, ${rec.totalScore}, ${rec.sentiment},
                     ${JSON.stringify(rec.genres)}, NOW(), NOW()
                 )
-                ON CONFLICT (title) DO UPDATE SET
-                    tmdb_id = COALESCE(EXCLUDED.tmdb_id, reddit_recommendations.tmdb_id),
+                ON CONFLICT (tmdb_id) WHERE tmdb_id IS NOT NULL DO UPDATE SET
+                    title = EXCLUDED.title,
+                    release_year = EXCLUDED.release_year,
                     mention_count = GREATEST(reddit_recommendations.mention_count, EXCLUDED.mention_count),
                     total_score = GREATEST(reddit_recommendations.total_score, EXCLUDED.total_score),
                     sentiment = EXCLUDED.sentiment,
@@ -903,7 +1022,8 @@ async function main() {
     console.log(`  Posts per subreddit: ${POSTS_PER_SUBREDDIT}`);
     console.log(`  Min score: ${MIN_SCORE}`);
     console.log(`  Timeframe: ${TIMEFRAME}`);
-    console.log(`  AI extraction: batch=${AI_BATCH_SIZE}, concurrency=${AI_CONCURRENCY}, promptChars=${AI_PROMPT_TEXT_BUDGET_CHARS}, timeout=${aiTimeoutLabel}, retries=${AI_MAX_RETRIES}`);
+    const geminiModelLabel = GEMINI_MODEL || 'cli-default';
+    console.log(`  AI extraction: provider=${AI_PROVIDER}${AI_PROVIDER === 'gemini' ? ` (model=${geminiModelLabel})` : ''}, batch=${AI_BATCH_SIZE}, concurrency=${AI_CONCURRENCY}, promptChars=${AI_PROMPT_TEXT_BUDGET_CHARS}, timeout=${aiTimeoutLabel}, retries=${AI_MAX_RETRIES}`);
     console.log(`  TMDB validation: limit=${TMDB_VALIDATE_LIMIT === 0 ? 'all' : TMDB_VALIDATE_LIMIT}, concurrency=${TMDB_CONCURRENCY}, rps=${TMDB_RPS.toFixed(1)}, retries=${TMDB_MAX_RETRIES}`);
     console.log(`  Cache TTL: ${CACHE_TTL_HOURS} hours`);
     console.log(`  Force scrape: ${FORCE_SCRAPE}`);

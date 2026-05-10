@@ -28,6 +28,7 @@ export interface RedditRecommendation {
     id: string;
     title: string;
     tmdbId: string | null;
+    releaseYear: number | null; // TMDB canonical release year for disambiguation
     mediaType: 'movie' | 'tv';
     subreddit: string;
     postId: string;
@@ -630,6 +631,7 @@ export async function scrapeRedditForRecommendations(
             id: generateId(15),
             title: data.mention.title,
             tmdbId: tmdbResult?.tmdbId || null,
+            releaseYear: null,
             mediaType: tmdbResult?.mediaType || 'movie',
             subreddit: data.subreddit,
             postId: data.postId,
@@ -675,16 +677,17 @@ export async function saveRedditRecommendations(
         try {
             await sql`
                 INSERT INTO reddit_recommendations (
-                    id, title, tmdb_id, media_type, subreddit, post_id, post_title,
+                    id, title, tmdb_id, release_year, media_type, subreddit, post_id, post_title,
                     mention_count, total_score, sentiment, genres, scraped_at, updated_at
                 ) VALUES (
-                    ${rec.id}, ${rec.title}, ${rec.tmdbId}, ${rec.mediaType},
+                    ${rec.id}, ${rec.title}, ${rec.tmdbId}, ${rec.releaseYear ?? null}, ${rec.mediaType},
                     ${rec.subreddit}, ${rec.postId}, ${rec.postTitle},
                     ${rec.mentionCount}, ${rec.totalScore}, ${rec.sentiment},
                     ${JSON.stringify(rec.genres)}, ${rec.scrapedAt}, ${rec.updatedAt}
                 )
-                ON CONFLICT (title) DO UPDATE SET
-                    tmdb_id = COALESCE(EXCLUDED.tmdb_id, reddit_recommendations.tmdb_id),
+                ON CONFLICT (tmdb_id) WHERE tmdb_id IS NOT NULL DO UPDATE SET
+                    title = EXCLUDED.title,
+                    release_year = EXCLUDED.release_year,
                     mention_count = reddit_recommendations.mention_count + EXCLUDED.mention_count,
                     total_score = reddit_recommendations.total_score + EXCLUDED.total_score,
                     sentiment = EXCLUDED.sentiment,
@@ -723,10 +726,11 @@ export async function getRedditRecommendations(options: {
     try {
         // Query reddit recommendations with filters
         const query = sql`
-            SELECT 
-                id, title, tmdb_id as "tmdbId", media_type as "mediaType",
+            SELECT
+                id, title, tmdb_id as "tmdbId", release_year as "releaseYear",
+                media_type as "mediaType",
                 subreddit, post_id as "postId", post_title as "postTitle",
-                mention_count as "mentionCount", 
+                mention_count as "mentionCount",
                 total_score as "totalScore",
                 sentiment, genres, scraped_at as "scrapedAt", updated_at as "updatedAt"
             FROM reddit_recommendations
