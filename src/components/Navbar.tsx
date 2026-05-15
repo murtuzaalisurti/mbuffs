@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Search, LogOut, UserCircle, List, LogIn, Loader2, LoaderCircle, Star, LayoutGrid, User, Shield } from 'lucide-react';
+import { Search, LogOut, UserCircle, List, LogIn, Loader2, LoaderCircle, Star, LayoutGrid, User, Shield, Forward } from 'lucide-react';
 import { LogoIcon } from '@/components/LogoIcon';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -249,6 +249,22 @@ export const Navbar = () => {
         {/* Search and User Actions */}
         <div className="flex w-full items-center gap-4 md:ml-auto md:gap-2 lg:gap-4">
           <div className="flex items-center gap-3 ml-auto">
+            {/* Copy link button — detail pages only */}
+            {(location.pathname.startsWith('/media/') || location.pathname.startsWith('/person/')) && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 rounded-full bg-muted/70 backdrop-blur-md border border-border hover:bg-muted"
+                onClick={() => {
+                  navigator.clipboard.writeText(window.location.href);
+                  toast({ title: 'Link copied to clipboard' });
+                }}
+                aria-label="Copy link"
+              >
+                <Forward className="h-4 w-4 text-muted-foreground" />
+              </Button>
+            )}
+
             {/* Search icon (desktop only — mobile uses bottom nav) */}
             <Button
               variant="ghost"

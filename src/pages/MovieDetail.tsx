@@ -11,8 +11,7 @@ import { ParentalGuidance } from '@/components/ParentalGuidance';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
-import { ImageOff, Star, Play, User, Bookmark, MoreHorizontal, Loader2, Plus, Clock, Calendar, Globe, Share2, X, MessageSquare, ChevronRight, Eye, EyeOff, ThumbsDown, ThumbsUp } from 'lucide-react';
+import { ImageOff, Star, Play, User, Bookmark, MoreHorizontal, Loader2, Plus, Clock, Calendar, Globe, X, MessageSquare, ChevronRight, Eye, EyeOff, ThumbsDown, ThumbsUp } from 'lucide-react';
 import { useState, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import {
@@ -861,14 +860,13 @@ const MovieDetail = () => {
                     </div>
                 </div>
 
-                <div className="mt-10 md:mt-14 space-y-10 md:space-y-14">
+                <div className="mt-10 md:mt-14 flex flex-col md:flex-row md:gap-10">
+                    {/* Main content column */}
+                    <div className="flex-1 min-w-0 space-y-10 md:space-y-14">
 
-                    {/* Overview Section with Save Button on Desktop */}
+                    {/* Overview Section */}
                     {overview && (
                         <section className="space-y-4">
-                            <div className="flex flex-col md:flex-row md:items-stretch md:gap-8">
-                                {/* Overview Content - 70% on desktop */}
-                                <div className="w-full md:w-[80%] space-y-4">
                                     <h2 className="text-xl md:text-2xl font-semibold text-foreground/90 text-center md:text-left">Overview</h2>
                                     <div className="flex flex-col items-center md:items-start text-center md:text-left">
                                         <p className="text-base leading-relaxed text-foreground/80">
@@ -885,144 +883,6 @@ const MovieDetail = () => {
                                             </button>
                                         )}
                                     </div>
-                                </div>
-
-                                {/* Separator and Save/Watched Buttons - Desktop Only - 30% */}
-                                <div className="hidden md:flex md:w-[20%] md:items-start md:gap-6">
-                                    <Separator orientation="vertical" className="h-full bg-border" />
-                                    <div className="flex w-full flex-col gap-3 pt-1">
-                                        <Popover>
-                                            <PopoverTrigger asChild>
-                                                <Button
-                                                    variant="outline"
-                                                    className="h-10 w-full justify-start border-border bg-secondary/40 hover:bg-secondary/70 text-foreground/90 gap-2"
-                                                >
-                                                    <Bookmark className={`h-4 w-4 ${isInAnyCollection ? 'fill-current' : ''}`} />
-                                                    <span>Save</span>
-                                                    <MoreHorizontal className="h-4 w-4 ml-auto text-muted-foreground" />
-                                                </Button>
-                                            </PopoverTrigger>
-                                            <PopoverContent className="w-72 p-0 border-border bg-popover shadow-xl shadow-black/40" align="end">
-                                                <div className="px-4 py-3 border-b border-border">
-                                                    <p className="text-sm font-semibold text-foreground">
-                                                        Save to collection
-                                                    </p>
-                                                </div>
-                                                <div className="p-1.5 max-h-[300px] overflow-y-auto custom-scrollbar">
-                                                    {!isLoggedIn ? (
-                                                        <div className="py-6 px-4 text-center space-y-3">
-                                                            <p className="text-sm text-muted-foreground">
-                                                                Sign in to save this to your collections
-                                                            </p>
-                                                            <Button asChild size="sm" className="w-full">
-                                                                <a href={`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'}/api/auth/google`}>
-                                                                    Sign in with Google
-                                                                </a>
-                                                            </Button>
-                                                        </div>
-                                                    ) : isLoadingCollections || isLoadingMovieStatus ? (
-                                                        <div className="flex items-center justify-center py-6">
-                                                            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                                                        </div>
-                                                    ) : collectionsData?.collections?.length === 0 ? (
-                                                        <div className="py-6 px-4 text-center">
-                                                            <p className="text-sm text-muted-foreground">
-                                                                No collections yet
-                                                            </p>
-                                                            <Button variant="link" size="sm" className="mt-1 h-auto p-0 text-primary" asChild>
-                                                                <a href="/collections">Create one</a>
-                                                            </Button>
-                                                        </div>
-                                                    ) : (
-                                                        collectionsData?.collections?.map((collection: CollectionSummary) => {
-                                                            const status = movieStatusMap?.[collection.id];
-                                                            const isInCollection = status?.hasMedia ?? false;
-                                                            const addedByUserId = status?.addedByUserId;
-                                                            
-                                                            const isOwner = collection.user_permission === 'owner';
-                                                            const isEditPermission = collection.user_permission === 'edit';
-                                                            const isViewOnly = collection.user_permission === 'view';
-                                                            
-                                                            // Owner can always add/remove
-                                                            // Edit permission can add, but can only remove if they added the item
-                                                            // View permission cannot add or remove
-                                                            const canAdd = isOwner || isEditPermission;
-                                                            const canRemove = isOwner || (isEditPermission && addedByUserId === currentUser?.id);
-                                                            const canToggle = isInCollection ? canRemove : canAdd;
-                                                            const isDisabled = !canToggle;
-
-                                                            return (
-                                                                <div
-                                                                    key={collection.id}
-                                                                    className={`flex items-center gap-3 px-3 py-2.5 rounded-md transition-all group ${
-                                                                        isDisabled 
-                                                                            ? 'opacity-50 cursor-not-allowed' 
-                                                                            : 'hover:bg-accent/50 cursor-pointer'
-                                                                    }`}
-                                                                    onClick={() => canToggle && handleCollectionToggle(collection.id, isInCollection)}
-                                                                >
-                                                                    <Checkbox
-                                                                        checked={isInCollection}
-                                                                        disabled={isDisabled}
-                                                                        onCheckedChange={() => canToggle && handleCollectionToggle(collection.id, isInCollection)}
-                                                                        className={`pointer-events-none rounded-full w-5 h-5 border-muted-foreground/30 data-[state=checked]:bg-primary data-[state=checked]:border-primary transition-all ${
-                                                                            isDisabled ? '' : 'group-hover:border-muted-foreground/50'
-                                                                        }`}
-                                                                    />
-                                                                    <span className={`text-sm truncate flex-1 transition-colors ${
-                                                                        isInCollection 
-                                                                            ? 'text-foreground font-medium' 
-                                                                            : isDisabled 
-                                                                                ? 'text-muted-foreground' 
-                                                                                : 'text-muted-foreground group-hover:text-foreground'
-                                                                    }`}>
-                                                                        {collection.name}
-                                                                        {isViewOnly && <span className="text-xs ml-1">(view only)</span>}
-                                                                    </span>
-                                                                </div>
-                                                            );
-                                                        })
-                                                    )}
-                                                </div>
-                                            </PopoverContent>
-                                        </Popover>
-                                        
-                                        {/* Watched Button - Desktop */}
-                                        {isLoggedIn && (
-                                            <>
-                                                <Button
-                                                    variant="outline"
-                                                    className={`h-10 w-full justify-start border-border bg-secondary/40 hover:bg-secondary/70 text-foreground/90 gap-2 ${isWatched ? activeActionClass : ''}`}
-                                                    onClick={() => toggleWatchedMutation.mutate()}
-                                                    disabled={isLoadingWatched}
-                                                >
-                                                    {isWatched ? (
-                                                        <EyeOff className="h-4 w-4" />
-                                                    ) : (
-                                                        <Eye className="h-4 w-4" />
-                                                    )}
-                                                    <span>{isWatched ? 'Unwatch' : 'Watched'}</span>
-                                                </Button>
-                                                {showNotInterested && (
-                                                    <Button
-                                                        variant="outline"
-                                                        className={`h-10 w-full justify-start border-border bg-secondary/40 hover:bg-secondary/70 text-foreground/90 gap-2 ${isNotInterested ? activeActionClass : ''}`}
-                                                        onClick={() => toggleNotInterestedMutation.mutate()}
-                                                        disabled={isLoadingNotInterested}
-                                                    >
-                                                        {isNotInterested ? (
-                                                            <ThumbsUp className="h-4 w-4" />
-                                                        ) : (
-                                                            <ThumbsDown className="h-4 w-4" />
-                                                        )}
-                                                        <span>{isNotInterested ? 'Interested?' : 'Not interested?'}</span>
-                                                    </Button>
-                                                )}
-                                            </>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
                             
                             {/* Parental Guidance Badges */}
                             {isLoggedIn && (ratingsData?.parentalGuidance || isLoadingRatings) && (
@@ -1398,6 +1258,138 @@ const MovieDetail = () => {
                             );
                         })()
                     )}
+                    </div>
+
+                    {/* Right sidebar - Desktop only */}
+                    <aside className="hidden md:block w-56 lg:w-64 shrink-0">
+                        <div className="sticky top-20 flex flex-col gap-3">
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                    <Button
+                                        variant="outline"
+                                        className="h-10 w-full justify-start border-border bg-secondary/40 hover:bg-secondary/70 text-foreground/90 gap-2"
+                                    >
+                                        <Bookmark className={`h-4 w-4 ${isInAnyCollection ? 'fill-current' : ''}`} />
+                                        <span>Save</span>
+                                        <MoreHorizontal className="h-4 w-4 ml-auto text-muted-foreground" />
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-72 p-0 border-border bg-popover shadow-xl shadow-black/40" align="end">
+                                    <div className="px-4 py-3 border-b border-border">
+                                        <p className="text-sm font-semibold text-foreground">
+                                            Save to collection
+                                        </p>
+                                    </div>
+                                    <div className="p-1.5 max-h-[300px] overflow-y-auto custom-scrollbar">
+                                        {!isLoggedIn ? (
+                                            <div className="py-6 px-4 text-center space-y-3">
+                                                <p className="text-sm text-muted-foreground">
+                                                    Sign in to save this to your collections
+                                                </p>
+                                                <Button asChild size="sm" className="w-full">
+                                                    <a href={`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'}/api/auth/google`}>
+                                                        Sign in with Google
+                                                    </a>
+                                                </Button>
+                                            </div>
+                                        ) : isLoadingCollections || isLoadingMovieStatus ? (
+                                            <div className="flex items-center justify-center py-6">
+                                                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                                            </div>
+                                        ) : collectionsData?.collections?.length === 0 ? (
+                                            <div className="py-6 px-4 text-center">
+                                                <p className="text-sm text-muted-foreground">
+                                                    No collections yet
+                                                </p>
+                                                <Button variant="link" size="sm" className="mt-1 h-auto p-0 text-primary" asChild>
+                                                    <a href="/collections">Create one</a>
+                                                </Button>
+                                            </div>
+                                        ) : (
+                                            collectionsData?.collections?.map((collection: CollectionSummary) => {
+                                                const status = movieStatusMap?.[collection.id];
+                                                const isInCollection = status?.hasMedia ?? false;
+                                                const addedByUserId = status?.addedByUserId;
+
+                                                const isOwner = collection.user_permission === 'owner';
+                                                const isEditPermission = collection.user_permission === 'edit';
+                                                const isViewOnly = collection.user_permission === 'view';
+
+                                                const canAdd = isOwner || isEditPermission;
+                                                const canRemove = isOwner || (isEditPermission && addedByUserId === currentUser?.id);
+                                                const canToggle = isInCollection ? canRemove : canAdd;
+                                                const isDisabled = !canToggle;
+
+                                                return (
+                                                    <div
+                                                        key={collection.id}
+                                                        className={`flex items-center gap-3 px-3 py-2.5 rounded-md transition-all group ${
+                                                            isDisabled
+                                                                ? 'opacity-50 cursor-not-allowed'
+                                                                : 'hover:bg-accent/50 cursor-pointer'
+                                                        }`}
+                                                        onClick={() => canToggle && handleCollectionToggle(collection.id, isInCollection)}
+                                                    >
+                                                        <Checkbox
+                                                            checked={isInCollection}
+                                                            disabled={isDisabled}
+                                                            onCheckedChange={() => canToggle && handleCollectionToggle(collection.id, isInCollection)}
+                                                            className={`pointer-events-none rounded-full w-5 h-5 border-muted-foreground/30 data-[state=checked]:bg-primary data-[state=checked]:border-primary transition-all ${
+                                                                isDisabled ? '' : 'group-hover:border-muted-foreground/50'
+                                                            }`}
+                                                        />
+                                                        <span className={`text-sm truncate flex-1 transition-colors ${
+                                                            isInCollection
+                                                                ? 'text-foreground font-medium'
+                                                                : isDisabled
+                                                                    ? 'text-muted-foreground'
+                                                                    : 'text-muted-foreground group-hover:text-foreground'
+                                                        }`}>
+                                                            {collection.name}
+                                                            {isViewOnly && <span className="text-xs ml-1">(view only)</span>}
+                                                        </span>
+                                                    </div>
+                                                );
+                                            })
+                                        )}
+                                    </div>
+                                </PopoverContent>
+                            </Popover>
+
+                            {isLoggedIn && (
+                                <>
+                                    <Button
+                                        variant="outline"
+                                        className={`h-10 w-full justify-start border-border bg-secondary/40 hover:bg-secondary/70 text-foreground/90 gap-2 ${isWatched ? activeActionClass : ''}`}
+                                        onClick={() => toggleWatchedMutation.mutate()}
+                                        disabled={isLoadingWatched}
+                                    >
+                                        {isWatched ? (
+                                            <EyeOff className="h-4 w-4" />
+                                        ) : (
+                                            <Eye className="h-4 w-4" />
+                                        )}
+                                        <span>{isWatched ? 'Unwatch' : 'Watched'}</span>
+                                    </Button>
+                                    {showNotInterested && (
+                                        <Button
+                                            variant="outline"
+                                            className={`h-10 w-full justify-start border-border bg-secondary/40 hover:bg-secondary/70 text-foreground/90 gap-2 ${isNotInterested ? activeActionClass : ''}`}
+                                            onClick={() => toggleNotInterestedMutation.mutate()}
+                                            disabled={isLoadingNotInterested}
+                                        >
+                                            {isNotInterested ? (
+                                                <ThumbsUp className="h-4 w-4" />
+                                            ) : (
+                                                <ThumbsDown className="h-4 w-4" />
+                                            )}
+                                            <span>{isNotInterested ? 'Interested?' : 'Not interested?'}</span>
+                                        </Button>
+                                    )}
+                                </>
+                            )}
+                        </div>
+                    </aside>
                 </div>
             </main>
         </>

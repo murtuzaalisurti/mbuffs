@@ -166,6 +166,67 @@ export default function PersonDetail() {
     const visibleCastCredits = isCastExpanded ? castCredits : castCredits.slice(0, INITIAL_ITEMS_TO_SHOW);
     const visibleCrewCredits = isCrewExpanded ? crewCredits : crewCredits.slice(0, INITIAL_ITEMS_TO_SHOW);
 
+    const timelineData = (() => {
+        const projectsMap = new Map<string, {
+            id: number;
+            title?: string;
+            name?: string;
+            poster_path?: string;
+            media_type: string;
+            roles: string[];
+            year: number | null;
+            date: string;
+        }>();
+
+        (creditsData?.cast || []).forEach((c: PersonCredit) => {
+            const date = c.release_date || c.first_air_date;
+            if (!date) return;
+            const key = `${c.id}-${c.media_type}`;
+            const role = c.character ? `as ${c.character}` : 'Actor';
+            if (projectsMap.has(key)) {
+                const existing = projectsMap.get(key)!;
+                if (!existing.roles.includes(role)) existing.roles.push(role);
+            } else {
+                projectsMap.set(key, {
+                    id: c.id, title: c.title, name: c.name,
+                    poster_path: c.poster_path, media_type: c.media_type,
+                    roles: [role], year: new Date(date).getFullYear(), date
+                });
+            }
+        });
+
+        (creditsData?.crew || []).forEach((c: PersonCredit) => {
+            const date = c.release_date || c.first_air_date;
+            if (!date) return;
+            const key = `${c.id}-${c.media_type}`;
+            const role = c.job || c.department || 'Crew';
+            if (projectsMap.has(key)) {
+                const existing = projectsMap.get(key)!;
+                if (!existing.roles.includes(role)) existing.roles.push(role);
+            } else {
+                projectsMap.set(key, {
+                    id: c.id, title: c.title, name: c.name,
+                    poster_path: c.poster_path, media_type: c.media_type,
+                    roles: [role], year: new Date(date).getFullYear(), date
+                });
+            }
+        });
+
+        const allCredits = Array.from(projectsMap.values())
+            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+        const creditsByYear = allCredits.reduce((acc, credit) => {
+            const year = credit.year || 'Unknown';
+            if (!acc[year]) acc[year] = [];
+            acc[year].push(credit);
+            return acc;
+        }, {} as Record<string | number, typeof allCredits>);
+
+        const years = Object.keys(creditsByYear).sort((a, b) => Number(b) - Number(a));
+
+        return { creditsByYear, years, hasData: allCredits.length > 0 };
+    })();
+
     return (
         <>
             <Navbar />
@@ -315,7 +376,8 @@ export default function PersonDetail() {
                 )}
 
                 {/* Filmography Sections */}
-                <div className="mt-12 space-y-12">
+                <div className="mt-12 flex flex-col md:flex-row md:gap-10">
+                    <div className="flex-1 min-w-0 space-y-12">
                     {/* Acting Credits - only show if they have acting credits */}
                     {castCredits.length > 0 && (
                         <section className="space-y-6">
@@ -564,131 +626,96 @@ export default function PersonDetail() {
                         </section>
                     )}
 
-                    {/* Timeline Section - Shows all credits chronologically */}
-                    {(creditsData?.cast?.length > 0 || creditsData?.crew?.length > 0) && (
-                        <section className="space-y-6 pt-4">
-                            <h2 className="text-xl md:text-2xl font-semibold text-foreground/90">Timeline</h2>
-                            {(() => {
-                                // Group credits by project ID to combine multiple roles
-                                const projectsMap = new Map<string, {
-                                    id: number;
-                                    title?: string;
-                                    name?: string;
-                                    poster_path?: string;
-                                    media_type: string;
-                                    roles: string[];
-                                    year: number | null;
-                                    date: string;
-                                }>();
+                    {/* Timeline Section - Mobile only */}
+                    {timelineData.hasData && (
+                        <section className="md:hidden space-y-6 pt-4">
+                            <h2 className="text-xl font-semibold text-foreground/90">Timeline</h2>
+                            <div className="space-y-8">
+                                {timelineData.years.map((year) => (
+                                    <div key={year} className="relative">
+                                        <div className="sticky top-20 z-10 mb-4">
+                                            <span className="inline-flex items-center px-3 py-1.5 rounded-full bg-secondary/80 backdrop-blur-sm text-sm font-medium text-foreground/90 border border-border/60">
+                                                {year}
+                                            </span>
+                                        </div>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            {timelineData.creditsByYear[year].map((credit) => (
+                                                <Link
+                                                    key={`${credit.id}-${credit.media_type}`}
+                                                    to={`/media/${credit.media_type}/${credit.id}`}
+                                                    className="group flex gap-3 p-3 rounded-lg bg-card/90 border border-border/70 shadow-sm hover:bg-card hover:border-border hover:shadow-md transition-all duration-200"
+                                                >
+                                                    <div className="shrink-0 w-12 h-18 rounded-md overflow-hidden bg-muted/50 border border-border/60">
+                                                        {credit.poster_path ? (
+                                                            <img
+                                                                src={getImageUrl(credit.poster_path, 'w92')}
+                                                                alt={credit.title || credit.name}
+                                                                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                                                loading="lazy"
+                                                            />
+                                                        ) : (
+                                                            <div className="w-full h-full flex items-center justify-center">
+                                                                <ImageOff className="w-4 h-4 text-muted-foreground/30" />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0 flex flex-col justify-center">
+                                                        <h3 className="text-sm font-medium text-foreground line-clamp-1 group-hover:text-primary transition-colors">
+                                                            {credit.title || credit.name}
+                                                        </h3>
+                                                        <p className="text-xs text-foreground/70 line-clamp-2 mt-0.5">{credit.roles.join(', ')}</p>
+                                                    </div>
+                                                </Link>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </section>
+                    )}
+                    </div>
 
-                                // Process cast credits
-                                (creditsData?.cast || []).forEach(c => {
-                                    const date = c.release_date || c.first_air_date;
-                                    if (!date) return;
-
-                                    const key = `${c.id}-${c.media_type}`;
-                                    const role = c.character ? `as ${c.character}` : 'Actor';
-
-                                    if (projectsMap.has(key)) {
-                                        const existing = projectsMap.get(key)!;
-                                        if (!existing.roles.includes(role)) {
-                                            existing.roles.push(role);
-                                        }
-                                    } else {
-                                        projectsMap.set(key, {
-                                            id: c.id,
-                                            title: c.title,
-                                            name: c.name,
-                                            poster_path: c.poster_path,
-                                            media_type: c.media_type,
-                                            roles: [role],
-                                            year: new Date(date).getFullYear(),
-                                            date
-                                        });
-                                    }
-                                });
-
-                                // Process crew credits
-                                (creditsData?.crew || []).forEach(c => {
-                                    const date = c.release_date || c.first_air_date;
-                                    if (!date) return;
-
-                                    const key = `${c.id}-${c.media_type}`;
-                                    const role = c.job || c.department || 'Crew';
-
-                                    if (projectsMap.has(key)) {
-                                        const existing = projectsMap.get(key)!;
-                                        if (!existing.roles.includes(role)) {
-                                            existing.roles.push(role);
-                                        }
-                                    } else {
-                                        projectsMap.set(key, {
-                                            id: c.id,
-                                            title: c.title,
-                                            name: c.name,
-                                            poster_path: c.poster_path,
-                                            media_type: c.media_type,
-                                            roles: [role],
-                                            year: new Date(date).getFullYear(),
-                                            date
-                                        });
-                                    }
-                                });
-
-                                const allCredits = Array.from(projectsMap.values())
-                                    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-                                // Group credits by year
-                                const creditsByYear = allCredits.reduce((acc, credit) => {
-                                    const year = credit.year || 'Unknown';
-                                    if (!acc[year]) acc[year] = [];
-                                    acc[year].push(credit);
-                                    return acc;
-                                }, {} as Record<string | number, typeof allCredits>);
-
-                                const years = Object.keys(creditsByYear).sort((a, b) => Number(b) - Number(a));
-
-                                return (
-                                    <div className="space-y-8">
-                                        {years.map((year) => (
-                                            <div key={year} className="relative">
-                                                {/* Year Header */}
-                                                <div className="sticky top-20 z-10 mb-4">
-                                                    <span className="inline-flex items-center px-3 py-1.5 rounded-full bg-secondary/80 backdrop-blur-sm text-sm font-medium text-foreground/90 border border-border/60">
+                    {/* Right sidebar - Timeline on Desktop */}
+                    {timelineData.hasData && (
+                        <aside className="hidden md:block w-72 lg:w-80 shrink-0">
+                            <div className="sticky top-20">
+                                <h2 className="text-xl font-semibold text-foreground/90 mb-4">Timeline</h2>
+                                <div className="relative">
+                                    <div className="pointer-events-none absolute top-0 left-0 right-2 h-6 z-20 bg-gradient-to-b from-background to-transparent" />
+                                    <div className="max-h-[calc(100vh-8rem)] overflow-y-auto pr-2 py-4 space-y-5">
+                                        {timelineData.years.map((year) => (
+                                            <div key={year}>
+                                                <div className="sticky top-0 z-10 mb-2 bg-background/95 backdrop-blur-sm py-1">
+                                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-secondary/80 text-xs font-medium text-foreground/90 border border-border/60">
                                                         {year}
                                                     </span>
                                                 </div>
-                                                
-                                                {/* Credits Grid */}
-                                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                                                    {creditsByYear[year].map((credit) => (
+                                                <div className="space-y-2">
+                                                    {timelineData.creditsByYear[year].map((credit) => (
                                                         <Link
                                                             key={`${credit.id}-${credit.media_type}`}
                                                             to={`/media/${credit.media_type}/${credit.id}`}
-                                                            className="group flex gap-3 p-3 rounded-lg bg-card/90 border border-border/70 shadow-sm hover:bg-card hover:border-border hover:shadow-md transition-all duration-200"
+                                                            className="group flex gap-2.5 p-2 rounded-lg bg-card/90 border border-border/70 shadow-sm hover:bg-card hover:border-border hover:shadow-md transition-all duration-200"
                                                         >
-                                                            {/* Poster */}
-                                                            <div className="shrink-0 w-12 h-18 rounded-md overflow-hidden bg-muted/50 border border-border/60">
+                                                            <div className="shrink-0 w-10 h-[60px] rounded overflow-hidden bg-muted/50 border border-border/60">
                                                                 {credit.poster_path ? (
                                                                     <img
                                                                         src={getImageUrl(credit.poster_path, 'w92')}
                                                                         alt={credit.title || credit.name}
-                                                                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                                                        className="w-full h-full object-cover"
                                                                         loading="lazy"
                                                                     />
                                                                 ) : (
                                                                     <div className="w-full h-full flex items-center justify-center">
-                                                                        <ImageOff className="w-4 h-4 text-muted-foreground/30" />
+                                                                        <ImageOff className="w-3 h-3 text-muted-foreground/30" />
                                                                     </div>
                                                                 )}
                                                             </div>
-
-                                                            {/* Info */}
                                                             <div className="flex-1 min-w-0 flex flex-col justify-center">
-                                                                <h3 className="text-sm font-medium text-foreground line-clamp-1 group-hover:text-primary transition-colors">
+                                                                <h3 className="text-xs font-medium text-foreground line-clamp-1 group-hover:text-primary transition-colors">
                                                                     {credit.title || credit.name}
                                                                 </h3>
-                                                                <p className="text-xs text-foreground/70 line-clamp-2 mt-0.5">{credit.roles.join(', ')}</p>
+                                                                <p className="text-[11px] text-foreground/70 line-clamp-1 mt-0.5">{credit.roles.join(', ')}</p>
                                                             </div>
                                                         </Link>
                                                     ))}
@@ -696,9 +723,10 @@ export default function PersonDetail() {
                                             </div>
                                         ))}
                                     </div>
-                                );
-                            })()}
-                        </section>
+                                    <div className="pointer-events-none absolute bottom-0 left-0 right-2 h-6 z-20 bg-gradient-to-t from-background to-transparent" />
+                                </div>
+                            </div>
+                        </aside>
                     )}
                 </div>
             </main>
