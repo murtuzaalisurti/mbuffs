@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { sql } from '../lib/db.js';
 import { AdminUserResponse } from '../lib/types.js';
+import { generateId } from '../lib/utils.js';
 
 interface AdminUserRow {
     id: string;
@@ -101,6 +102,82 @@ export const getAllUsers = async (req: Request, res: Response, next: NextFunctio
         res.status(200).json({ users, total: users.length });
     } catch (error) {
         console.error('Error fetching admin users:', error);
+        next(error);
+    }
+};
+
+export const getCuratedItems = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+        const items = await sql`
+            SELECT
+                ci.id, ci.tmdb_id, ci.media_type, ci.title, ci.poster_path,
+                ci.added_by_user_id, ci.added_at,
+                u.name as added_by_name
+            FROM admin_curated_items ci
+            LEFT JOIN "user" u ON ci.added_by_user_id = u.id
+            ORDER BY ci.added_at DESC
+        `;
+        res.status(200).json({ items, total: items.length });
+    } catch (error) {
+        console.error('Error fetching curated items:', error);
+        next(error);
+    }
+};
+
+export const addCuratedItem = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+        const { tmdb_id, media_type, title, poster_path } = req.body;
+
+        if (!tmdb_id || !media_type || !title) {
+            res.status(400).json({ message: 'tmdb_id, media_type, and title are required' });
+            return;
+        }
+
+        if (media_type !== 'movie' && media_type !== 'tv') {
+            res.status(400).json({ message: "media_type must be 'movie' or 'tv'" });
+            return;
+        }
+
+        const existing = await sql`
+            SELECT id FROM admin_curated_items
+            WHERE tmdb_id = ${String(tmdb_id)} AND media_type = ${media_type}
+        `;
+
+        if (existing.length > 0) {
+            res.status(409).json({ message: 'Item already curated' });
+            return;
+        }
+
+        const newId = generateId(21);
+        const result = await sql`
+            INSERT INTO admin_curated_items (id, tmdb_id, media_type, title, poster_path, added_by_user_id)
+            VALUES (${newId}, ${String(tmdb_id)}, ${media_type}, ${title}, ${poster_path || null}, ${req.userId})
+            RETURNING *
+        `;
+
+        res.status(201).json({ item: result[0] });
+    } catch (error) {
+        console.error('Error adding curated item:', error);
+        next(error);
+    }
+};
+
+export const removeCuratedItem = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+        const { id } = req.params;
+
+        const result = await sql`
+            DELETE FROM admin_curated_items WHERE id = ${id} RETURNING id
+        `;
+
+        if (result.length === 0) {
+            res.status(404).json({ message: 'Curated item not found' });
+            return;
+        }
+
+        res.status(200).json({ message: 'Removed' });
+    } catch (error) {
+        console.error('Error removing curated item:', error);
         next(error);
     }
 };

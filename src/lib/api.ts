@@ -1,6 +1,6 @@
 import dayjs from 'dayjs';
 import {
-    Movie, MovieDetails, SearchResults, User, AdminUsersResponse,
+    Movie, MovieDetails, SearchResults, User, AdminUsersResponse, AdminCuratedItem, AdminCuratedItemsResponse,
     CollectionSummary, CollectionDetails, CollectionCollaborator, UserCollectionsResponse,
     CreateCollectionInput, UpdateCollectionInput, AddMovieInput, AddCollaboratorInput,
     UpdateCollaboratorInput, AddMovieResponse, VideosResponse, CreditsResponse,
@@ -94,6 +94,26 @@ export const fetchCurrentUserApi = async (): Promise<{ user: User }> => {
 
 export const fetchAdminUsersApi = async (): Promise<AdminUsersResponse> => {
     return fetchBackend('/admin/users');
+};
+
+export const fetchAdminCuratedItemsApi = async (): Promise<AdminCuratedItemsResponse> => {
+    return fetchBackend('/admin/curated-items');
+};
+
+export const addAdminCuratedItemApi = async (data: {
+    tmdb_id: string;
+    media_type: 'movie' | 'tv';
+    title: string;
+    poster_path: string | null;
+}): Promise<{ item: AdminCuratedItem }> => {
+    return fetchBackend('/admin/curated-items', {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+};
+
+export const removeAdminCuratedItemApi = async (id: string): Promise<void> => {
+    await fetchBackend(`/admin/curated-items/${id}`, { method: 'DELETE' });
 };
 
 export const logoutUserApi = async (): Promise<void> => {
