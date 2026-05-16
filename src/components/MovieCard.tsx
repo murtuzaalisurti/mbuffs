@@ -23,6 +23,7 @@ interface MovieCardProps {
   isNotInterested?: boolean;
   showNotInterested?: boolean;
   hideIfNoPoster?: boolean;
+  showWatched?: boolean;
   /** Additional menu items to render after the watched option */
   additionalMenuItems?: ReactNode;
 }
@@ -34,6 +35,7 @@ export function MovieCard({
   isNotInterested = false,
   showNotInterested = false,
   hideIfNoPoster = false,
+  showWatched = true,
   additionalMenuItems
 }: MovieCardProps) {
   if (hideIfNoPoster && !movie.poster_path) {
@@ -271,21 +273,23 @@ export function MovieCard({
                   align="end"
                   className="w-44 rounded-lg border-border bg-popover/95 p-1.5 shadow-2xl shadow-black/40 backdrop-blur-xl"
                 >
-                  <DropdownMenuItem
-                    className={menuItemClass}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      handleWatchedClick();
-                    }}
-                  >
-                    {displayedWatched ? (
-                      <EyeOff className="h-4 w-4 mr-2 text-foreground/80" />
-                    ) : (
-                      <Eye className="h-4 w-4 mr-2 text-foreground/80" />
-                    )}
-                    <span className="whitespace-nowrap">{displayedWatched ? 'Unwatch' : 'Watched'}</span>
-                  </DropdownMenuItem>
+                  {showWatched && (
+                    <DropdownMenuItem
+                      className={menuItemClass}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleWatchedClick();
+                      }}
+                    >
+                      {displayedWatched ? (
+                        <EyeOff className="h-4 w-4 mr-2 text-foreground/80" />
+                      ) : (
+                        <Eye className="h-4 w-4 mr-2 text-foreground/80" />
+                      )}
+                      <span className="whitespace-nowrap">{displayedWatched ? 'Unwatch' : 'Watched'}</span>
+                    </DropdownMenuItem>
+                  )}
                   {showNotInterested && (
                     <DropdownMenuItem
                       className={menuItemClass}

@@ -54,6 +54,7 @@ export interface Movie {
       actor_boost: number;
       primary_boost: number;
       reddit_boost?: number;
+      admin_curated_boost?: number;
       novelty_boost?: number;
       freshness_boost?: number;
       diversity_boost?: number;
@@ -266,6 +267,22 @@ export interface AdminUser extends User {
 
 export interface AdminUsersResponse {
   users: AdminUser[];
+  total: number;
+}
+
+export interface AdminCuratedItem {
+  id: string;
+  tmdb_id: string;
+  media_type: 'movie' | 'tv';
+  title: string;
+  poster_path: string | null;
+  added_by_user_id: string;
+  added_by_name?: string;
+  added_at: string;
+}
+
+export interface AdminCuratedItemsResponse {
+  items: AdminCuratedItem[];
   total: number;
 }
 

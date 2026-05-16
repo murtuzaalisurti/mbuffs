@@ -309,6 +309,28 @@ export const redditRecommendations = pgTable("reddit_recommendations", {
 ]);
 
 // ============================================================================
+// ADMIN CURATED ITEMS TABLE (shared list of items injected into recommendations)
+// ============================================================================
+export const adminCuratedItems = pgTable("admin_curated_items", {
+	id: text().primaryKey().notNull(),
+	tmdbId: text("tmdb_id").notNull(),
+	mediaType: text("media_type").notNull(),
+	title: text().notNull(),
+	posterPath: text("poster_path"),
+	addedByUserId: text("added_by_user_id").notNull(),
+	addedAt: timestamp("added_at", { withTimezone: true, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+	index("idx_admin_curated_items_tmdb_id").using("btree", table.tmdbId.asc().nullsLast().op("text_ops")),
+	foreignKey({
+		columns: [table.addedByUserId],
+		foreignColumns: [user.id],
+		name: "admin_curated_items_added_by_user_id_fkey"
+	}).onDelete("set null"),
+	unique("admin_curated_items_tmdb_id_media_type_key").on(table.tmdbId, table.mediaType),
+	check("admin_curated_items_media_type_check", sql`${table.mediaType} IN ('movie', 'tv')`),
+]);
+
+// ============================================================================
 // MEDIA RATINGS TABLE
 // Canonical media identity: (media_type, tmdb_id)
 // ============================================================================

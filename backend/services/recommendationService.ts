@@ -84,7 +84,8 @@ interface RecommendationExplainability {
         writer_boost: number;
         actor_boost: number;
         primary_boost: number;
-        reddit_boost: number; // Reddit popularity boost
+        reddit_boost: number;
+        admin_curated_boost?: number;
         novelty_boost?: number;
         freshness_boost?: number;
         diversity_boost?: number;
@@ -102,7 +103,8 @@ type RetrievalChannel =
     | 'trending_explore'
     | 'cold_start_seed'
     | 'reddit_signal'
-    | 'reddit_primary';
+    | 'reddit_primary'
+    | 'admin_curated';
 
 interface RecommendationCandidate {
     item: TMDBMovie;
@@ -284,6 +286,11 @@ const REDDIT_POSITIVE_SENTIMENT_BONUS = 20;
 const MIN_THEATRICAL_TMDB_PAGES_TO_FETCH = 3;
 const MAX_THEATRICAL_TMDB_PAGES_TO_FETCH = 12;
 
+// Admin curated items boost configuration (matches Reddit boost priority)
+const ADMIN_CURATED_BOOST_ENABLED = true;
+const ADMIN_CURATED_BASE_BOOST = 200;
+const ADMIN_CURATED_GENRE_MATCH_MULTIPLIER = 30;
+
 const WATCHED_COLLECTION_NAME = '__watched__';
 const NOT_INTERESTED_COLLECTION_NAME = '__not_interested__';
 
@@ -324,6 +331,40 @@ async function getRedditBoostMap(): Promise<Map<string, { mentions: number; sent
     }
 
     return boostMap;
+}
+
+interface AdminCuratedEntry {
+    tmdbId: string;
+    mediaType: string;
+    title: string;
+    posterPath: string | null;
+}
+
+async function getAdminCuratedItemsMap(): Promise<Map<string, AdminCuratedEntry>> {
+    const curatedMap = new Map<string, AdminCuratedEntry>();
+    if (!ADMIN_CURATED_BOOST_ENABLED) return curatedMap;
+
+    try {
+        const items = await sql`
+            SELECT tmdb_id, media_type, title, poster_path
+            FROM admin_curated_items
+        `;
+        for (const item of items as Array<{ tmdb_id: string; media_type: string; title: string; poster_path: string | null }>) {
+            curatedMap.set(item.tmdb_id, {
+                tmdbId: item.tmdb_id,
+                mediaType: item.media_type,
+                title: item.title,
+                posterPath: item.poster_path,
+            });
+        }
+        if (curatedMap.size > 0) {
+            console.log(`[Admin Curated] Loaded ${curatedMap.size} admin curated items for boosting`);
+        }
+    } catch (error) {
+        console.error('[Admin Curated] Error loading admin curated items:', error);
+    }
+
+    return curatedMap;
 }
 
 /**
@@ -3043,7 +3084,103 @@ async function generateRecommendationPool(
     }
 
     console.log(`[Reddit Primary] Injected ${redditPrimaryCandidates.length} Reddit primary candidates into pool (total pool: ${allRecommendations.size})`);
-    
+
+    // =========================================================================
+    // STEP: Inject admin-curated candidates into the recommendation pool
+    // =========================================================================
+    const adminCuratedMap = await getAdminCuratedItemsMap();
+    let adminCuratedInjected = 0;
+
+    for (const [curatedTmdbId, curatedItem] of adminCuratedMap.entries()) {
+        const isMovie = curatedItem.mediaType === 'movie';
+        const key = isMovie ? curatedTmdbId : `${curatedTmdbId}tv`;
+
+        if (existingMovieIds.has(key)) continue;
+
+        if (allRecommendations.has(key)) {
+            const existing = allRecommendations.get(key)!;
+            const explainability = existing.item.explainability;
+            if (explainability) {
+                explainability.retrieval_channels = addRetrievalChannel(
+                    explainability.retrieval_channels,
+                    'admin_curated'
+                );
+                explainability.reason_codes = addReasonCode(
+                    explainability.reason_codes,
+                    'admin_curated'
+                );
+                const genreMatchCount = (existing.item.genre_ids || []).filter(
+                    (gid) => (genreScores.get(gid) || 0) > 0
+                ).length;
+                const adminBoost = ADMIN_CURATED_BASE_BOOST + genreMatchCount * ADMIN_CURATED_GENRE_MATCH_MULTIPLIER;
+                explainability.score_breakdown.admin_curated_boost = adminBoost;
+                explainability.score_breakdown.total += adminBoost;
+                existing.score += adminBoost;
+            }
+            adminCuratedInjected++;
+        } else {
+            const mediaType = isMovie ? 'movie' : 'tv';
+            const details = await fetchTMDB<TMDBDetailsResponse>(
+                `/${mediaType}/${curatedTmdbId}`,
+                { append_to_response: 'keywords' }
+            );
+            if (!details) continue;
+
+            const genreIds = details.genres?.map((g) => g.id) || [];
+            const matchedGenres = genreIds.filter((gid) => (genreScores.get(gid) || 0) > 0);
+            const adminBoost = ADMIN_CURATED_BASE_BOOST + matchedGenres.length * ADMIN_CURATED_GENRE_MATCH_MULTIPLIER;
+            const baseScore = ((details as unknown as TMDBMovie).vote_average || 0) * 10;
+            const popularityScore = Math.min(((details as unknown as TMDBMovie).popularity || 0) / 10, 50);
+            const totalScore = baseScore + popularityScore + adminBoost;
+
+            allRecommendations.set(key, {
+                item: {
+                    id: Number(curatedTmdbId),
+                    media_type: mediaType,
+                    title: isMovie ? curatedItem.title : undefined,
+                    name: !isMovie ? curatedItem.title : undefined,
+                    poster_path: curatedItem.posterPath,
+                    release_date: (details as unknown as TMDBMovie).release_date,
+                    first_air_date: (details as unknown as TMDBMovie).first_air_date,
+                    vote_average: (details as unknown as TMDBMovie).vote_average || 0,
+                    vote_count: (details as unknown as TMDBMovie).vote_count,
+                    popularity: (details as unknown as TMDBMovie).popularity,
+                    overview: (details as unknown as TMDBMovie).overview || '',
+                    backdrop_path: (details as unknown as TMDBMovie).backdrop_path,
+                    genre_ids: genreIds,
+                    explainability: {
+                        reason_codes: matchedGenres.length > 0
+                            ? ['admin_curated', 'genre_match']
+                            : ['admin_curated'],
+                        source_appearances: 1,
+                        matched_genres: matchedGenres,
+                        retrieval_channels: ['admin_curated'],
+                        score_breakdown: {
+                            base: baseScore,
+                            popularity: popularityScore,
+                            genre: 0,
+                            source_boost: 0,
+                            director_boost: 0,
+                            writer_boost: 0,
+                            actor_boost: 0,
+                            primary_boost: 0,
+                            reddit_boost: 0,
+                            admin_curated_boost: adminBoost,
+                            total: totalScore,
+                        },
+                    },
+                } as TMDBMovie,
+                score: totalScore,
+                sources: 1,
+            });
+            adminCuratedInjected++;
+        }
+    }
+
+    if (adminCuratedInjected > 0) {
+        console.log(`[Admin Curated] Injected/boosted ${adminCuratedInjected} items (total pool: ${allRecommendations.size})`);
+    }
+
     // Apply Reddit popularity boosts to recommendations
     const redditBoostMap = await getRedditBoostMap();
     const withRedditBoost = applyRedditBoosts(
