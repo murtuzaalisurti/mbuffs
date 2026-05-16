@@ -387,7 +387,7 @@ const Profile = () => {
     const isLoading = isLoadingCollections || isLoadingRecommendationCollections || isLoadingPreferences;
     const watchedItemsCount = watchedItemsData?.items.length ?? 0;
     const notInterestedItemsCount = notInterestedItemsData?.items.length ?? 0;
-    const canAccessRecommendationCacheDebug = user.email?.toLowerCase() === 'murtuza.creativity@gmail.com';
+    const canAccessRecommendationCacheDebug = user.role === 'admin';
 
     return (
         <>
