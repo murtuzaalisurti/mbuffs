@@ -239,7 +239,7 @@ const RecommendationCacheDebug = () => {
                   Cache Entries
                 </CardTitle>
                 <CardDescription>
-                  Showing newest entries first for {data?.allowed_debug_email}.
+                  Showing newest entries first.
                 </CardDescription>
               </CardHeader>
               <CardContent>
