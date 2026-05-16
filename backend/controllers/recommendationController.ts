@@ -15,31 +15,12 @@ import {
 } from '../services/recommendationService.js';
 import '../middleware/authMiddleware.js';
 
-const RECOMMENDATION_DEBUG_EMAIL = 'murtuza.creativity@gmail.com';
 const DEFAULT_PAGED_RECOMMENDATION_LIMIT = 60;
 const MAX_PAGED_RECOMMENDATION_LIMIT = 70;
 const MAX_PAGED_RECOMMENDATION_PAGE = 100;
 
-const resolveRequestEmail = async (req: Request): Promise<string | null> => {
-    const sessionEmail = req.user?.email?.toLowerCase();
-    if (sessionEmail) {
-        return sessionEmail;
-    }
-
-    if (!req.userId) {
-        return null;
-    }
-
-    const userResult = await sql`
-        SELECT email FROM "user" WHERE id = ${req.userId}
-    `;
-
-    return (userResult[0]?.email as string | undefined)?.toLowerCase() ?? null;
-};
-
-const ensureRecommendationDebugAccess = async (req: Request): Promise<boolean> => {
-    const email = await resolveRequestEmail(req);
-    return email === RECOMMENDATION_DEBUG_EMAIL;
+const ensureRecommendationDebugAccess = (req: Request): boolean => {
+    return !!(req.user && (req.user as any).role === 'admin');
 };
 
 const parsePositiveInt = (value: unknown, fallback: number): number => {
@@ -242,7 +223,7 @@ export const getRecommendationCacheDebugHandler = async (req: Request, res: Resp
     }
 
     try {
-        const hasDebugAccess = await ensureRecommendationDebugAccess(req);
+        const hasDebugAccess = ensureRecommendationDebugAccess(req);
         if (!hasDebugAccess) {
             return res.status(403).json({ message: "Forbidden" });
         }
@@ -251,7 +232,6 @@ export const getRecommendationCacheDebugHandler = async (req: Request, res: Resp
         res.status(200).json({
             cache,
             ttl_minutes: 30,
-            allowed_debug_email: RECOMMENDATION_DEBUG_EMAIL
         });
     } catch (error) {
         console.error("Error fetching recommendation cache debug data:", error);
@@ -269,7 +249,7 @@ export const invalidateRecommendationCacheDebugHandler = async (req: Request, re
     }
 
     try {
-        const hasDebugAccess = await ensureRecommendationDebugAccess(req);
+        const hasDebugAccess = ensureRecommendationDebugAccess(req);
         if (!hasDebugAccess) {
             return res.status(403).json({ message: "Forbidden" });
         }
@@ -302,7 +282,6 @@ export const invalidateRecommendationCacheDebugHandler = async (req: Request, re
             warm_started: warm,
             cache,
             ttl_minutes: 30,
-            allowed_debug_email: RECOMMENDATION_DEBUG_EMAIL,
         });
     } catch (error) {
         console.error("Error invalidating recommendation cache via debug endpoint:", error);
