@@ -244,7 +244,6 @@ interface RecommendationCacheRow {
 
 const RECOMMENDATION_CACHE_VERSION = 'v9';
 const RECOMMENDATION_CACHE_TTL_MINUTES = 30;
-const RECOMMENDATION_CACHE_EXPIRED_RETENTION_MINUTES = 60 * 24;
 const RECOMMENDATION_CACHE_STAGING_RETENTION_MINUTES = 60 * 2;
 const RECOMMENDATION_CACHE_CLEANUP_INTERVAL_MS = 1000 * 60 * 15;
 const RECOMMENDATION_WARM_CATEGORY_OVERVIEW_LIMIT = 50;
@@ -1330,7 +1329,6 @@ function cleanupRecommendationCacheInBackground(): void {
     const cleanupPromise = sql`
         DELETE FROM recommendation_cache
         WHERE cache_version <> ${RECOMMENDATION_CACHE_VERSION}
-           OR expires_at < NOW() - (${RECOMMENDATION_CACHE_EXPIRED_RETENTION_MINUTES} * INTERVAL '1 minute')
            OR (
                 slot = ${RECOMMENDATION_CACHE_STAGING_SLOT}
                 AND updated_at < NOW() - (${RECOMMENDATION_CACHE_STAGING_RETENTION_MINUTES} * INTERVAL '1 minute')
