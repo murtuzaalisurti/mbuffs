@@ -506,6 +506,14 @@ const CuratedItemsTab = () => {
     return map;
   }, [curatedItems]);
 
+  const addedByNameByTmdbId = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const item of curatedItems) {
+      if (item.added_by_name) map.set(Number(item.tmdb_id), item.added_by_name);
+    }
+    return map;
+  }, [curatedItems]);
+
   const detailsQueryKey = useMemo(
     () => ['movies', 'details', 'curated', ...tmdbIds].sort(),
     [tmdbIds]
@@ -654,25 +662,32 @@ const CuratedItemsTab = () => {
         <div className="grid grid-cols-3 gap-2 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 md:gap-5 lg:grid-cols-5">
           {movies.map((movie) => {
             const curatedId = curatedIdByTmdbId.get(movie.id);
+            const addedByName = addedByNameByTmdbId.get(movie.id);
             return (
-              <MovieCard
-                key={movie.id}
-                movie={movie}
-                showWatched={false}
-                additionalMenuItems={curatedId ? (
-                  <DropdownMenuItem
-                    className="cursor-pointer rounded-lg px-3 py-2.5 text-sm font-medium text-destructive focus:bg-destructive/10 focus:text-destructive data-[highlighted]:bg-destructive/10 data-[highlighted]:text-destructive"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      removeMutation.mutate(curatedId);
-                    }}
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    <span>Remove</span>
-                  </DropdownMenuItem>
-                ) : undefined}
-              />
+              <div key={movie.id}>
+                <MovieCard
+                  movie={movie}
+                  showWatched={false}
+                  additionalMenuItems={curatedId ? (
+                    <DropdownMenuItem
+                      className="cursor-pointer rounded-lg px-3 py-2.5 text-sm font-medium text-destructive focus:bg-destructive/10 focus:text-destructive data-[highlighted]:bg-destructive/10 data-[highlighted]:text-destructive"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        removeMutation.mutate(curatedId);
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      <span>Remove</span>
+                    </DropdownMenuItem>
+                  ) : undefined}
+                />
+                {addedByName && (
+                  <p className="text-xs text-muted-foreground mt-1.5 truncate">
+                    {addedByName}
+                  </p>
+                )}
+              </div>
             );
           })}
         </div>
@@ -684,7 +699,16 @@ const CuratedItemsTab = () => {
 // ============================================================================
 // Admin Page
 // ============================================================================
+const ADMIN_TAB_KEY = 'admin-active-tab';
+
 const Admin = () => {
+  const [activeTab, setActiveTab] = useState(() => sessionStorage.getItem(ADMIN_TAB_KEY) || 'users');
+
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+    sessionStorage.setItem(ADMIN_TAB_KEY, value);
+  };
+
   return (
     <>
       <Navbar />
@@ -692,7 +716,7 @@ const Admin = () => {
         <h1 className="text-3xl font-bold mb-2">Admin</h1>
         <p className="text-muted-foreground mb-6">Manage users and curated recommendations.</p>
 
-        <Tabs defaultValue="users">
+        <Tabs value={activeTab} onValueChange={handleTabChange}>
           <TabsList className="mb-6">
             <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="curated">Curated Items</TabsTrigger>
