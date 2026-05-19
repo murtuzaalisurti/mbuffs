@@ -14,7 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useAuth } from '@/hooks/useAuth';
-import { Mail, Calendar, Sparkles, FolderHeart, X, ChevronDown, Grid3X3, Eye, ThumbsDown, ArrowRight, Database, Camera, Loader2, Trash2, ShieldAlert } from 'lucide-react';
+import { Mail, Calendar, Sparkles, FolderHeart, X, ChevronDown, Grid3X3, Eye, ThumbsDown, ArrowRight, Camera, Loader2, Trash2, ShieldAlert } from 'lucide-react';
 import { toast } from "sonner";
 import { Link } from 'react-router-dom';
 import {
@@ -387,12 +387,11 @@ const Profile = () => {
     const isLoading = isLoadingCollections || isLoadingRecommendationCollections || isLoadingPreferences;
     const watchedItemsCount = watchedItemsData?.items.length ?? 0;
     const notInterestedItemsCount = notInterestedItemsData?.items.length ?? 0;
-    const canAccessRecommendationCacheDebug = user.role === 'admin';
 
     return (
         <>
             <Navbar />
-            <main className="container py-8 max-w-2xl mx-auto px-4">
+            <main className="container py-8 max-w-2xl mx-auto">
                 <h1 className="text-3xl font-bold mb-8">Profile</h1>
 
                 {/* User Info Card */}
@@ -623,20 +622,7 @@ const Profile = () => {
                                     </p>
                                 )}
 
-                                {canAccessRecommendationCacheDebug && (
-                                    <>
-                                        <Separator />
-                                        <Button asChild variant="outline" className="w-full h-11 justify-between">
-                                            <Link to="/recommendations/debug-cache">
-                                                <span className="inline-flex items-center gap-2">
-                                                    <Database className="h-4 w-4" />
-                                                    Recommendation Cache Debug
-                                                </span>
-                                                <ArrowRight className="h-4 w-4" />
-                                            </Link>
-                                        </Button>
-                                    </>
-                                )}
+
                             </>
                         )}
 

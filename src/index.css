@@ -49,7 +49,7 @@
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.552 0.016 285.938);
   --sidebar-background: var(--sidebar);
-  --radius: 0.85rem;
+  --radius: 0.67rem;
 }
 
 @theme inline {

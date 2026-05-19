@@ -23,7 +23,6 @@ const PersonDetail = lazy(() => import('./pages/PersonDetail'));
 const ForYou = lazy(() => import('./pages/ForYou'));
 const WatchedItems = lazy(() => import('./pages/WatchedItems'));
 const NotInterestedItems = lazy(() => import('./pages/NotInterestedItems'));
-const RecommendationCacheDebug = lazy(() => import('./pages/RecommendationCacheDebug'));
 const Auth = lazy(() => import('./pages/Auth'));
 const Admin = lazy(() => import('./pages/Admin'));
 
@@ -136,14 +135,6 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <NotInterestedItems />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/recommendations/debug-cache"
-              element={
-                <ProtectedRoute>
-                  <RecommendationCacheDebug />
                 </ProtectedRoute>
               }
             />
