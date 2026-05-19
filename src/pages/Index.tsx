@@ -129,10 +129,8 @@ const Index = () => {
                 <div className="space-y-4">
                   <div className="flex items-center gap-3">
                     <div className="h-6 w-1 rounded-full bg-primary" />
-                    <div className="flex items-center gap-2">
-                      <Sparkles className="h-5 w-5 text-primary" />
-                      <Skeleton className="h-7 w-32 rounded-lg" />
-                    </div>
+                    <Skeleton className="h-7 w-32 rounded-lg" />
+                    <Sparkles className="h-5 w-5 text-primary" />
                   </div>
                   <div className="relative -mx-4 px-4">
                     <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide scroll-smooth">
@@ -151,10 +149,8 @@ const Index = () => {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className="h-6 w-1 rounded-full bg-primary" />
-                      <div className="flex items-center gap-2">
-                        <Sparkles className="h-5 w-5 text-primary" />
-                        <h2 className="text-xl md:text-2xl font-semibold tracking-tight">For You</h2>
-                      </div>
+                      <h2 className="text-xl md:text-2xl font-semibold tracking-tight">For You</h2>
+                      <Sparkles className="h-5 w-5 text-primary" />
                       <span className="text-xs font-medium bg-primary/10 text-primary px-2 py-0.5 rounded-full">
                         Beta
                       </span>
