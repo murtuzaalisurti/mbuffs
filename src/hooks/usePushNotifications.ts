@@ -39,9 +39,10 @@ export function usePushNotifications() {
         const { key: vapidPublicKey } = await fetchVapidPublicKeyApi();
         if (!vapidPublicKey || cancelled) return;
 
+        const keyArray = urlBase64ToUint8Array(vapidPublicKey);
         const subscription = await registration.pushManager.subscribe({
           userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+          applicationServerKey: keyArray.buffer as ArrayBuffer,
         });
 
         if (!cancelled) {
