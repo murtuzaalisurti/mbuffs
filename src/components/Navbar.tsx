@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Search, LogOut, UserCircle, List, LogIn, Loader2, LoaderCircle, Star, LayoutGrid, User, Shield, Forward } from 'lucide-react';
+import { Search, LogOut, UserCircle, List, LogIn, Loader2, LoaderCircle, Star, LayoutGrid, User, Shield, Forward, Link2, Send } from 'lucide-react';
 import { LogoIcon } from '@/components/LogoIcon';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -10,14 +10,19 @@ import { useAuth } from '../hooks/useAuth';
 import { useToast } from '@/components/ui/use-toast';
 import { useDebounce } from '@/hooks/use-debounce';
 import { searchMultiApi, getImageUrl, fetchCurrentUserApi } from '@/lib/api';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { MultiSearchResult, PersonSearchResult } from '@/lib/types';
+import { NotificationBell } from './NotificationBell';
+import { ShareDialog } from './ShareDialog';
+import { usePushNotifications } from '@/hooks/usePushNotifications';
 
 export const Navbar = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, isLoggedIn, logout, isLoggingOut, isLoadingUser } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  usePushNotifications();
   const isOnLoginPage = location.pathname === '/login';
 
   // Fetch full user data for custom avatar
@@ -30,6 +35,7 @@ export const Navbar = () => {
   const [scrolled, setScrolled] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const debouncedSearch = useDebounce(searchTerm, 400);
   const normalizedSearch = debouncedSearch.trim().toLowerCase();
 
@@ -219,6 +225,20 @@ export const Navbar = () => {
     navigate('/login');
   };
 
+  const isDetailPage = location.pathname.startsWith('/media/') || location.pathname.startsWith('/person/');
+
+  const shareMediaInfo = useMemo(() => {
+    const mediaMatch = location.pathname.match(/^\/media\/(movie|tv)\/(\d+)/);
+    if (mediaMatch) {
+      return { mediaType: mediaMatch[1] as 'movie' | 'tv', tmdbId: Number(mediaMatch[2]) };
+    }
+    const personMatch = location.pathname.match(/^\/person\/(\d+)/);
+    if (personMatch) {
+      return { mediaType: 'person' as const, tmdbId: Number(personMatch[1]) };
+    }
+    return null;
+  }, [location.pathname]);
+
   return (
     <>
       <header 
@@ -249,21 +269,39 @@ export const Navbar = () => {
         {/* Search and User Actions */}
         <div className="flex w-full items-center gap-4 md:ml-auto md:gap-2 lg:gap-4">
           <div className="flex items-center gap-3 ml-auto">
-            {/* Copy link button — detail pages only */}
-            {(location.pathname.startsWith('/media/') || location.pathname.startsWith('/person/')) && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-9 w-9 rounded-full bg-muted/70 backdrop-blur-md border border-border hover:bg-muted"
-                onClick={() => {
-                  navigator.clipboard.writeText(window.location.href);
-                  toast({ title: 'Link copied to clipboard' });
-                }}
-                aria-label="Copy link"
-              >
-                <Forward className="h-4 w-4 text-muted-foreground" />
-              </Button>
+            {/* Share / Copy link dropdown — detail pages only */}
+            {isDetailPage && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9 rounded-full bg-muted/70 backdrop-blur-md border border-border hover:bg-muted"
+                    aria-label="Share options"
+                  >
+                    <Forward className="h-4 w-4 text-muted-foreground" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => {
+                    navigator.clipboard.writeText(window.location.href);
+                    toast({ title: 'Link copied to clipboard' });
+                  }}>
+                    <Link2 className="mr-2 h-4 w-4" />
+                    Copy Link
+                  </DropdownMenuItem>
+                  {isLoggedIn && shareMediaInfo && (
+                    <DropdownMenuItem onClick={() => setShareDialogOpen(true)}>
+                      <Send className="mr-2 h-4 w-4" />
+                      Share
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
+
+            {/* Notification bell */}
+            <NotificationBell />
 
             {/* Search icon (desktop only — mobile uses bottom nav) */}
             <Button
@@ -431,6 +469,14 @@ export const Navbar = () => {
           )}
         </CommandList>
       </CommandDialog>
+
+      {shareMediaInfo && (
+        <ShareDialog
+          open={shareDialogOpen}
+          onOpenChange={setShareDialogOpen}
+          media={shareMediaInfo}
+        />
+      )}
     </>
   );
 };

@@ -546,6 +546,56 @@ export interface CombinedRatingsResponse {
   } | null;
 }
 
+// --- Notification & Share Types ---
+
+export type NotificationType = 'media_share' | 'recommendation';
+
+export interface MediaSharePayload {
+  tmdb_id: number;
+  media_type: 'movie' | 'tv' | 'person';
+  title: string;
+  poster_path: string | null;
+  message?: string;
+}
+
+export interface NotificationItem {
+  id: string;
+  type: NotificationType;
+  payload: string;
+  is_read: boolean;
+  created_at: string;
+  read_at: string | null;
+  sender_name: string | null;
+  sender_avatar_url: string | null;
+}
+
+export interface NotificationsResponse {
+  notifications: NotificationItem[];
+  nextCursor: string | null;
+  hasMore: boolean;
+  unreadCount: number;
+}
+
+export interface UnreadCountResponse {
+  count: number;
+}
+
+export interface SuggestedUser {
+  id: string;
+  name: string | null;
+  email: string;
+  avatar_url: string | null;
+}
+
+export interface ShareMediaInput {
+  recipient_id: string;
+  tmdb_id: number;
+  media_type: 'movie' | 'tv' | 'person';
+  title: string;
+  poster_path: string | null;
+  message?: string;
+}
+
 // --- Reviews Types ---
 export interface ReviewSummaryResponse {
   media: {

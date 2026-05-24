@@ -406,6 +406,56 @@ export const mediaComments = pgTable("media_comments", {
 // ============================================================================
 // MEDIA COMMENT LIKES TABLE
 // ============================================================================
+// ============================================================================
+// NOTIFICATIONS TABLE
+// ============================================================================
+export const notifications = pgTable("notifications", {
+	id: text().primaryKey().notNull(),
+	recipientId: text("recipient_id").notNull(),
+	senderId: text("sender_id"),
+	type: text().notNull(),
+	payload: text().notNull(),
+	isRead: boolean("is_read").default(false).notNull(),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	readAt: timestamp("read_at", { withTimezone: true, mode: 'string' }),
+}, (table) => [
+	index("idx_notifications_recipient_id").using("btree", table.recipientId.asc().nullsLast().op("text_ops")),
+	index("idx_notifications_created_at").using("btree", table.createdAt.desc().nullsLast()),
+	foreignKey({
+		columns: [table.recipientId],
+		foreignColumns: [user.id],
+		name: "notifications_recipient_id_fkey"
+	}).onDelete("cascade"),
+	foreignKey({
+		columns: [table.senderId],
+		foreignColumns: [user.id],
+		name: "notifications_sender_id_fkey"
+	}).onDelete("set null"),
+]);
+
+// ============================================================================
+// PUSH SUBSCRIPTIONS TABLE
+// ============================================================================
+export const pushSubscriptions = pgTable("push_subscriptions", {
+	id: text().primaryKey().notNull(),
+	userId: text("user_id").notNull(),
+	endpoint: text().notNull(),
+	p256dh: text().notNull(),
+	auth: text().notNull(),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+	index("idx_push_subscriptions_user_id").using("btree", table.userId.asc().nullsLast().op("text_ops")),
+	foreignKey({
+		columns: [table.userId],
+		foreignColumns: [user.id],
+		name: "push_subscriptions_user_id_fkey"
+	}).onDelete("cascade"),
+	unique("push_subscriptions_endpoint_key").on(table.endpoint),
+]);
+
+// ============================================================================
+// MEDIA COMMENT LIKES TABLE
+// ============================================================================
 export const mediaCommentLikes = pgTable("media_comment_likes", {
 	id: text().primaryKey().notNull(),
 	commentId: text("comment_id").notNull(),

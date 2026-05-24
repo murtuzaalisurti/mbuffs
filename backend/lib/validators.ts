@@ -98,6 +98,38 @@ export const deleteCommentSchema = z.object({
 
 export type DeleteCommentInput = z.infer<typeof deleteCommentSchema>;
 
+// --- Share Schemas ---
+
+export const shareMediaSchema = z.object({
+  recipient_id: z.string().min(1),
+  tmdb_id: z.coerce.number().int().positive(),
+  media_type: z.enum(['movie', 'tv', 'person']),
+  title: z.string().min(1).max(500),
+  poster_path: z.string().nullable(),
+  message: z.string().max(500).optional(),
+});
+
+export type ShareMediaInput = z.infer<typeof shareMediaSchema>;
+
+// --- Notification Schemas ---
+
+export const savePushSubscriptionSchema = z.object({
+  endpoint: z.string().url(),
+  keys: z.object({
+    p256dh: z.string().min(1),
+    auth: z.string().min(1),
+  }),
+});
+
+export type SavePushSubscriptionInput = z.infer<typeof savePushSubscriptionSchema>;
+
+export const notificationsPaginationSchema = z.object({
+  cursor: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+});
+
+export type NotificationsPaginationInput = z.infer<typeof notificationsPaginationSchema>;
+
 export const commentsPaginationSchema = z.object({
   cursor: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(50).default(20),

@@ -14,7 +14,11 @@ import {
     MultiSearchResults,
     ReviewSummaryResponse,
     PaginatedCommentsResponse,
-    ReviewComment
+    ReviewComment,
+    NotificationsResponse,
+    UnreadCountResponse,
+    SuggestedUser,
+    ShareMediaInput,
 } from './types';
 
 const _dayjs = dayjs();
@@ -1108,5 +1112,74 @@ export const triggerRedditScrapeApi = async (options: {
     return fetchBackend('/reddit/scrape', {
         method: 'POST',
         body: JSON.stringify(options),
+    });
+};
+
+// --- Share API Functions ---
+
+export const fetchSuggestedUsersApi = async (): Promise<{ users: SuggestedUser[] }> => {
+    return fetchBackend('/share/suggested-users');
+};
+
+export const searchUsersApi = async (query: string): Promise<{ users: SuggestedUser[] }> => {
+    return fetchBackend(`/share/search-users?q=${encodeURIComponent(query)}`);
+};
+
+export const shareMediaApi = async (data: ShareMediaInput): Promise<{ success: boolean }> => {
+    return fetchBackend('/share', {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+};
+
+// --- Notification API Functions ---
+
+export const fetchNotificationsApi = async (cursor?: string): Promise<NotificationsResponse> => {
+    const params = cursor ? `?cursor=${cursor}` : '';
+    return fetchBackend(`/notifications${params}`);
+};
+
+export const fetchUnreadCountApi = async (): Promise<UnreadCountResponse> => {
+    return fetchBackend('/notifications/unread-count');
+};
+
+export const markNotificationReadApi = async (notificationId: string): Promise<void> => {
+    await fetchBackend(`/notifications/${notificationId}/read`, { method: 'PATCH' });
+};
+
+export const markAllNotificationsReadApi = async (): Promise<void> => {
+    await fetchBackend('/notifications/mark-all-read', { method: 'POST' });
+};
+
+export const deleteNotificationApi = async (notificationId: string): Promise<void> => {
+    await fetchBackend(`/notifications/${notificationId}`, { method: 'DELETE' });
+};
+
+export const clearAllNotificationsApi = async (): Promise<void> => {
+    await fetchBackend('/notifications/clear-all', { method: 'POST' });
+};
+
+export const fetchVapidPublicKeyApi = async (): Promise<{ key: string }> => {
+    return fetchBackend('/notifications/vapid-public-key');
+};
+
+export const savePushSubscriptionApi = async (subscription: PushSubscription): Promise<void> => {
+    const json = subscription.toJSON();
+    await fetchBackend('/notifications/push-subscription', {
+        method: 'POST',
+        body: JSON.stringify({
+            endpoint: json.endpoint,
+            keys: {
+                p256dh: json.keys?.p256dh,
+                auth: json.keys?.auth,
+            },
+        }),
+    });
+};
+
+export const deletePushSubscriptionApi = async (endpoint: string): Promise<void> => {
+    await fetchBackend('/notifications/push-subscription', {
+        method: 'DELETE',
+        body: JSON.stringify({ endpoint }),
     });
 };

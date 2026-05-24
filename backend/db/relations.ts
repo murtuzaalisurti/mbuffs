@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm/relations";
-import { user, collections, collectionCollaborators, collectionMovies, session, oauthAccount, userRecommendationCollections } from "./schema";
+import { user, collections, collectionCollaborators, collectionMovies, session, oauthAccount, userRecommendationCollections, notifications, pushSubscriptions } from "./schema";
 
 export const collectionsRelations = relations(collections, ({one, many}) => ({
 	user: one(user, {
@@ -29,6 +29,9 @@ export const userRelations = relations(user, ({one, many}) => ({
 	}),
 	oauthAccounts: many(oauthAccount),
 	recommendationCollections: many(userRecommendationCollections),
+	receivedNotifications: many(notifications, { relationName: "notifications_recipientId_user_id" }),
+	sentNotifications: many(notifications, { relationName: "notifications_senderId_user_id" }),
+	pushSubscriptions: many(pushSubscriptions),
 }));
 
 export const collectionCollaboratorsRelations = relations(collectionCollaborators, ({one}) => ({
@@ -63,6 +66,26 @@ export const sessionRelations = relations(session, ({one}) => ({
 export const oauthAccountRelations = relations(oauthAccount, ({one}) => ({
 	user: one(user, {
 		fields: [oauthAccount.userId],
+		references: [user.id]
+	}),
+}));
+
+export const notificationsRelations = relations(notifications, ({one}) => ({
+	recipient: one(user, {
+		fields: [notifications.recipientId],
+		references: [user.id],
+		relationName: "notifications_recipientId_user_id"
+	}),
+	sender: one(user, {
+		fields: [notifications.senderId],
+		references: [user.id],
+		relationName: "notifications_senderId_user_id"
+	}),
+}));
+
+export const pushSubscriptionsRelations = relations(pushSubscriptions, ({one}) => ({
+	user: one(user, {
+		fields: [pushSubscriptions.userId],
 		references: [user.id]
 	}),
 }));

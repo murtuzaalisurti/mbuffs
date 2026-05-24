@@ -89,3 +89,50 @@ self.addEventListener("fetch", (event) => {
       })
   );
 });
+
+// Handle push notifications
+self.addEventListener("push", (event) => {
+  if (!event.data) return;
+
+  let data;
+  try {
+    data = event.data.json();
+  } catch {
+    data = { title: "mbuffs", body: event.data.text() };
+  }
+
+  const options = {
+    body: data.body || "",
+    icon: data.icon || "/android-chrome-192x192.png",
+    badge: "/favicon-32x32.png",
+    data: { url: data.url || "/" },
+    tag: data.tag || "mbuffs-notification",
+    renotify: true,
+  };
+
+  event.waitUntil(
+    self.registration.showNotification(data.title || "mbuffs", options)
+  );
+});
+
+// Handle notification click — focus or open app window
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+
+  const targetUrl = event.notification.data?.url || "/";
+
+  event.waitUntil(
+    self.clients
+      .matchAll({ type: "window", includeUncontrolled: true })
+      .then((clients) => {
+        for (const client of clients) {
+          if (client.url.includes(self.location.origin) && "focus" in client) {
+            client.focus();
+            client.navigate(targetUrl);
+            return;
+          }
+        }
+        return self.clients.openWindow(targetUrl);
+      })
+  );
+});
