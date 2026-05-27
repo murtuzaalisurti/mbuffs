@@ -286,6 +286,29 @@ export interface AdminCuratedItemsResponse {
   total: number;
 }
 
+export interface HomepageCollageItem {
+  id: string;
+  tmdb_id: string;
+  media_type: 'movie' | 'tv';
+  title: string;
+  poster_path: string | null;
+  added_by_user_id: string;
+  added_by_name?: string;
+  added_at: string;
+}
+
+export interface HomepageCollageItemsResponse {
+  items: HomepageCollageItem[];
+  total: number;
+  minItems: number;
+}
+
+export interface HomepageCollageItemsPublicResponse {
+  items: Pick<HomepageCollageItem, 'tmdb_id' | 'media_type' | 'title' | 'poster_path'>[];
+  total: number;
+  minItems: number;
+}
+
 // --- User Preferences Types ---
 export interface UserPreferences {
   recommendations_enabled: boolean;

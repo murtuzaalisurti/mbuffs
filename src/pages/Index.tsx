@@ -2,7 +2,7 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useRef, useMemo } from 'react';
 import { MovieGrid } from "@/components/MovieGrid";
 import { MovieCard } from "@/components/MovieCard";
-import { fetchTrendingContentApi, fetchUserRegion, fetchUserPreferencesApi } from "@/lib/api";
+import { fetchTrendingContentApi, fetchUserRegion, fetchUserPreferencesApi, fetchCollageItemsPublicApi, getImageUrl } from "@/lib/api";
 import { Navbar } from "@/components/Navbar";
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/useAuth';
@@ -22,9 +22,10 @@ import {
 } from '@/lib/recommendationQueries';
 
 const TRENDING_CONTENT_QUERY_KEY = ['content', 'trending'];
+const COLLAGE_QUERY_KEY = ['content', 'collage'];
 const Index = () => {
   const { user } = useAuth();
-  
+
   // Fetch user preferences separately
   const { data: preferencesData } = useQuery<{ preferences: UserPreferences }, Error>({
     queryKey: getPreferencesQueryKey(user?.id),
@@ -51,6 +52,13 @@ const Index = () => {
     staleTime: 1000 * 60 * 10, // Cache for 10 minutes to reduce API calls
   });
 
+  // Fetch admin-curated collage items for the hero section
+  const { data: collageData } = useQuery({
+    queryKey: COLLAGE_QUERY_KEY,
+    queryFn: fetchCollageItemsPublicApi,
+    staleTime: 1000 * 60 * 30,
+  });
+
   // Fetch personalized recommendations for logged in users with recommendations enabled
   const {
     data: recommendationsData,
@@ -61,6 +69,18 @@ const Index = () => {
   });
 
   const trendingContent = trendingContentData?.results?.slice(0, 50) || [];
+  const collageItems = collageData?.items ?? [];
+  const collageMinItems = collageData?.minItems ?? 12;
+  const hasEnoughCollageItems = collageItems.length >= collageMinItems;
+  const heroPosters = useMemo(() => {
+    const collagePosters = collageItems.map((item) => ({ id: item.tmdb_id, poster_path: item.poster_path }));
+    if (collagePosters.length >= collageMinItems) return collagePosters;
+    const existingIds = new Set(collagePosters.map((p) => p.id));
+    const trendingFill = trendingContent
+      .filter((m) => !existingIds.has(String(m.id)))
+      .map((m) => ({ id: String(m.id), poster_path: m.poster_path }));
+    return [...collagePosters, ...trendingFill];
+  }, [collageItems, collageMinItems, trendingContent]);
   const firstRecommendationsPage = recommendationsData?.pages?.[0];
   const recommendationCandidates = useMemo(
     () => dedupeForYouRecommendations(firstRecommendationsPage?.results ?? []),
@@ -98,28 +118,52 @@ const Index = () => {
 
   return (
     <>
-      <Navbar />
-      <main className="container py-6 md:py-10">
-        {/* Hero Section */}
-        <section className="relative mb-6 md:mb-16">
-          {/* Subtle gradient orb behind the text */}
-          <div className="absolute -top-20 -left-20 w-72 h-72 bg-primary/6 rounded-full blur-3xl pointer-events-none" />
-          <div className="absolute -top-10 left-40 w-48 h-48 bg-muted/30 rounded-full blur-3xl pointer-events-none" />
+      {/* Hero Section — full viewport width, extends behind navbar */}
+      <div className="relative overflow-hidden">
+        {/* Poster collage background — slanted, positioned behind everything including navbar */}
+        {heroPosters.length > 0 && (
+          <div className="absolute inset-0 pointer-events-none">
+            <div className="absolute inset-[-20%] flex flex-wrap gap-1.5 rotate-[-6deg] origin-center">
+              {heroPosters.map((item) => (
+                <img
+                  key={item.id}
+                  src={getImageUrl(item.poster_path, 'w342')}
+                  alt=""
+                  className="w-[18%] md:w-[15%] lg:w-[11%] xl:w-[10%] aspect-[2/3] object-cover rounded-md"
+                  loading="lazy"
+                />
+              ))}
+            </div>
+          </div>
+        )}
+        {/* Base darkening over entire collage */}
+        <div className="absolute inset-0 pointer-events-none bg-background/40" />
+        {/* Dark radial over title area for text readability */}
+        <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse 55% 65% at 8% 70%, oklch(0.141 0.005 285.823) 0%, oklch(0.141 0.005 285.823 / 0.95) 35%, oklch(0.141 0.005 285.823 / 0.5) 55%, transparent 75%)' }} />
+        {/* Smooth edge vignette on all sides */}
+        <div className="absolute inset-0 pointer-events-none" style={{ boxShadow: 'inset 0 0 120px 60px oklch(0.141 0.005 285.823)' }} />
+        {/* Bottom fade so sections below are not affected */}
+        <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-background to-transparent pointer-events-none" />
 
-          <div className="relative">
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.1] mb-4">
-              <span className="text-gradient inline-block">
-                A place for your
-                <br />
-                movie buffs.
-              </span>
+        {/* Navbar sits inside the hero so collage extends behind it */}
+        <Navbar />
+
+        {/* Text content — constrained to container */}
+        <div className="relative z-10 container flex items-end min-h-[240px] md:min-h-[300px] lg:min-h-[360px] pb-8 md:pb-12">
+          <div>
+            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.1] mb-3">
+              Track. Collect.
+              <br />
+              Discover.
             </h1>
             <p className="text-lg md:text-xl text-muted-foreground max-w-md">
-              Watch, Add, Share.
+              Track what you love. Find what you'll love next.
             </p>
           </div>
-        </section>
+        </div>
+      </div>
 
+      <main className="container py-6 md:py-10">
         {/* Content Section */}
         <div className="space-y-16">
           {/* For You Section - Personalized Recommendations */}

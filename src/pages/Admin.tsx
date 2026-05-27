@@ -4,12 +4,15 @@ import { Navbar } from '@/components/Navbar';
 import {
   fetchAdminUsersApi, fetchUserPreferencesApi, updateUserPreferencesApi,
   fetchAdminCuratedItemsApi, addAdminCuratedItemApi, removeAdminCuratedItemApi,
+  fetchCollageItemsApi, addCollageItemApi, removeCollageItemApi,
   searchMoviesApi, getImageUrl, fetchMovieDetailsApi, fetchTvDetailsApi,
   fetchRecommendationCacheDebugApi, invalidateRecommendationCacheDebugApi,
 } from '@/lib/api';
 import {
   AdminUser, AdminUsersResponse, UserPreferences,
-  AdminCuratedItem, AdminCuratedItemsResponse, SearchResults, MovieDetails, Movie,
+  AdminCuratedItem, AdminCuratedItemsResponse,
+  HomepageCollageItem, HomepageCollageItemsResponse,
+  SearchResults, MovieDetails, Movie,
   RecommendationCacheDebugInvalidateMode, RecommendationCacheDebugInvalidateResponse, RecommendationCacheDebugResponse,
 } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -32,6 +35,7 @@ import { Plus, Search as SearchIcon, Loader2, Check, Trash2, Database, Clock3, R
 
 const ADMIN_USERS_QUERY_KEY = ['admin', 'users'];
 const ADMIN_CURATED_QUERY_KEY = ['admin', 'curated-items'];
+const ADMIN_COLLAGE_QUERY_KEY = ['admin', 'collage-items'];
 
 const formatDate = (dateString: string | Date | undefined) => {
   if (!dateString) return 'Unknown';
@@ -293,12 +297,14 @@ const UsersTab = () => {
 // ============================================================================
 // Add Curated Item Dialog
 // ============================================================================
-interface AddCuratedItemDialogProps {
+interface AddItemDialogProps {
   existingTmdbIds: Set<string>;
   onAdd: (movie: Movie) => Promise<unknown>;
+  title?: string;
+  description?: string;
 }
 
-const AddCuratedItemDialog: React.FC<AddCuratedItemDialogProps> = ({ existingTmdbIds, onAdd }) => {
+const AddItemDialog: React.FC<AddItemDialogProps> = ({ existingTmdbIds, onAdd, title = 'Add Item', description = 'Search for movies and TV shows to add.' }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const debouncedSearchTerm = useDebounce(searchTerm, 500);
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
@@ -342,8 +348,8 @@ const AddCuratedItemDialog: React.FC<AddCuratedItemDialogProps> = ({ existingTmd
   return (
     <DialogContent className="w-[90%] sm:max-w-[550px] rounded-lg">
       <DialogHeader>
-        <DialogTitle>Add Curated Item</DialogTitle>
-        <DialogDescription>Search for movies and TV shows to recommend to all users.</DialogDescription>
+        <DialogTitle>{title}</DialogTitle>
+        <DialogDescription>{description}</DialogDescription>
       </DialogHeader>
 
       <div className="relative my-2">
@@ -632,9 +638,11 @@ const CuratedItemsTab = () => {
               <span>Add Item</span>
             </Button>
           </DialogTrigger>
-          <AddCuratedItemDialog
+          <AddItemDialog
             existingTmdbIds={existingTmdbIds}
             onAdd={(movie) => addMutation.mutateAsync(movie)}
+            title="Add Curated Item"
+            description="Search for movies and TV shows to recommend to all users."
           />
         </Dialog>
       </div>
@@ -677,6 +685,260 @@ const CuratedItemsTab = () => {
                         e.preventDefault();
                         e.stopPropagation();
                         removeMutation.mutate(curatedId);
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      <span>Remove</span>
+                    </DropdownMenuItem>
+                  ) : undefined}
+                />
+                {addedByName && (
+                  <p className="text-xs text-muted-foreground mt-1.5 truncate">
+                    {addedByName}
+                  </p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ============================================================================
+// Collage Items Tab
+// ============================================================================
+const CollageItemsTab = () => {
+  const queryClient = useQueryClient();
+  const [isAddOpen, setIsAddOpen] = useState(false);
+
+  const { data: collageData, isLoading, isError, error } = useQuery<HomepageCollageItemsResponse, Error>({
+    queryKey: ADMIN_COLLAGE_QUERY_KEY,
+    queryFn: fetchCollageItemsApi,
+  });
+
+  const collageItems = collageData?.items ?? [];
+  const minItems = collageData?.minItems ?? 12;
+
+  const tmdbIds = useMemo(() => collageItems.map((item) => item.tmdb_id), [collageItems]);
+  const existingTmdbIds = useMemo(() => new Set(tmdbIds), [tmdbIds]);
+
+  const { data: moviesDetailsMap, isLoading: isLoadingDetails } = useQuery<Record<string, MovieDetails | null>, Error>({
+    queryKey: ['movies', 'details', 'collage', ...tmdbIds].sort(),
+    queryFn: async () => {
+      if (collageItems.length === 0) return {};
+      const entries = await Promise.all(
+        collageItems.map(async (item) => {
+          try {
+            const details = item.media_type === 'movie'
+              ? await fetchMovieDetailsApi(Number(item.tmdb_id))
+              : await fetchTvDetailsApi(Number(item.tmdb_id));
+            return [item.tmdb_id, details] as const;
+          } catch {
+            return [item.tmdb_id, null] as const;
+          }
+        })
+      );
+      return Object.fromEntries(entries);
+    },
+    enabled: collageItems.length > 0,
+  });
+
+  const movies: Movie[] = useMemo(() => {
+    if (!moviesDetailsMap) return [];
+    return collageItems
+      .map((item) => moviesDetailsMap[item.tmdb_id])
+      .filter((m): m is MovieDetails => m !== null && m !== undefined);
+  }, [collageItems, moviesDetailsMap]);
+
+  const collageIdByTmdbId = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const item of collageItems) {
+      map.set(Number(item.tmdb_id), item.id);
+    }
+    return map;
+  }, [collageItems]);
+
+  const addedByNameByTmdbId = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const item of collageItems) {
+      if (item.added_by_name) map.set(Number(item.tmdb_id), item.added_by_name);
+    }
+    return map;
+  }, [collageItems]);
+
+  const detailsQueryKey = useMemo(
+    () => ['movies', 'details', 'collage', ...tmdbIds].sort(),
+    [tmdbIds]
+  );
+
+  const addMutation = useMutation<
+    { item: HomepageCollageItem },
+    Error & { status?: number },
+    Movie,
+    { previousCollage?: HomepageCollageItemsResponse; previousDetails?: Record<string, MovieDetails | null> }
+  >({
+    mutationFn: (movie: Movie) => {
+      const isTV = !!movie.first_air_date;
+      return addCollageItemApi({
+        tmdb_id: String(movie.id),
+        media_type: isTV ? 'tv' : 'movie',
+        title: movie.name || movie.title,
+        poster_path: movie.poster_path,
+      });
+    },
+    onMutate: async (movie) => {
+      await queryClient.cancelQueries({ queryKey: ADMIN_COLLAGE_QUERY_KEY });
+
+      const previousCollage = queryClient.getQueryData<HomepageCollageItemsResponse>(ADMIN_COLLAGE_QUERY_KEY);
+      const previousDetails = queryClient.getQueryData<Record<string, MovieDetails | null>>(detailsQueryKey);
+
+      const isTV = !!movie.first_air_date;
+      const optimisticItem: HomepageCollageItem = {
+        id: `optimistic-${movie.id}`,
+        tmdb_id: String(movie.id),
+        media_type: isTV ? 'tv' : 'movie',
+        title: movie.name || movie.title,
+        poster_path: movie.poster_path,
+        added_by_user_id: '',
+        added_at: new Date().toISOString(),
+      };
+
+      queryClient.setQueryData<HomepageCollageItemsResponse>(ADMIN_COLLAGE_QUERY_KEY, (old) => {
+        const items = old?.items ?? [];
+        return { items: [optimisticItem, ...items], total: items.length + 1, minItems: old?.minItems ?? 12 };
+      });
+
+      queryClient.setQueryData<Record<string, MovieDetails | null>>(detailsQueryKey, (old) => ({
+        ...old,
+        [String(movie.id)]: movie as MovieDetails,
+      }));
+
+      return { previousCollage, previousDetails };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ADMIN_COLLAGE_QUERY_KEY });
+      toast.success('Item added to collage.');
+    },
+    onError: (err, _movie, context) => {
+      if (context?.previousCollage) {
+        queryClient.setQueryData(ADMIN_COLLAGE_QUERY_KEY, context.previousCollage);
+      }
+      if (context?.previousDetails) {
+        queryClient.setQueryData(detailsQueryKey, context.previousDetails);
+      }
+      if (err.status === 409) {
+        toast.error('Item is already in the collage.');
+      } else {
+        toast.error('Failed to add item.');
+      }
+    },
+  });
+
+  const removeMutation = useMutation<
+    void,
+    Error,
+    string,
+    { previousCollage?: HomepageCollageItemsResponse }
+  >({
+    mutationFn: removeCollageItemApi,
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: ADMIN_COLLAGE_QUERY_KEY });
+
+      const previousCollage = queryClient.getQueryData<HomepageCollageItemsResponse>(ADMIN_COLLAGE_QUERY_KEY);
+
+      queryClient.setQueryData<HomepageCollageItemsResponse>(ADMIN_COLLAGE_QUERY_KEY, (old) => {
+        if (!old) return old;
+        const items = old.items.filter((item) => item.id !== id);
+        return { items, total: items.length, minItems: old.minItems };
+      });
+
+      return { previousCollage };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ADMIN_COLLAGE_QUERY_KEY });
+      toast.success('Item removed from collage.');
+    },
+    onError: (_err, _id, context) => {
+      if (context?.previousCollage) {
+        queryClient.setQueryData(ADMIN_COLLAGE_QUERY_KEY, context.previousCollage);
+      }
+      toast.error('Failed to remove item.');
+    },
+  });
+
+  const itemCount = collageItems.length;
+  const isBelowMin = itemCount < minItems;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm text-muted-foreground">
+            {itemCount} item{itemCount !== 1 ? 's' : ''} in collage.
+            {isBelowMin && (
+              <span className="text-amber-500 font-medium ml-1">
+                Minimum {minItems} required — {minItems - itemCount} more needed.
+              </span>
+            )}
+            {!isBelowMin && ' Displayed on the homepage hero section.'}
+          </p>
+        </div>
+        <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+          <DialogTrigger asChild>
+            <Button size="sm" className="gap-1.5">
+              <Plus className="h-4 w-4" />
+              <span>Add Item</span>
+            </Button>
+          </DialogTrigger>
+          <AddItemDialog
+            existingTmdbIds={existingTmdbIds}
+            onAdd={(movie) => addMutation.mutateAsync(movie)}
+            title="Add Collage Item"
+            description="Search for movies and TV shows to display in the homepage collage."
+          />
+        </Dialog>
+      </div>
+
+      {isLoading || (isLoadingDetails && collageItems.length > 0) ? (
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 md:gap-5 lg:grid-cols-5">
+          {Array.from({ length: 10 }).map((_, i) => (
+            <div key={i} className="space-y-2">
+              <Skeleton className="aspect-[2/3] w-full rounded-md" />
+              <Skeleton className="h-4 w-[80%]" />
+            </div>
+          ))}
+        </div>
+      ) : isError ? (
+        <Card className="border-destructive/30">
+          <CardHeader>
+            <CardTitle className="text-destructive">Failed to load collage items</CardTitle>
+            <CardDescription>{error?.message || 'Unable to fetch collage items.'}</CardDescription>
+          </CardHeader>
+        </Card>
+      ) : movies.length === 0 ? (
+        <div className="text-center py-16 rounded-2xl bg-muted/30 border border-border">
+          <h2 className="text-xl font-semibold mb-2">No collage items yet</h2>
+          <p className="text-muted-foreground text-sm">Add at least {minItems} movies or TV shows for the homepage collage.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 md:gap-5 lg:grid-cols-5">
+          {movies.map((movie) => {
+            const collageId = collageIdByTmdbId.get(movie.id);
+            const addedByName = addedByNameByTmdbId.get(movie.id);
+            return (
+              <div key={movie.id}>
+                <MovieCard
+                  movie={movie}
+                  showWatched={false}
+                  additionalMenuItems={collageId ? (
+                    <DropdownMenuItem
+                      className="cursor-pointer rounded-lg px-3 py-2.5 text-sm font-medium text-destructive focus:bg-destructive/10 focus:text-destructive data-[highlighted]:bg-destructive/10 data-[highlighted]:text-destructive"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        removeMutation.mutate(collageId);
                       }}
                     >
                       <Trash2 className="h-4 w-4 mr-2" />
@@ -912,6 +1174,7 @@ const Admin = () => {
           <TabsList className="mb-6">
             <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="curated">Curated Items</TabsTrigger>
+            <TabsTrigger value="collage">Collage</TabsTrigger>
             <TabsTrigger value="cache-debug">Cache Debug</TabsTrigger>
           </TabsList>
 
@@ -921,6 +1184,10 @@ const Admin = () => {
 
           <TabsContent value="curated">
             <CuratedItemsTab />
+          </TabsContent>
+
+          <TabsContent value="collage">
+            <CollageItemsTab />
           </TabsContent>
 
           <TabsContent value="cache-debug">

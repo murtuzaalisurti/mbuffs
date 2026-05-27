@@ -1,6 +1,7 @@
 import dayjs from 'dayjs';
 import {
     Movie, MovieDetails, SearchResults, User, AdminUsersResponse, AdminCuratedItem, AdminCuratedItemsResponse,
+    HomepageCollageItem, HomepageCollageItemsResponse, HomepageCollageItemsPublicResponse,
     CollectionSummary, CollectionDetails, CollectionCollaborator, UserCollectionsResponse,
     CreateCollectionInput, UpdateCollectionInput, AddMovieInput, AddCollaboratorInput,
     UpdateCollaboratorInput, AddMovieResponse, VideosResponse, CreditsResponse,
@@ -118,6 +119,31 @@ export const addAdminCuratedItemApi = async (data: {
 
 export const removeAdminCuratedItemApi = async (id: string): Promise<void> => {
     await fetchBackend(`/admin/curated-items/${id}`, { method: 'DELETE' });
+};
+
+// --- Homepage Collage Items API ---
+export const fetchCollageItemsApi = async (): Promise<HomepageCollageItemsResponse> => {
+    return fetchBackend('/admin/collage-items');
+};
+
+export const fetchCollageItemsPublicApi = async (): Promise<HomepageCollageItemsPublicResponse> => {
+    return fetchBackend('/content/collage');
+};
+
+export const addCollageItemApi = async (data: {
+    tmdb_id: string;
+    media_type: 'movie' | 'tv';
+    title: string;
+    poster_path: string | null;
+}): Promise<{ item: HomepageCollageItem }> => {
+    return fetchBackend('/admin/collage-items', {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+};
+
+export const removeCollageItemApi = async (id: string): Promise<void> => {
+    await fetchBackend(`/admin/collage-items/${id}`, { method: 'DELETE' });
 };
 
 export const logoutUserApi = async (): Promise<void> => {

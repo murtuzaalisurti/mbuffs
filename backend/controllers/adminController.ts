@@ -181,3 +181,98 @@ export const removeCuratedItem = async (req: Request, res: Response, next: NextF
         next(error);
     }
 };
+
+// ============================================================================
+// Homepage Collage Items (minimum 12 items required for a good-looking collage)
+// ============================================================================
+export const HOMEPAGE_COLLAGE_MIN_ITEMS = 30;
+
+export const getCollageItems = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+        const items = await sql`
+            SELECT
+                ci.id, ci.tmdb_id, ci.media_type, ci.title, ci.poster_path,
+                ci.added_by_user_id, ci.added_at,
+                u.name as added_by_name
+            FROM homepage_collage_items ci
+            LEFT JOIN "user" u ON ci.added_by_user_id = u.id
+            ORDER BY ci.added_at DESC
+        `;
+        res.status(200).json({ items, total: items.length, minItems: HOMEPAGE_COLLAGE_MIN_ITEMS });
+    } catch (error) {
+        console.error('Error fetching collage items:', error);
+        next(error);
+    }
+};
+
+export const getCollageItemsPublic = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+        const items = await sql`
+            SELECT tmdb_id, media_type, title, poster_path
+            FROM homepage_collage_items
+            ORDER BY added_at DESC
+        `;
+        res.status(200).json({ items, total: items.length, minItems: HOMEPAGE_COLLAGE_MIN_ITEMS });
+    } catch (error) {
+        console.error('Error fetching public collage items:', error);
+        next(error);
+    }
+};
+
+export const addCollageItem = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+        const { tmdb_id, media_type, title, poster_path } = req.body;
+
+        if (!tmdb_id || !media_type || !title) {
+            res.status(400).json({ message: 'tmdb_id, media_type, and title are required' });
+            return;
+        }
+
+        if (media_type !== 'movie' && media_type !== 'tv') {
+            res.status(400).json({ message: "media_type must be 'movie' or 'tv'" });
+            return;
+        }
+
+        const existing = await sql`
+            SELECT id FROM homepage_collage_items
+            WHERE tmdb_id = ${String(tmdb_id)} AND media_type = ${media_type}
+        `;
+
+        if (existing.length > 0) {
+            res.status(409).json({ message: 'Item already in collage' });
+            return;
+        }
+
+        const newId = generateId(21);
+        const result = await sql`
+            INSERT INTO homepage_collage_items (id, tmdb_id, media_type, title, poster_path, added_by_user_id)
+            VALUES (${newId}, ${String(tmdb_id)}, ${media_type}, ${title}, ${poster_path || null}, ${req.userId})
+            RETURNING *
+        `;
+
+        res.status(201).json({ item: result[0] });
+    } catch (error) {
+        console.error('Error adding collage item:', error);
+        next(error);
+    }
+};
+
+export const removeCollageItem = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+        const { id } = req.params;
+
+        const result = await sql`
+            DELETE FROM homepage_collage_items WHERE id = ${id} RETURNING id
+        `;
+
+        if (result.length === 0) {
+            res.status(404).json({ message: 'Collage item not found' });
+            return;
+        }
+
+        res.status(200).json({ message: 'Removed' });
+    } catch (error) {
+        console.error('Error removing collage item:', error);
+        next(error);
+    }
+};
