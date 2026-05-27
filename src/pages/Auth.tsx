@@ -224,8 +224,8 @@ const Auth = () => {
                 <div className="flex items-center justify-center px-4 py-12 sm:py-20">
                     <Card className="w-full max-w-md">
                         <CardHeader className="text-center">
-                            <CardTitle className="text-2xl font-bold">Welcome to mbuffs</CardTitle>
-                            <CardDescription>Choose how you'd like to continue</CardDescription>
+                            <CardTitle className="text-2xl font-bold">Sign in to mbuffs</CardTitle>
+                            <CardDescription>Track movies, build collections, and get personalized recommendations</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-3">
                             <Button
@@ -290,8 +290,8 @@ const Auth = () => {
                                 Back
                             </Button>
                         </div>
-                        <CardTitle className="text-2xl font-bold">Welcome to mbuffs</CardTitle>
-                        <CardDescription>Sign in to your account or create a new one</CardDescription>
+                        <CardTitle className="text-2xl font-bold">Continue with Email</CardTitle>
+                        <CardDescription>Sign in or create an account to get started</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <Tabs value={activeTab} onValueChange={(val) => { setActiveTab(val); setFormError(null); resetCaptcha(); }}>
