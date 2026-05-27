@@ -74,6 +74,10 @@ const Index = () => {
   const hasEnoughCollageItems = collageItems.length >= collageMinItems;
   const heroPosters = useMemo(() => {
     const collagePosters = collageItems.map((item) => ({ id: item.tmdb_id, poster_path: item.poster_path }));
+    for (let i = collagePosters.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [collagePosters[i], collagePosters[j]] = [collagePosters[j], collagePosters[i]];
+    }
     if (collagePosters.length >= collageMinItems) return collagePosters;
     const existingIds = new Set(collagePosters.map((p) => p.id));
     const trendingFill = trendingContent
