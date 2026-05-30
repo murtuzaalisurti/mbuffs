@@ -255,7 +255,7 @@ export const Navbar = () => {
             className="flex items-center gap-2.5 text-lg font-bold tracking-tight md:text-base group"
           >
             <LogoIcon className="h-7 w-7 transition-transform group-hover:scale-110" />
-            <span className="bg-linear-to-r from-foreground to-muted-foreground bg-clip-text text-transparent">mbuffs</span>
+            <span className="font-heading bg-linear-to-r from-foreground to-muted-foreground bg-clip-text text-transparent">mbuffs</span>
           </Link>
           <Link
             to="/categories"

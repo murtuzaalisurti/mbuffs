@@ -50,6 +50,8 @@
   --sidebar-ring: oklch(0.552 0.016 285.938);
   --sidebar-background: var(--sidebar);
   --radius: 0.67rem;
+  --font-primary: "Google Sans Flex Variable", system-ui, sans-serif;
+  --font-heading: "Plus Jakarta Sans Variable", var(--font-primary);
 }
 
 @theme inline {
@@ -98,6 +100,8 @@
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
+  --font-sans: var(--font-primary);
+  --font-heading: var(--font-heading);
 
   --animate-accordion-down: accordion-down 0.2s ease-out;
   --animate-accordion-up: accordion-up 0.2s ease-out;
@@ -224,10 +228,20 @@
 
   body {
     @apply bg-background text-foreground antialiased;
+    font-family: var(--font-primary);
     font-feature-settings:
       "rlig" 1,
       "calt" 1;
     padding-bottom: calc(4rem + env(safe-area-inset-bottom));
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-heading);
   }
 
   @media (width >= 768px) {
