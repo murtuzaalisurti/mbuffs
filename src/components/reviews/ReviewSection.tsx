@@ -48,7 +48,7 @@ function starFillFraction(filledStars: number, index: number): number {
 const STAR_SIZE = { sm: 'h-4 w-4', md: 'h-5 w-5', lg: 'h-6 w-6' } as const;
 
 /** Rating tier — maps a 1–10 rating to a descriptive label and color scheme. */
-function getRatingTier(rating: number) {
+export function getRatingTier(rating: number) {
     if (rating <= 2) return { label: 'Skip It', color: 'text-red-400', bgColor: 'bg-red-500/10', borderColor: 'border-red-500/20', starColor: 'fill-red-400 text-red-400', starHoverColor: 'fill-red-300 text-red-300' };
     if (rating <= 4) return { label: 'Meh', color: 'text-orange-400', bgColor: 'bg-orange-500/10', borderColor: 'border-orange-500/20', starColor: 'fill-orange-400 text-orange-400', starHoverColor: 'fill-orange-300 text-orange-300' };
     if (rating <= 6) return { label: 'Decent', color: 'text-emerald-400', bgColor: 'bg-emerald-500/10', borderColor: 'border-emerald-500/20', starColor: 'fill-emerald-400 text-emerald-400', starHoverColor: 'fill-emerald-300 text-emerald-300' };
@@ -57,7 +57,7 @@ function getRatingTier(rating: number) {
 }
 
 /** Read-only fractional star display, maps a 1–10 rating to 5 visual stars. */
-function StarDisplay({ rating, max = 10, size = 'sm', className }: { rating: number; max?: number; size?: 'sm' | 'md' | 'lg'; className?: string }) {
+export function StarDisplay({ rating, max = 10, size = 'sm', className }: { rating: number; max?: number; size?: 'sm' | 'md' | 'lg'; className?: string }) {
     const normalized = (rating / max) * 5;
     const px = STAR_SIZE[size];
     const tier = getRatingTier(rating);
@@ -86,7 +86,7 @@ function StarDisplay({ rating, max = 10, size = 'sm', className }: { rating: num
  * Each half-star maps to one integer point on the 1–10 scale:
  *   Star 0 left = 1, right = 2 … Star 4 left = 9, right = 10.
  */
-function InteractiveStarRating({
+export function InteractiveStarRating({
     value,
     onChange,
     disabled,
@@ -1047,15 +1047,16 @@ export const ReviewSection = ({ mediaType, tmdbId }: ReviewSectionProps) => {
         <section className="space-y-5">
             <div className="flex items-baseline justify-center md:justify-start">
                 <h2 className="text-xl md:text-2xl font-semibold text-foreground">
-                    Ratings & Reviews
+                    <span className="md:hidden">Ratings & Reviews</span>
+                    <span className="hidden md:inline">Reviews</span>
                 </h2>
             </div>
 
             <div className="rounded-xl border border-border/60 bg-card/35 overflow-hidden">
-                <div className="grid md:grid-cols-[minmax(17rem,21rem)_minmax(0,1fr)] md:items-start">
+                <div className="grid grid-cols-1">
                     <div
                         ref={ratingPanelRef}
-                        className="px-5 py-5 md:px-6 md:py-6 border-b md:border-b-0 md:border-r border-border/50 space-y-5 text-center md:text-left"
+                        className="px-5 py-5 border-b border-border/50 space-y-5 text-center md:hidden"
                     >
                         {(summaryData?.summary.ratingsCount ?? 0) > 0 ? (
                             <div className="space-y-2.5 flex flex-col items-center md:items-start">
@@ -1121,10 +1122,7 @@ export const ReviewSection = ({ mediaType, tmdbId }: ReviewSectionProps) => {
                     </div>
 
                     <div className="min-w-0">
-                        <div
-                            className="px-4 py-4 md:px-5 md:py-5 space-y-4 md:overflow-y-auto md:h-[var(--reviews-pane-height)]"
-                            style={{ ['--reviews-pane-height' as string]: ratingPanelHeight ? `${ratingPanelHeight}px` : 'auto' }}
-                        >
+                        <div className="px-4 py-4 md:px-5 md:py-5 space-y-4">
                             {isLoggedIn && (
                                 <div
                                     className={cn(

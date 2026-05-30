@@ -9,6 +9,7 @@ import { CertificationBadge } from '@/components/CertificationBadge';
 import { ParentalGuidance } from '@/components/ParentalGuidance';
 
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { ImageOff, Star, Play, User, Bookmark, MoreHorizontal, Loader2, Plus, Clock, Calendar, Globe, X, MessageSquare, ChevronRight, Eye, EyeOff, ThumbsDown, ThumbsUp } from 'lucide-react';
@@ -21,10 +22,63 @@ import {
 } from '@/lib/recommendationQueries';
 import { useWarmRecommendations } from '@/App';
 import { toast } from 'sonner';
-import { ReviewSection } from '@/components/reviews/ReviewSection';
+import { ReviewSection, getRatingTier, StarDisplay, InteractiveStarRating } from '@/components/reviews/ReviewSection';
+import { fetchReviewSummaryApi, upsertRatingApi } from '@/lib/api';
+import type { ReviewSummaryResponse } from '@/lib/types';
+import { Separator } from '@/components/ui/separator';
+import { cn } from '@/lib/utils';
 import { useOmdbRatings, enrichMoviesWithImdbRatings } from '@/hooks/useOmdbRatings';
 
 const TMDB_LOGO_BASE = 'https://image.tmdb.org/t/p/w92';
+const PROVIDER_PREVIEW_COUNT = 3;
+
+function ProviderStack({ title, logos }: { title: string, logos: { id: number | string; src: string; alt: string; isStudio?: boolean }[] }) {
+    if (logos.length === 0) return null;
+    const preview = logos.slice(0, PROVIDER_PREVIEW_COUNT);
+    const remaining = logos.length - PROVIDER_PREVIEW_COUNT;
+
+    return (
+        <Dialog>
+            <DialogTrigger asChild>
+                <button className="flex flex-col items-center md:items-start gap-2 group/stack cursor-pointer">
+                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{title}</span>
+                    <div className="flex items-center">
+                        <div className="flex -space-x-2.5">
+                            {preview.map((logo, i) => (
+                                <img
+                                    key={logo.id}
+                                    src={logo.src}
+                                    alt={logo.alt}
+                                    className={`w-9 h-9 rounded-md shadow-md border-2 border-background ${logo.isStudio ? 'bg-white object-contain p-0.5' : ''} transition-transform group-hover/stack:translate-x-0`}
+                                    style={{ zIndex: PROVIDER_PREVIEW_COUNT - i }}
+                                />
+                            ))}
+                        </div>
+                        {remaining > 0 && (
+                            <span className="ml-1.5 text-xs font-medium text-muted-foreground">+{remaining}</span>
+                        )}
+                    </div>
+                </button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle>{title}</DialogTitle>
+                </DialogHeader>
+                <div className="flex flex-wrap gap-3 pt-2">
+                    {logos.map(logo => (
+                        <div key={logo.id} className="relative group" title={logo.alt}>
+                            <img
+                                src={logo.src}
+                                alt={logo.alt}
+                                className={`w-12 h-12 rounded-md shadow-md border border-border/60 transition-transform group-hover:scale-105 ${logo.isStudio ? 'bg-white object-contain p-1' : ''}`}
+                            />
+                        </div>
+                    ))}
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
+}
 
 function NetworkBadge({ network }: { network: Network }) {
     return (
@@ -42,46 +96,6 @@ function NetworkBadge({ network }: { network: Network }) {
     );
 }
 
-function ProductionList({ title, companies }: { title: string, companies: ProductionCompany[] | undefined }) {
-    const withLogo = companies?.filter(c => c.logo_path) ?? [];
-    if (withLogo.length === 0) return null;
-    return (
-        <div className="flex flex-col gap-2 items-center md:items-start">
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{title}</span>
-            <div className="flex flex-wrap justify-center md:justify-start gap-3">
-                {withLogo.map(c => (
-                    <div key={c.id} className="relative group" title={c.name}>
-                        <img
-                            src={`${TMDB_LOGO_BASE}${c.logo_path}`}
-                            alt={c.name}
-                            className="w-10 h-10 rounded-md shadow-md border border-border/60 bg-white object-contain p-1 transition-transform group-hover:scale-105"
-                        />
-                    </div>
-                ))}
-            </div>
-        </div>
-    );
-}
-
-function ProviderList({ title, providers }: { title: string, providers: WatchProvider[] | undefined }) {
-    if (!providers || providers.length === 0) return null;
-    return (
-        <div className="flex flex-col gap-2 items-center md:items-start">
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{title}</span>
-            <div className="flex flex-wrap justify-center md:justify-start gap-3">
-                {providers.map(p => (
-                    <div key={p.provider_id} className="relative group" title={p.provider_name}>
-                        <img
-                            src={`${TMDB_LOGO_BASE}${p.logo_path}`}
-                            alt={p.provider_name}
-                            className="w-10 h-10 rounded-md shadow-md border border-border/60 transition-transform group-hover:scale-105"
-                        />
-                    </div>
-                ))}
-            </div>
-        </div>
-    );
-}
 
 const OVERVIEW_CHAR_LIMIT = 150;
 
@@ -274,6 +288,44 @@ const MovieDetail = () => {
         queryFn: () => fetchOmdbRatingsApi(mediaType as 'movie' | 'tv', Number(mediaId)),
         enabled: !!mediaId && !!mediaType,
         staleTime: 1000 * 60 * 60 * 24,
+    });
+
+    // Review summary + rating (for sidebar)
+    const reviewSummaryQueryKey = ['reviews', mediaType, Number(mediaId), 'summary'];
+    const { data: summaryData } = useQuery<ReviewSummaryResponse>({
+        queryKey: reviewSummaryQueryKey,
+        queryFn: () => fetchReviewSummaryApi(mediaType as 'movie' | 'tv', Number(mediaId)),
+        enabled: !!mediaId && !!mediaType,
+        staleTime: 60_000,
+    });
+
+    const rateMutation = useMutation({
+        mutationFn: (rating: number) => upsertRatingApi(mediaType as 'movie' | 'tv', Number(mediaId), rating),
+        onMutate: async (nextRating) => {
+            await queryClient.cancelQueries({ queryKey: reviewSummaryQueryKey });
+            const prev = queryClient.getQueryData<ReviewSummaryResponse>(reviewSummaryQueryKey);
+            if (!prev) return { prev };
+            const prevCount = prev.summary.ratingsCount;
+            const prevAvg = prev.summary.averageRating ?? 0;
+            const nextCount = prev.userRating == null ? prevCount + 1 : prevCount;
+            const total = prev.userRating == null ? prevAvg * prevCount + nextRating : prevAvg * prevCount - prev.userRating + nextRating;
+            queryClient.setQueryData<ReviewSummaryResponse>(reviewSummaryQueryKey, {
+                ...prev,
+                userRating: nextRating,
+                summary: { ...prev.summary, averageRating: nextCount > 0 ? Number((total / nextCount).toFixed(1)) : null, ratingsCount: nextCount },
+            });
+            return { prev };
+        },
+        onSuccess: (result) => {
+            queryClient.setQueryData<ReviewSummaryResponse>(reviewSummaryQueryKey, result.summary);
+        },
+        onError: (_err: Error, _v, ctx) => {
+            if (ctx?.prev) queryClient.setQueryData(reviewSummaryQueryKey, ctx.prev);
+            toast.error('Failed to save rating');
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: reviewSummaryQueryKey, refetchType: 'inactive' });
+        },
     });
 
     // Construct the media ID as stored in collections (TV shows have 'tv' suffix)
@@ -642,15 +694,15 @@ const MovieDetail = () => {
                     </div>
 
                     {/* Details */}
-                    <div className="grow space-y-4 text-center md:text-left pt-2 md:pt-8">
-                        <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight leading-tight">{title}</h1>
+                    <div className="grow space-y-5 md:space-y-4 text-center md:text-left pt-2 md:pt-8">
+                        <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight leading-tight">{title}</h1>
 
                         {tagline && (
                             <p className="text-base md:text-lg text-muted-foreground italic">"{tagline}"</p>
                         )}
 
                         {/* Meta row */}
-                        <div className="flex flex-wrap justify-center md:justify-start items-center gap-x-3 gap-y-2 text-sm text-muted-foreground">
+                        <div className="flex flex-wrap justify-center md:justify-start items-center gap-x-4 gap-y-3 text-sm text-muted-foreground">
                             {releaseDate && (
                                 <span className="font-medium text-foreground/80">{new Date(releaseDate).getFullYear()}</span>
                             )}
@@ -698,9 +750,9 @@ const MovieDetail = () => {
                             {genres.length > 0 && (
                                 <>
                                     <span className="hidden md:inline text-muted-foreground/40">|</span>
-                                    <div className="flex flex-wrap justify-center md:justify-start gap-2">
+                                    <div className="flex flex-wrap justify-center md:justify-start gap-2 w-full md:w-auto pt-1 md:pt-0">
                                         {genres.map(genre => (
-                                            <Badge key={genre.id} variant="outline" className="border-border text-foreground/70 px-2 py-0 h-5 text-xs font-normal">
+                                            <Badge key={genre.id} variant="outline" className="border-border text-foreground/70 px-2.5 py-0.5 h-6 text-xs font-normal">
                                                 {genre.name}
                                             </Badge>
                                         ))}
@@ -727,46 +779,51 @@ const MovieDetail = () => {
                             </div>
                         )}
 
-                        {/* Studio — mobile only (below director) */}
-                        {primaryStudio && (
-                            <div className="pt-2 flex justify-center md:hidden">
-                                <ProductionList title="Studio" companies={[primaryStudio]} />
-                            </div>
-                        )}
-
-                        {/* Watch Providers & Studio (desktop) */}
+                        {/* Watch Providers & Studio */}
                         {(watchProviders || primaryStudio) && (
                             <div className="pt-4">
                                 <div className="flex flex-wrap justify-center md:justify-start gap-x-8 gap-y-4">
                                     {watchProviders?.flatrate && watchProviders.flatrate.length > 0 ? (
-                                        <ProviderList title="Stream" providers={watchProviders.flatrate} />
+                                        <ProviderStack
+                                            title="Stream"
+                                            logos={watchProviders.flatrate.map(p => ({ id: p.provider_id, src: `${TMDB_LOGO_BASE}${p.logo_path}`, alt: p.provider_name }))}
+                                        />
                                     ) : (
                                         <>
-                                            <ProviderList title="Rent" providers={watchProviders?.rent} />
-                                            <ProviderList title="Buy" providers={watchProviders?.buy} />
+                                            {watchProviders?.rent && watchProviders.rent.length > 0 && (
+                                                <ProviderStack
+                                                    title="Rent"
+                                                    logos={watchProviders.rent.map(p => ({ id: p.provider_id, src: `${TMDB_LOGO_BASE}${p.logo_path}`, alt: p.provider_name }))}
+                                                />
+                                            )}
+                                            {watchProviders?.buy && watchProviders.buy.length > 0 && (
+                                                <ProviderStack
+                                                    title="Buy"
+                                                    logos={watchProviders.buy.map(p => ({ id: p.provider_id, src: `${TMDB_LOGO_BASE}${p.logo_path}`, alt: p.provider_name }))}
+                                                />
+                                            )}
                                         </>
                                     )}
-                                    {primaryStudio && (
-                                        <div className="hidden md:block">
-                                            <ProductionList title="Studio" companies={[primaryStudio]} />
-                                        </div>
+                                    {primaryStudio && primaryStudio.logo_path && (
+                                        <ProviderStack
+                                            title="Studio"
+                                            logos={[{ id: primaryStudio.id, src: `${TMDB_LOGO_BASE}${primaryStudio.logo_path}`, alt: primaryStudio.name, isStudio: true }]}
+                                        />
                                     )}
                                 </div>
                             </div>
                         )}
 
-                        {/* Add to Collection and Watched Buttons - Mobile Only */}
-                        <div className="pt-4 flex flex-wrap justify-center gap-3 md:hidden">
+                        {/* Action Buttons - Mobile Only */}
+                        <div className="pt-2 flex justify-center gap-4 md:hidden">
                             <Popover open={collectionsOpen} onOpenChange={setCollectionsOpen}>
                                 <PopoverTrigger asChild>
-                                    <Button
-                                        variant="outline"
-                                        className="w-40 justify-center border-border bg-secondary/40 hover:bg-secondary/70 text-foreground/90 gap-2"
+                                    <button
+                                        className="flex flex-col items-center justify-center w-20 h-20 rounded-2xl border border-border bg-secondary/40 hover:bg-secondary/70 transition-colors"
                                     >
-                                        <Bookmark className={`h-4 w-4 ${isInAnyCollection ? 'fill-current' : ''}`} />
-                                        <span>Save</span>
-                                        <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
-                                    </Button>
+                                        <Bookmark className={`h-6 w-6 text-foreground/90 ${isInAnyCollection ? 'fill-current' : ''}`} />
+                                        <span className="text-xs font-semibold text-foreground/70 mt-1.5">Save</span>
+                                    </button>
                                 </PopoverTrigger>
                                 <PopoverContent className="w-72 p-0 border-border bg-popover shadow-xl shadow-black/40" align="start">
                                     <div className="px-4 py-3 border-b border-border">
@@ -804,14 +861,11 @@ const MovieDetail = () => {
                                                 const status = movieStatusMap?.[collection.id];
                                                 const isInCollection = status?.hasMedia ?? false;
                                                 const addedByUserId = status?.addedByUserId;
-                                                
+
                                                 const isOwner = collection.user_permission === 'owner';
                                                 const isEditPermission = collection.user_permission === 'edit';
                                                 const isViewOnly = collection.user_permission === 'view';
-                                                
-                                                // Owner can always add/remove
-                                                // Edit permission can add, but can only remove if they added the item
-                                                // View permission cannot add or remove
+
                                                 const canAdd = isOwner || isEditPermission;
                                                 const canRemove = isOwner || (isEditPermission && addedByUserId === currentUser?.id);
                                                 const canToggle = isInCollection ? canRemove : canAdd;
@@ -821,8 +875,8 @@ const MovieDetail = () => {
                                                     <div
                                                         key={collection.id}
                                                         className={`flex items-center gap-3 px-3 py-2.5 rounded-md transition-all group ${
-                                                            isDisabled 
-                                                                ? 'opacity-50 cursor-not-allowed' 
+                                                            isDisabled
+                                                                ? 'opacity-50 cursor-not-allowed'
                                                                 : 'hover:bg-accent/50 cursor-pointer'
                                                         }`}
                                                         onClick={() => canToggle && handleCollectionToggle(collection.id, isInCollection)}
@@ -836,10 +890,10 @@ const MovieDetail = () => {
                                                             }`}
                                                         />
                                                         <span className={`text-sm truncate flex-1 transition-colors ${
-                                                            isInCollection 
-                                                                ? 'text-foreground font-medium' 
-                                                                : isDisabled 
-                                                                    ? 'text-muted-foreground' 
+                                                            isInCollection
+                                                                ? 'text-foreground font-medium'
+                                                                : isDisabled
+                                                                    ? 'text-muted-foreground'
                                                                     : 'text-muted-foreground group-hover:text-foreground'
                                                         }`}>
                                                             {collection.name}
@@ -852,37 +906,30 @@ const MovieDetail = () => {
                                     </div>
                                 </PopoverContent>
                             </Popover>
-                            
-                            {/* Watched Button - Mobile */}
+
                             {isLoggedIn && (
                                 <>
-                                    <Button
-                                        variant="outline"
-                                        className={`w-40 justify-center border-border bg-secondary/40 hover:bg-secondary/70 text-foreground/90 gap-2 ${isWatched ? activeActionClass : ''}`}
+                                    <button
+                                        className={`flex flex-col items-center justify-center w-20 h-20 rounded-2xl border border-border transition-colors ${isWatched ? activeActionClass : 'bg-secondary/40 hover:bg-secondary/70'}`}
                                         onClick={() => toggleWatchedMutation.mutate()}
                                         disabled={isLoadingWatched}
                                     >
                                         {isWatched ? (
-                                            <EyeOff className="h-4 w-4" />
+                                            <EyeOff className="h-6 w-6 text-foreground/90" />
                                         ) : (
-                                            <Eye className="h-4 w-4" />
+                                            <Eye className="h-6 w-6 text-foreground/90" />
                                         )}
-                                        <span>{isWatched ? 'Unwatch' : 'Watched'}</span>
-                                    </Button>
+                                        <span className="text-xs font-semibold text-foreground/70 mt-1.5">{isWatched ? 'Unwatch' : 'Watched'}</span>
+                                    </button>
                                     {showNotInterested && (
-                                        <Button
-                                            variant="outline"
-                                            className={`w-40 justify-center border-border bg-secondary/40 hover:bg-secondary/70 text-foreground/90 gap-2 ${isNotInterested ? activeActionClass : ''}`}
+                                        <button
+                                            className={`flex flex-col items-center justify-center w-24 h-20 px-2 rounded-2xl border border-border transition-colors ${isNotInterested ? activeActionClass : 'bg-secondary/40 hover:bg-secondary/70'}`}
                                             onClick={() => toggleNotInterestedMutation.mutate()}
                                             disabled={isLoadingNotInterested}
                                         >
-                                            {isNotInterested ? (
-                                                <ThumbsUp className="h-4 w-4" />
-                                            ) : (
-                                                <ThumbsDown className="h-4 w-4" />
-                                            )}
-                                            <span>{isNotInterested ? 'Interested?' : 'Not interested?'}</span>
-                                        </Button>
+                                            <ThumbsDown className={`h-6 w-6 ${isNotInterested ? 'text-foreground/90 fill-current' : 'text-foreground/90'}`} />
+                                            <span className="text-xs font-semibold text-foreground/70 mt-1.5 leading-tight text-center">{isNotInterested ? 'Undo' : 'Not interested'}</span>
+                                        </button>
                                     )}
                                 </>
                             )}
@@ -1302,18 +1349,44 @@ const MovieDetail = () => {
 
                     {/* Right sidebar - Desktop only */}
                     <aside className="hidden md:block w-56 lg:w-64 shrink-0">
-                        <div className="sticky top-20 flex flex-col gap-3">
-                            <Popover>
-                                <PopoverTrigger asChild>
-                                    <Button
-                                        variant="outline"
-                                        className="h-10 w-full justify-start border-border bg-secondary/40 hover:bg-secondary/70 text-foreground/90 gap-2"
-                                    >
-                                        <Bookmark className={`h-4 w-4 ${isInAnyCollection ? 'fill-current' : ''}`} />
-                                        <span>Save</span>
-                                        <MoreHorizontal className="h-4 w-4 ml-auto text-muted-foreground" />
-                                    </Button>
-                                </PopoverTrigger>
+                        <div className="sticky top-20">
+                            <div className="rounded-2xl border border-border bg-secondary/40 p-2 flex gap-1">
+                                {isLoggedIn && (
+                                    <>
+                                        <button
+                                            className={`flex-1 flex items-center justify-center h-12 rounded-xl transition-colors cursor-pointer ${isWatched ? 'bg-accent' : 'hover:bg-secondary/70'}`}
+                                            onClick={() => toggleWatchedMutation.mutate()}
+                                            disabled={isLoadingWatched}
+                                            title={isWatched ? 'Unwatch' : 'Watched'}
+                                        >
+                                            {isWatched ? (
+                                                <EyeOff className="h-5 w-5 text-foreground/90" />
+                                            ) : (
+                                                <Eye className="h-5 w-5 text-foreground/90" />
+                                            )}
+                                        </button>
+                                        {showNotInterested && (
+                                            <button
+                                                className={`flex-1 flex items-center justify-center h-12 rounded-xl transition-colors cursor-pointer ${isNotInterested ? 'bg-accent' : 'hover:bg-secondary/70'}`}
+                                                onClick={() => toggleNotInterestedMutation.mutate()}
+                                                disabled={isLoadingNotInterested}
+                                                title={isNotInterested ? 'Undo not interested' : 'Not interested'}
+                                            >
+                                                <ThumbsDown className={`h-5 w-5 ${isNotInterested ? 'text-foreground/90 fill-current' : 'text-foreground/90'}`} />
+                                            </button>
+                                        )}
+                                    </>
+                                )}
+
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                        <button
+                                            className="flex-1 flex items-center justify-center h-12 rounded-xl hover:bg-secondary/70 transition-colors cursor-pointer"
+                                            title="Save"
+                                        >
+                                            <Bookmark className={`h-5 w-5 text-foreground/90 ${isInAnyCollection ? 'fill-current' : ''}`} />
+                                        </button>
+                                    </PopoverTrigger>
                                 <PopoverContent className="w-72 p-0 border-border bg-popover shadow-xl shadow-black/40" align="end">
                                     <div className="px-4 py-3 border-b border-border">
                                         <p className="text-sm font-semibold text-foreground">
@@ -1394,40 +1467,73 @@ const MovieDetail = () => {
                                         )}
                                     </div>
                                 </PopoverContent>
-                            </Popover>
+                                </Popover>
+                            </div>
 
-                            {isLoggedIn && (
-                                <>
-                                    <Button
-                                        variant="outline"
-                                        className={`h-10 w-full justify-start border-border bg-secondary/40 hover:bg-secondary/70 text-foreground/90 gap-2 ${isWatched ? activeActionClass : ''}`}
-                                        onClick={() => toggleWatchedMutation.mutate()}
-                                        disabled={isLoadingWatched}
-                                    >
-                                        {isWatched ? (
-                                            <EyeOff className="h-4 w-4" />
-                                        ) : (
-                                            <Eye className="h-4 w-4" />
-                                        )}
-                                        <span>{isWatched ? 'Unwatch' : 'Watched'}</span>
-                                    </Button>
-                                    {showNotInterested && (
-                                        <Button
-                                            variant="outline"
-                                            className={`h-10 w-full justify-start border-border bg-secondary/40 hover:bg-secondary/70 text-foreground/90 gap-2 ${isNotInterested ? activeActionClass : ''}`}
-                                            onClick={() => toggleNotInterestedMutation.mutate()}
-                                            disabled={isLoadingNotInterested}
-                                        >
-                                            {isNotInterested ? (
-                                                <ThumbsUp className="h-4 w-4" />
-                                            ) : (
-                                                <ThumbsDown className="h-4 w-4" />
-                                            )}
-                                            <span>{isNotInterested ? 'Interested?' : 'Not interested?'}</span>
-                                        </Button>
-                                    )}
-                                </>
-                            )}
+                            {/* Mbuff Score & Your Rating */}
+                            <div className="mt-4 rounded-2xl border border-border bg-secondary/40 p-5 space-y-4">
+                                {(summaryData?.summary.ratingsCount ?? 0) > 0 ? (
+                                    <div className="space-y-2.5 flex flex-col items-center">
+                                        <span className="text-[10px] font-bold text-amber-400 uppercase tracking-[0.2em]">
+                                            mbuff score
+                                        </span>
+                                        <div className="flex items-baseline gap-1.5">
+                                            <span className={cn(
+                                                'text-4xl font-extrabold tabular-nums tracking-tighter leading-none transition-colors',
+                                                summaryData?.summary.averageRating != null
+                                                    ? getRatingTier(summaryData.summary.averageRating).color
+                                                    : 'text-muted-foreground/20'
+                                            )}>
+                                                {summaryData?.summary.averageRating ?? '—'}
+                                            </span>
+                                            <span className="text-sm text-muted-foreground/50 font-semibold">/10</span>
+                                        </div>
+                                        {summaryData?.summary.averageRating != null && (() => {
+                                            const tier = getRatingTier(summaryData.summary.averageRating);
+                                            return (
+                                                <div className="space-y-1.5 flex flex-col items-center">
+                                                    <StarDisplay rating={summaryData.summary.averageRating} size="sm" />
+                                                    <span className={cn(
+                                                        'inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold border',
+                                                        tier.color, tier.bgColor, tier.borderColor
+                                                    )}>
+                                                        {tier.label}
+                                                    </span>
+                                                </div>
+                                            );
+                                        })()}
+                                        <span className="text-xs text-muted-foreground">
+                                            {summaryData?.summary.ratingsCount ?? 0}{' '}
+                                            {(summaryData?.summary.ratingsCount ?? 0) === 1 ? 'rating' : 'ratings'}
+                                        </span>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-1.5 flex flex-col items-center">
+                                        <span className="text-[10px] font-bold text-amber-400 uppercase tracking-[0.2em]">
+                                            mbuff score
+                                        </span>
+                                        <p className="text-sm text-muted-foreground">No ratings yet</p>
+                                    </div>
+                                )}
+
+                                {isLoggedIn && (
+                                    <>
+                                        <Separator className="opacity-40" />
+                                        <div className="space-y-2 flex flex-col items-center">
+                                            <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-[0.12em]">
+                                                Your Rating
+                                            </span>
+                                            <InteractiveStarRating
+                                                value={summaryData?.userRating ?? null}
+                                                onChange={(r) => rateMutation.mutate(r)}
+                                                starSize="h-5 w-5"
+                                                className="items-center"
+                                                readoutClassName="items-center"
+                                            />
+                                        </div>
+                                    </>
+                                )}
+                            </div>
                         </div>
                     </aside>
                 </div>
