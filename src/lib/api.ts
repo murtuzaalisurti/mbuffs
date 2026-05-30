@@ -8,7 +8,7 @@ import {
     Genre, GenreListResponse, PersonCreditsResponse, SeasonDetails, TmdbCollectionDetails,
     UserPreferences, UpdateUserPreferencesInput,
     RecommendationsResponse, RecommendationCollectionsResponse, CategoryRecommendationsResponse,
-    CombinedRatingsResponse,
+    CombinedRatingsResponse, OmdbRatingsResponse,
     RecommendationCacheDebugResponse,
     RecommendationCacheDebugInvalidateMode,
     RecommendationCacheDebugInvalidateResponse,
@@ -938,6 +938,36 @@ export const fetchCombinedRatingsApi = async (
     } catch (error) {
         console.error(`Failed to fetch ratings for ${mediaType} ${tmdbId}:`, error);
         return null;
+    }
+};
+
+export const fetchOmdbRatingsApi = async (
+    mediaType: 'movie' | 'tv',
+    tmdbId: number | string
+): Promise<OmdbRatingsResponse | null> => {
+    try {
+        return await fetchBackend(`/omdb-ratings/${mediaType}/${tmdbId}`);
+    } catch (error) {
+        console.error(`Failed to fetch OMDB ratings for ${mediaType} ${tmdbId}:`, error);
+        return null;
+    }
+};
+
+export interface OmdbRatingsBatchResponse {
+    ratings: Record<string, { imdbRating: number }>;
+}
+
+export const fetchOmdbRatingsBatchApi = async (
+    items: Array<{ tmdbId: string; mediaType: string }>
+): Promise<OmdbRatingsBatchResponse> => {
+    try {
+        return await fetchBackend('/omdb-ratings/batch', {
+            method: 'POST',
+            body: JSON.stringify({ items }),
+        });
+    } catch (error) {
+        console.error('Failed to fetch OMDB ratings batch:', error);
+        return { ratings: {} };
     }
 };
 

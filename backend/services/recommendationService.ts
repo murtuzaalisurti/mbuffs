@@ -3,6 +3,7 @@ import { scheduleBackground } from '../lib/waitUntilHelper.js';
 import { createHash } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { getRedditRecommendations, getRedditPrimaryCandidates, type RedditPrimaryCandidate } from './redditService.js';
+import { getImdbRatingsBatch } from './omdbService.js';
 
 const TMDB_API_KEY = process.env.TMDB_API_KEY;
 const TMDB_BASE_URL = process.env.TMDB_BASE_URL;
@@ -53,6 +54,7 @@ interface TMDBMovie {
     overview: string;
     backdrop_path: string | null;
     genre_ids?: number[];
+    imdb_rating?: number | null;
     explainability?: RecommendationExplainability;
 }
 
@@ -846,7 +848,8 @@ function applyMultiObjectiveRanking(
         const scoreBreakdown = explainability?.score_breakdown;
 
         const retrievalNorm = clamp(candidate.score / maxRetrievalScore, 0, 1);
-        const ratingNorm = clamp(safeNumber(candidate.item.vote_average) / 10, 0, 1);
+        const effectiveRating = candidate.item.imdb_rating ?? candidate.item.vote_average;
+        const ratingNorm = clamp(safeNumber(effectiveRating) / 10, 0, 1);
         const popularityNorm = logNormalize(candidate.item.popularity, 600);
         const voteCountNorm = logNormalize(candidate.item.vote_count, 12000);
         const sourceNorm = clamp(candidate.sources / 5, 0, 1);
@@ -3199,6 +3202,22 @@ async function generateRecommendationPool(
         }
     }
 
+    // Overlay IMDB ratings from DB so ranking uses them instead of TMDB vote_average
+    const candidateItems = withRedditBoost.map(c => ({
+        tmdbId: String(c.item.id),
+        mediaType: getItemMediaType(c.item),
+    }));
+    const imdbRatingsMap = await getImdbRatingsBatch(candidateItems);
+    if (imdbRatingsMap.size > 0) {
+        for (const candidate of withRedditBoost) {
+            const mt = getItemMediaType(candidate.item);
+            const imdbRating = imdbRatingsMap.get(`${mt}:${candidate.item.id}`);
+            if (imdbRating !== undefined) {
+                candidate.item.imdb_rating = imdbRating;
+            }
+        }
+    }
+
     const rankedCandidates = applyMultiObjectiveRanking(withRedditBoost, genreScores, engagementSignals);
     const rerankedCandidates = rerankCandidatesWithConstraints(rankedCandidates);
     const finalCandidates = applyContextualBanditPolicy(
@@ -3274,7 +3293,8 @@ export async function generateRecommendations(
 
     const totalResults = presentedCandidates.length;
     const totalPages = Math.ceil(totalResults / limit);
-    const paginatedResults = paginateOrderedCandidates(presentedCandidates, page, limit).map((result) => result.item);
+    const paginatedItems = paginateOrderedCandidates(presentedCandidates, page, limit).map((result) => result.item);
+    const paginatedResults = await overlayImdbRatings(paginatedItems);
 
     return {
         results: paginatedResults,
@@ -3439,8 +3459,23 @@ export async function generateCategoryRecommendations(
         }
     }
 
+    const allCategoryItems = categories.flatMap(c => c.results);
+    const withRatings = await overlayImdbRatings(allCategoryItems);
+    const ratingsLookup = new Map(withRatings.map(item => {
+        const key = getItemMediaType(item) === 'tv' ? `${item.id}tv` : `${item.id}`;
+        return [key, item];
+    }));
+
+    const enrichedCategories = categories.map(cat => ({
+        ...cat,
+        results: cat.results.map(item => {
+            const key = getItemMediaType(item) === 'tv' ? `${item.id}tv` : `${item.id}`;
+            return ratingsLookup.get(key) ?? item;
+        }),
+    }));
+
     return {
-        categories,
+        categories: enrichedCategories,
         mediaType,
         sourceCollections,
         totalSourceItems
@@ -3801,7 +3836,8 @@ export async function generateGenreRecommendations(
     // Estimate total - use discover total as baseline since it's larger
     const estimatedTotal = Math.max(shuffledCandidates.length, discoverTotalResults);
     const totalPages = Math.ceil(estimatedTotal / limit);
-    const paginatedResults = paginateOrderedCandidates(shuffledCandidates, page, limit).map((result) => result.item);
+    const paginatedItems = paginateOrderedCandidates(shuffledCandidates, page, limit).map((result) => result.item);
+    const paginatedResults = await overlayImdbRatings(paginatedItems);
 
     return {
         results: paginatedResults,
@@ -4154,7 +4190,8 @@ export async function generatePersonalizedTheatricalReleases(
     const filterRatio = allResults.length > 0 ? shuffledCandidates.length / allResults.length : 1;
     const estimatedTotalResults = Math.floor(tmdbTotalResults * filterRatio);
     const totalPages = Math.min(Math.ceil(estimatedTotalResults / limit), tmdbTotalPages);
-    const paginatedResults = paginateOrderedCandidates(shuffledCandidates, page, limit).map((result) => result.item);
+    const paginatedItems = paginateOrderedCandidates(shuffledCandidates, page, limit).map((result) => result.item);
+    const paginatedResults = await overlayImdbRatings(paginatedItems);
 
     return {
         results: paginatedResults,
@@ -4211,6 +4248,27 @@ export async function setRecommendationCollections(
         console.error("Error setting recommendation collections:", error);
         return false;
     }
+}
+
+async function overlayImdbRatings(items: TMDBMovie[]): Promise<TMDBMovie[]> {
+    if (items.length === 0) return items;
+
+    const lookups = items.map(item => ({
+        tmdbId: String(item.id),
+        mediaType: getItemMediaType(item),
+    }));
+
+    const ratingsMap = await getImdbRatingsBatch(lookups);
+    if (ratingsMap.size === 0) return items;
+
+    return items.map(item => {
+        const mediaType = getItemMediaType(item);
+        const imdbRating = ratingsMap.get(`${mediaType}:${item.id}`);
+        if (imdbRating !== undefined) {
+            return { ...item, imdb_rating: imdbRating };
+        }
+        return item;
+    });
 }
 
 export async function generateRecommendationsCached(

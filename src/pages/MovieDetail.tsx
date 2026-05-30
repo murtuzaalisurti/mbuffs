@@ -1,7 +1,7 @@
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchMovieDetailsApi, fetchTvDetailsApi, fetchVideosApi, fetchCreditsApi, fetchPersonCreditsApi, fetchUserCollectionsApi, fetchCollectionDetailsApi, addMovieToCollectionApi, removeMovieFromCollectionApi, getImageUrl, fetchUserRegion, fetchTmdbCollectionDetailsApi, fetchCombinedRatingsApi, getWatchedStatusApi, toggleWatchedStatusApi, getNotInterestedStatusApi, toggleNotInterestedStatusApi, fetchUserPreferencesApi } from '@/lib/api';
-import { MovieDetails, Network, ProductionCompany, Video, CastMember, CrewMember, CollectionSummary, WatchProvider, PersonCreditsResponse, PersonCredit, VideosResponse, CreditsResponse, TmdbCollectionDetails, CombinedRatingsResponse, UserPreferences } from '@/lib/types';
+import { fetchMovieDetailsApi, fetchTvDetailsApi, fetchVideosApi, fetchCreditsApi, fetchPersonCreditsApi, fetchUserCollectionsApi, fetchCollectionDetailsApi, addMovieToCollectionApi, removeMovieFromCollectionApi, getImageUrl, fetchUserRegion, fetchTmdbCollectionDetailsApi, fetchCombinedRatingsApi, fetchOmdbRatingsApi, getWatchedStatusApi, toggleWatchedStatusApi, getNotInterestedStatusApi, toggleNotInterestedStatusApi, fetchUserPreferencesApi } from '@/lib/api';
+import { MovieDetails, Network, ProductionCompany, Video, CastMember, CrewMember, CollectionSummary, WatchProvider, PersonCreditsResponse, PersonCredit, VideosResponse, CreditsResponse, TmdbCollectionDetails, CombinedRatingsResponse, OmdbRatingsResponse, UserPreferences } from '@/lib/types';
 import { Navbar } from "@/components/Navbar";
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
@@ -12,7 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { ImageOff, Star, Play, User, Bookmark, MoreHorizontal, Loader2, Plus, Clock, Calendar, Globe, X, MessageSquare, ChevronRight, Eye, EyeOff, ThumbsDown, ThumbsUp } from 'lucide-react';
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import {
     getPreferencesQueryKey,
@@ -22,6 +22,7 @@ import {
 import { useWarmRecommendations } from '@/App';
 import { toast } from 'sonner';
 import { ReviewSection } from '@/components/reviews/ReviewSection';
+import { useOmdbRatings, enrichMoviesWithImdbRatings } from '@/hooks/useOmdbRatings';
 
 const TMDB_LOGO_BASE = 'https://image.tmdb.org/t/p/w92';
 
@@ -222,6 +223,9 @@ const MovieDetail = () => {
         staleTime: 1000 * 60 * 60,
     });
 
+    const personWorks = useMemo(() => personCreditsData?.crew ?? [], [personCreditsData]);
+    const { ratingsMap: personWorksRatingsMap } = useOmdbRatings(personWorks);
+
     // Find the best trailer: prefer official YouTube trailers
     // Filter videos: only YouTube, type Trailer or Teaser
     const videos = videosData?.results?.filter(
@@ -262,6 +266,14 @@ const MovieDetail = () => {
         queryFn: () => fetchCombinedRatingsApi(mediaType as 'movie' | 'tv', Number(mediaId), userRegion || 'US'),
         enabled: !!mediaId && !!mediaType && isLoggedIn,
         // staleTime: 1000 * 60 * 60 * 24, // Cache for 24 hours
+    });
+
+    // Fetch OMDB ratings (IMDB + Rotten Tomatoes)
+    const { data: omdbData } = useQuery<OmdbRatingsResponse | null>({
+        queryKey: [mediaType, 'omdb-ratings', mediaId],
+        queryFn: () => fetchOmdbRatingsApi(mediaType as 'movie' | 'tv', Number(mediaId)),
+        enabled: !!mediaId && !!mediaType,
+        staleTime: 1000 * 60 * 60 * 24,
     });
 
     // Construct the media ID as stored in collections (TV shows have 'tv' suffix)
@@ -649,12 +661,31 @@ const MovieDetail = () => {
                                     <CertificationBadge certification={ratingsData.certification.certification} />
                                 </>
                             )}
-                            {rating && rating !== '0.0' && (
+                            {/* IMDB Rating (preferred) or TMDB fallback */}
+                            {omdbData?.imdbRating ? (
                                 <>
                                     <span className="text-muted-foreground/40">|</span>
-                                    <span className="flex items-center gap-1.5">
+                                    <span className="flex items-center gap-1.5" title="IMDb rating">
+                                        <span className="inline-flex items-center justify-center rounded bg-[#f5c518] px-1 py-px text-[10px] font-extrabold leading-none text-black tracking-tight">IMDb</span>
+                                        <span className="font-medium text-foreground/80">{omdbData.imdbRating.toFixed(1)}</span>
+                                    </span>
+                                </>
+                            ) : rating && rating !== '0.0' ? (
+                                <>
+                                    <span className="text-muted-foreground/40">|</span>
+                                    <span className="flex items-center gap-1.5" title="TMDB rating">
                                         <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
                                         <span className="font-medium text-foreground/80">{rating}</span>
+                                    </span>
+                                </>
+                            ) : null}
+                            {/* Rotten Tomatoes rating */}
+                            {omdbData?.rottenTomatoesRating != null && (
+                                <>
+                                    <span className="text-muted-foreground/40">|</span>
+                                    <span className="flex items-center gap-1" title="Rotten Tomatoes">
+                                        <span className="text-xs leading-none">🍅</span>
+                                        <span className="font-medium text-foreground/80">{omdbData.rottenTomatoesRating}%</span>
                                     </span>
                                 </>
                             )}
@@ -1214,7 +1245,7 @@ const MovieDetail = () => {
                                 return popB - popA;
                             });
 
-                            const topWorks = uniqueWorks.slice(0, 10);
+                            const topWorks = enrichMoviesWithImdbRatings(uniqueWorks.slice(0, 10), personWorksRatingsMap);
 
                             if (topWorks.length === 0) return null;
 
@@ -1244,10 +1275,19 @@ const MovieDetail = () => {
                                                     <span className="text-xs text-muted-foreground">
                                                         {work.release_date ? new Date(work.release_date).getFullYear() : (work.first_air_date ? new Date(work.first_air_date).getFullYear() : 'N/A')}
                                                     </span>
-                                                    {work.vote_average > 0 && (
+                                                    {(work.imdb_rating || work.vote_average > 0) && (
                                                         <span className="flex items-center text-xs text-yellow-500/80">
-                                                            <Star className="w-3 h-3 mr-0.5 fill-current" />
-                                                            {work.vote_average.toFixed(1)}
+                                                            {work.imdb_rating ? (
+                                                                <>
+                                                                    <span className="inline-flex items-center justify-center rounded bg-[#f5c518] px-0.5 mr-0.5 text-[7px] font-extrabold leading-none text-black tracking-tight">IMDb</span>
+                                                                    {work.imdb_rating.toFixed(1)}
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <Star className="w-3 h-3 mr-0.5 fill-current" />
+                                                                    {work.vote_average.toFixed(1)}
+                                                                </>
+                                                            )}
                                                         </span>
                                                     )}
                                                 </div>

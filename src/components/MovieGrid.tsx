@@ -2,6 +2,7 @@ import { Movie } from "@/lib/types";
 import { MovieCard } from "./MovieCard";
 import { useWatchedStatus } from "@/hooks/useWatchedStatus";
 import { useNotInterestedStatus } from "@/hooks/useNotInterestedStatus";
+import { useOmdbRatings, enrichMoviesWithImdbRatings } from "@/hooks/useOmdbRatings";
 import { useMemo } from "react";
 
 interface MovieGridProps {
@@ -28,6 +29,11 @@ export function MovieGrid({ movies, title, showNotInterested = false, hideItemsW
 
   const { watchedMap } = useWatchedStatus(mediaIds);
   const { notInterestedMap } = useNotInterestedStatus(showNotInterested ? mediaIds : []);
+  const { ratingsMap } = useOmdbRatings(displayMovies);
+  const enrichedMovies = useMemo(
+    () => enrichMoviesWithImdbRatings(displayMovies, ratingsMap),
+    [displayMovies, ratingsMap]
+  );
 
   if (displayMovies.length === 0) {
     return (
@@ -51,7 +57,7 @@ export function MovieGrid({ movies, title, showNotInterested = false, hideItemsW
         </div>
       )}
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 md:gap-5 lg:grid-cols-5">
-        {displayMovies.map((movie) => {
+        {enrichedMovies.map((movie) => {
           const isTV = !!movie.first_air_date;
           const mediaId = isTV ? `${movie.id}tv` : String(movie.id);
           return (

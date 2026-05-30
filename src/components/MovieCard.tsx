@@ -322,10 +322,21 @@ export function MovieCard({
                 <p className="text-[10px] text-foreground/70 font-medium">{releaseYear}</p>
                 <span className="text-[10px] text-foreground/40">•</span>
                 <div className="flex items-center gap-1">
-                  <Star className="h-3 w-3 text-yellow-400" fill="currentColor" />
-                  <span className="text-[10px] font-medium text-foreground/90">
-                    {movie.vote_average.toFixed(1)}
-                  </span>
+                  {movie.imdb_rating ? (
+                    <>
+                      <span className="inline-flex items-center justify-center rounded bg-[#f5c518] px-0.5 text-[7px] font-extrabold leading-none text-black tracking-tight">IMDb</span>
+                      <span className="text-[10px] font-medium text-foreground/90">
+                        {movie.imdb_rating.toFixed(1)}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <Star className="h-3 w-3 text-yellow-400" fill="currentColor" />
+                      <span className="text-[10px] font-medium text-foreground/90">
+                        {movie.vote_average.toFixed(1)}
+                      </span>
+                    </>
+                  )}
                 </div>
               </div>
               {shouldShowBecauseYouLiked && (

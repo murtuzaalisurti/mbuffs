@@ -1,4 +1,4 @@
-import { pgTable, index, foreignKey, unique, text, varchar, timestamp, boolean, primaryKey, pgSequence, integer, check } from "drizzle-orm/pg-core"
+import { pgTable, index, foreignKey, unique, text, varchar, timestamp, boolean, primaryKey, pgSequence, integer, numeric, check } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 
 export const migrationsIdSeq = pgSequence("_migrations_id_seq", { startWith: "1", increment: "1", minValue: "1", maxValue: "2147483647", cache: "1", cycle: false })
@@ -497,4 +497,26 @@ export const mediaCommentLikes = pgTable("media_comment_likes", {
 	index("idx_media_comment_likes_comment_id").using("btree", table.commentId.asc().nullsLast().op("text_ops")),
 	index("idx_media_comment_likes_user_id").using("btree", table.userId.asc().nullsLast().op("text_ops")),
 	unique("media_comment_likes_comment_user_unique").on(table.commentId, table.userId),
+]);
+
+// ============================================================================
+// OMDB RATINGS TABLE (fetched from OMDB API)
+// ============================================================================
+export const omdbRatings = pgTable("omdb_ratings", {
+	id: text().primaryKey().notNull(),
+	tmdbId: text("tmdb_id").notNull(),
+	mediaType: text("media_type").notNull(),
+	imdbId: text("imdb_id"),
+	title: text(),
+	year: text(),
+	imdbRating: numeric("imdb_rating", { precision: 3, scale: 1 }),
+	imdbVotes: text("imdb_votes"),
+	rottenTomatoesRating: integer("rotten_tomatoes_rating"),
+	metacriticRating: integer("metacritic_rating"),
+	scrapedAt: timestamp("scraped_at", { withTimezone: true, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`),
+	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+	index("idx_omdb_ratings_tmdb_id").using("btree", table.tmdbId.asc().nullsLast().op("text_ops")),
+	index("idx_omdb_ratings_imdb_id").using("btree", table.imdbId.asc().nullsLast().op("text_ops")),
+	unique("omdb_ratings_tmdb_id_media_type_key").on(table.tmdbId, table.mediaType),
 ]);

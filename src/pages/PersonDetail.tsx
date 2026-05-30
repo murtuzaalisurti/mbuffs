@@ -6,7 +6,8 @@ import { Navbar } from "@/components/Navbar";
 import { Skeleton } from '@/components/ui/skeleton';
 import { SocialMediaLinks } from '@/components/SocialMediaLinks';
 import { User, Star, ImageOff, ChevronRight, ChevronLeft, ChevronDown, ChevronUp } from 'lucide-react';
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
+import { useOmdbRatings, enrichMoviesWithImdbRatings } from '@/hooks/useOmdbRatings';
 
 const BIO_CHAR_LIMIT_MOBILE = 150;
 const BIO_CHAR_LIMIT_DESKTOP = 300;
@@ -74,6 +75,52 @@ export default function PersonDetail() {
         });
     };
 
+    const sortByRating = (a: PersonCredit, b: PersonCredit) => {
+        const aQualifies = (a.vote_count || 0) >= 1000;
+        const bQualifies = (b.vote_count || 0) >= 1000;
+        if (aQualifies && !bQualifies) return -1;
+        if (!aQualifies && bQualifies) return 1;
+        return (b.vote_average || 0) - (a.vote_average || 0);
+    };
+
+    const castCredits = useMemo(() => {
+        const map = new Map<number, PersonCredit>();
+        creditsData?.cast?.forEach((c: PersonCredit) => {
+            if (!c.poster_path) return;
+            if (!map.has(c.id) || (c.vote_count || 0) > (map.get(c.id)?.vote_count || 0)) {
+                map.set(c.id, c);
+            }
+        });
+        return Array.from(map.values()).sort(sortByRating).slice(0, 20);
+    }, [creditsData]);
+
+    const crewCredits = useMemo(() => {
+        const map = new Map<number, PersonCredit & { jobs: string[] }>();
+        creditsData?.crew?.forEach((c: PersonCredit) => {
+            if (!c.poster_path) return;
+            if (!map.has(c.id)) {
+                map.set(c.id, { ...c, jobs: [c.job || ''] });
+            } else {
+                const existing = map.get(c.id)!;
+                if (c.job && !existing.jobs.includes(c.job)) {
+                    existing.jobs.push(c.job);
+                }
+            }
+        });
+        return Array.from(map.values()).sort(sortByRating).slice(0, 20);
+    }, [creditsData]);
+
+    const allCredits = useMemo(() => [...castCredits, ...crewCredits], [castCredits, crewCredits]);
+    const { ratingsMap } = useOmdbRatings(allCredits);
+    const enrichedCastCredits = useMemo(
+        () => enrichMoviesWithImdbRatings(castCredits, ratingsMap) as typeof castCredits,
+        [castCredits, ratingsMap]
+    );
+    const enrichedCrewCredits = useMemo(
+        () => enrichMoviesWithImdbRatings(crewCredits, ratingsMap) as typeof crewCredits,
+        [crewCredits, ratingsMap]
+    );
+
     if (isLoading) {
         return (
             <>
@@ -120,51 +167,8 @@ export default function PersonDetail() {
 
     const age = calculateAge(personDetails.birthday, personDetails.deathday);
 
-    // Sort by vote_average, but only consider titles with 1000+ votes for quality filtering
-    const sortByRating = (a: PersonCredit, b: PersonCredit) => {
-        const aQualifies = (a.vote_count || 0) >= 1000;
-        const bQualifies = (b.vote_count || 0) >= 1000;
-
-        // Prioritize titles with 1000+ votes
-        if (aQualifies && !bQualifies) return -1;
-        if (!aQualifies && bQualifies) return 1;
-
-        // Both qualify or both don't - sort by vote_average
-        return (b.vote_average || 0) - (a.vote_average || 0);
-    };
-
-    // Deduplicate cast credits by ID (same show can appear multiple times for different episodes/characters)
-    const castCreditsMap = new Map<number, PersonCredit>();
-    creditsData?.cast?.forEach((c: PersonCredit) => {
-        if (!c.poster_path) return;
-        // Keep the entry with higher vote_count
-        if (!castCreditsMap.has(c.id) || (c.vote_count || 0) > (castCreditsMap.get(c.id)?.vote_count || 0)) {
-            castCreditsMap.set(c.id, c);
-        }
-    });
-    const castCredits = Array.from(castCreditsMap.values())
-        .sort(sortByRating)
-        .slice(0, 20);
-
-    // Deduplicate crew credits by ID
-    const crewCreditsMap = new Map<number, PersonCredit & { jobs: string[] }>();
-    creditsData?.crew?.forEach((c: PersonCredit) => {
-        if (!c.poster_path) return;
-        if (!crewCreditsMap.has(c.id)) {
-            crewCreditsMap.set(c.id, { ...c, jobs: [c.job || ''] });
-        } else {
-            const existing = crewCreditsMap.get(c.id)!;
-            if (c.job && !existing.jobs.includes(c.job)) {
-                existing.jobs.push(c.job);
-            }
-        }
-    });
-    const crewCredits = Array.from(crewCreditsMap.values())
-        .sort(sortByRating)
-        .slice(0, 20);
-
-    const visibleCastCredits = isCastExpanded ? castCredits : castCredits.slice(0, INITIAL_ITEMS_TO_SHOW);
-    const visibleCrewCredits = isCrewExpanded ? crewCredits : crewCredits.slice(0, INITIAL_ITEMS_TO_SHOW);
+    const visibleCastCredits = isCastExpanded ? enrichedCastCredits : enrichedCastCredits.slice(0, INITIAL_ITEMS_TO_SHOW);
+    const visibleCrewCredits = isCrewExpanded ? enrichedCrewCredits : enrichedCrewCredits.slice(0, INITIAL_ITEMS_TO_SHOW);
 
     const timelineData = (() => {
         const projectsMap = new Map<string, {
@@ -379,7 +383,7 @@ export default function PersonDetail() {
                 <div className="mt-12 flex flex-col md:flex-row md:gap-10">
                     <div className="flex-1 min-w-0 space-y-12">
                     {/* Acting Credits - only show if they have acting credits */}
-                    {castCredits.length > 0 && (
+                    {enrichedCastCredits.length > 0 && (
                         <section className="space-y-6">
                             <div className="flex items-center justify-between">
                                 <button
@@ -404,7 +408,7 @@ export default function PersonDetail() {
                                             ref={castScrollRef}
                                             className="flex overflow-x-auto gap-4 pb-4 snap-x scrollbar-hide px-4 md:px-0"
                                         >
-                                            {castCredits.map((credit: PersonCredit) => (
+                                            {visibleCastCredits.map((credit: PersonCredit) => (
                                                 <Link
                                                     key={`${credit.id}-${credit.character}`}
                                                     to={`/media/${credit.media_type}/${credit.id}`}
@@ -422,10 +426,19 @@ export default function PersonDetail() {
                                                                 <ImageOff className="w-8 h-8 text-muted-foreground/30" />
                                                             </div>
                                                         )}
-                                                        {credit.vote_average > 0 && (
+                                                        {(credit.imdb_rating || credit.vote_average > 0) && (
                                                             <div className="absolute top-2 right-2 flex items-center gap-1 bg-background/85 backdrop-blur-sm px-1.5 py-0.5 rounded text-xs">
-                                                                <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />
-                                                                <span>{credit.vote_average.toFixed(1)}</span>
+                                                                {credit.imdb_rating ? (
+                                                                    <>
+                                                                        <span className="inline-flex items-center justify-center rounded bg-[#f5c518] px-0.5 text-[7px] font-extrabold leading-none text-black tracking-tight">IMDb</span>
+                                                                        <span>{credit.imdb_rating.toFixed(1)}</span>
+                                                                    </>
+                                                                ) : (
+                                                                    <>
+                                                                        <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />
+                                                                        <span>{credit.vote_average.toFixed(1)}</span>
+                                                                    </>
+                                                                )}
                                                             </div>
                                                         )}
                                                     </div>
@@ -467,7 +480,7 @@ export default function PersonDetail() {
                                     // Grid View (Expanded - Mobile & Desktop)
                                     // Using auto-fill with min 128px (w-32) to match collapsed card widths
                                     <div className="grid grid-cols-[repeat(auto-fill,minmax(128px,160px))] gap-4 animate-in fade-in duration-200">
-                                        {castCredits.map((credit: PersonCredit) => (
+                                        {visibleCastCredits.map((credit: PersonCredit) => (
                                             <Link
                                                 key={`${credit.id}-${credit.character}`}
                                                 to={`/media/${credit.media_type}/${credit.id}`}
@@ -505,7 +518,7 @@ export default function PersonDetail() {
                     )}
 
                     {/* Crew Credits - only show if they have crew credits AND are not primarily an actor (to avoid duplicate sections) */}
-                    {crewCredits.length > 0 && personDetails.known_for_department !== 'Acting' && (
+                    {enrichedCrewCredits.length > 0 && personDetails.known_for_department !== 'Acting' && (
                         <section className="space-y-6">
                             <div className="flex items-center justify-between">
                                 <button
@@ -530,7 +543,7 @@ export default function PersonDetail() {
                                             ref={crewScrollRef}
                                             className="flex overflow-x-auto gap-4 pb-4 snap-x scrollbar-hide px-4 md:px-0"
                                         >
-                                            {crewCredits.map((credit) => (
+                                            {visibleCrewCredits.map((credit) => (
                                                 <Link
                                                     key={`${credit.id}-${credit.jobs.join('-')}`}
                                                     to={`/media/${credit.media_type}/${credit.id}`}
@@ -548,10 +561,19 @@ export default function PersonDetail() {
                                                                 <ImageOff className="w-8 h-8 text-muted-foreground/30" />
                                                             </div>
                                                         )}
-                                                        {credit.vote_average > 0 && (
+                                                        {(credit.imdb_rating || credit.vote_average > 0) && (
                                                             <div className="absolute top-2 right-2 flex items-center gap-1 bg-background/85 backdrop-blur-sm px-1.5 py-0.5 rounded text-xs">
-                                                                <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />
-                                                                <span>{credit.vote_average.toFixed(1)}</span>
+                                                                {credit.imdb_rating ? (
+                                                                    <>
+                                                                        <span className="inline-flex items-center justify-center rounded bg-[#f5c518] px-0.5 text-[7px] font-extrabold leading-none text-black tracking-tight">IMDb</span>
+                                                                        <span>{credit.imdb_rating.toFixed(1)}</span>
+                                                                    </>
+                                                                ) : (
+                                                                    <>
+                                                                        <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />
+                                                                        <span>{credit.vote_average.toFixed(1)}</span>
+                                                                    </>
+                                                                )}
                                                             </div>
                                                         )}
                                                     </div>
@@ -591,7 +613,7 @@ export default function PersonDetail() {
                                     // Grid View (Expanded - Mobile & Desktop)
                                     // Using auto-fill with min 128px (w-32) to match collapsed card widths
                                     <div className="grid grid-cols-[repeat(auto-fill,minmax(128px,160px))] gap-4 animate-in fade-in duration-200">
-                                        {crewCredits.map((credit) => (
+                                        {visibleCrewCredits.map((credit) => (
                                             <Link
                                                 key={`${credit.id}-${credit.jobs.join('-')}`}
                                                 to={`/media/${credit.media_type}/${credit.id}`}

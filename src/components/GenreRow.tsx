@@ -5,6 +5,7 @@ import { MovieCard } from "./MovieCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useWatchedStatus } from "@/hooks/useWatchedStatus";
 import { useNotInterestedStatus } from "@/hooks/useNotInterestedStatus";
+import { useOmdbRatings, enrichMoviesWithImdbRatings } from "@/hooks/useOmdbRatings";
 import { useMemo } from "react";
 import { excludeFeedbackRecommendations, getRecommendationMediaId } from "@/lib/recommendationQueries";
 
@@ -49,6 +50,7 @@ export function GenreRow({
 
   const { watchedMap } = useWatchedStatus(mediaIds);
   const { notInterestedMap } = useNotInterestedStatus(showNotInterested ? mediaIds : []);
+  const { ratingsMap } = useOmdbRatings(candidateMovies);
   const displayMovies = useMemo(
     () => (isPersonalized
       ? excludeFeedbackRecommendations(
@@ -60,6 +62,10 @@ export function GenreRow({
       : candidateMovies
     ).slice(0, limit),
     [candidateMovies, watchedMap, notInterestedMap, isPersonalized, showNotInterested, mediaType, limit]
+  );
+  const enrichedMovies = useMemo(
+    () => enrichMoviesWithImdbRatings(displayMovies, ratingsMap),
+    [displayMovies, ratingsMap]
   );
 
   if (isLoading) {
@@ -82,7 +88,7 @@ export function GenreRow({
     );
   }
 
-  if (displayMovies.length === 0) {
+  if (enrichedMovies.length === 0) {
     return null;
   }
 
@@ -117,7 +123,7 @@ export function GenreRow({
       {/* Scrollable row */}
       <div className="relative -mx-4 px-4">
         <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide scroll-smooth">
-          {displayMovies.map((movie) => {
+          {enrichedMovies.map((movie) => {
             const mediaId = getRecommendationMediaId(movie, mediaType);
             return (
               <div

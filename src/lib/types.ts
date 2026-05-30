@@ -25,6 +25,7 @@ export interface Movie {
   popularity?: number;
   overview: string;
   backdrop_path: string | null;
+  imdb_rating?: number | null;
   explainability?: {
     reason_codes: string[];
     source_appearances: number;
@@ -567,6 +568,16 @@ export interface CombinedRatingsResponse {
     alcohol: SeverityLevel | null;
     frightening: SeverityLevel | null;
   } | null;
+}
+
+export interface OmdbRatingsResponse {
+  tmdbId: string;
+  mediaType: 'movie' | 'tv';
+  imdbId: string | null;
+  imdbRating: number | null;
+  imdbVotes: string | null;
+  rottenTomatoesRating: number | null;
+  metacriticRating: number | null;
 }
 
 // --- Notification & Share Types ---

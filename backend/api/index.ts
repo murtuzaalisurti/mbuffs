@@ -15,6 +15,7 @@ import redditRoutes from '../routes/redditRoutes.js';
 import reviewRoutes from '../routes/reviewRoutes.js';
 import shareRoutes from '../routes/shareRoutes.js';
 import notificationRoutes from '../routes/notificationRoutes.js';
+import omdbRoutes from '../routes/omdbRoutes.js';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
@@ -65,6 +66,7 @@ export const createApp = (): Express => {
     app.use('/api/reviews', reviewRoutes);
     app.use('/api/share', shareRoutes);
     app.use('/api/notifications', notificationRoutes);
+    app.use('/api/omdb-ratings', omdbRoutes);
 
     app.get('/api', (req: Request, res: Response) => {
         res.json({ message: `Welcome to the mbuffs API! ${process.env.FRONTEND_URL}` });
