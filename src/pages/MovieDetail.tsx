@@ -923,12 +923,12 @@ const MovieDetail = () => {
                                     </button>
                                     {showNotInterested && (
                                         <button
-                                            className={`flex flex-col items-center justify-center w-24 h-20 px-2 rounded-2xl border border-border transition-colors ${isNotInterested ? activeActionClass : 'bg-secondary/40 hover:bg-secondary/70'}`}
+                                            className={`flex flex-col items-center justify-center w-20 h-20 rounded-2xl border border-border transition-colors ${isNotInterested ? activeActionClass : 'bg-secondary/40 hover:bg-secondary/70'}`}
                                             onClick={() => toggleNotInterestedMutation.mutate()}
                                             disabled={isLoadingNotInterested}
                                         >
                                             <ThumbsDown className={`h-6 w-6 ${isNotInterested ? 'text-foreground/90 fill-current' : 'text-foreground/90'}`} />
-                                            <span className="text-xs font-semibold text-foreground/70 mt-1.5 leading-tight text-center">{isNotInterested ? 'Undo' : 'Not interested'}</span>
+                                            <span className="text-xs font-semibold text-foreground/70 mt-1.5 leading-tight text-center">{isNotInterested ? 'Undo' : 'Skip'}</span>
                                         </button>
                                     )}
                                 </>
@@ -1370,7 +1370,7 @@ const MovieDetail = () => {
                                                 className={`flex-1 flex items-center justify-center h-12 rounded-xl transition-colors cursor-pointer ${isNotInterested ? 'bg-accent' : 'hover:bg-secondary/70'}`}
                                                 onClick={() => toggleNotInterestedMutation.mutate()}
                                                 disabled={isLoadingNotInterested}
-                                                title={isNotInterested ? 'Undo not interested' : 'Not interested'}
+                                                title={isNotInterested ? 'Undo skip' : 'Skip'}
                                             >
                                                 <ThumbsDown className={`h-5 w-5 ${isNotInterested ? 'text-foreground/90 fill-current' : 'text-foreground/90'}`} />
                                             </button>

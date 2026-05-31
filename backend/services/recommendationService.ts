@@ -116,8 +116,6 @@ interface RecommendationCandidate {
 
 interface UserEngagementSignals {
     watchedCount: number;
-    notInterestedCount: number;
-    watchRate: number;
     explorationRate: number;
 }
 
@@ -293,7 +291,6 @@ const ADMIN_CURATED_BASE_BOOST = 200;
 const ADMIN_CURATED_GENRE_MATCH_MULTIPLIER = 30;
 
 const WATCHED_COLLECTION_NAME = '__watched__';
-const NOT_INTERESTED_COLLECTION_NAME = '__not_interested__';
 
 /**
  * Fetch Reddit recommendations and create a lookup map by TMDB ID
@@ -839,7 +836,7 @@ function applyMultiObjectiveRanking(
     const maxRetrievalScore = candidates.reduce((max, candidate) => Math.max(max, candidate.score), 1);
 
     const longTermWeight = engagementSignals.watchedCount >= 30 ? 0.3 : 0.24;
-    const cvrWeight = engagementSignals.watchRate >= 0.6 ? 0.4 : 0.35;
+    const cvrWeight = 0.35;
     const ctrWeight = clamp(1 - longTermWeight - cvrWeight, 0.2, 0.5);
     const weightSum = ctrWeight + cvrWeight + longTermWeight;
 
@@ -2056,38 +2053,21 @@ async function getWatchedSeedMovies(userId: string, limit: number): Promise<Coll
 
 async function getUserEngagementSignals(userId: string): Promise<UserEngagementSignals> {
     const rows = await sql`
-        SELECT c.name, COUNT(*)::int AS item_count
+        SELECT COUNT(*)::int AS item_count
         FROM collection_movies cm
         JOIN collections c ON cm.collection_id = c.id
         WHERE c.owner_id = ${userId}
           AND c.is_system = true
-          AND c.name IN (${WATCHED_COLLECTION_NAME}, ${NOT_INTERESTED_COLLECTION_NAME})
-        GROUP BY c.name
+          AND c.name = ${WATCHED_COLLECTION_NAME}
     `;
 
-    let watchedCount = 0;
-    let notInterestedCount = 0;
+    const watchedCount = Number((rows[0] as { item_count: number | string })?.item_count) || 0;
 
-    for (const row of rows as Array<{ name: string; item_count: number | string }>) {
-        const count = Number(row.item_count) || 0;
-        if (row.name === WATCHED_COLLECTION_NAME) {
-            watchedCount = count;
-        } else if (row.name === NOT_INTERESTED_COLLECTION_NAME) {
-            notInterestedCount = count;
-        }
-    }
-
-    const totalFeedback = watchedCount + notInterestedCount;
-    const watchRate = totalFeedback > 0 ? watchedCount / totalFeedback : 0.55;
-
-    const lowSignalBoost = totalFeedback < 8 ? 0.08 : totalFeedback < 20 ? 0.04 : 0;
-    const dissatisfactionBoost = watchRate < 0.4 ? 0.08 : watchRate < 0.55 ? 0.04 : 0;
-    const explorationRate = clamp(0.1 + lowSignalBoost + dissatisfactionBoost, 0.08, 0.24);
+    const lowSignalBoost = watchedCount < 8 ? 0.08 : watchedCount < 20 ? 0.04 : 0;
+    const explorationRate = clamp(0.1 + lowSignalBoost, 0.08, 0.24);
 
     return {
         watchedCount,
-        notInterestedCount,
-        watchRate,
         explorationRate
     };
 }
@@ -2161,7 +2141,7 @@ async function generateColdStartRecommendations(
     const excludedToken = buildStringToken(Array.from(excludedMovieIds));
     const coldStartProfileTokenBase = buildStringToken([
         excludedToken,
-        `${engagementSignals.watchedCount}:${engagementSignals.notInterestedCount}:${engagementSignals.watchRate.toFixed(3)}`
+        `${engagementSignals.watchedCount}`
     ]);
     const genreScores: Map<number, number> = new Map();
     const allRecommendations: Map<string, RecommendationCandidate> = new Map();
@@ -2468,7 +2448,7 @@ async function generateRecommendationPool(
         sourceCollectionsToken,
         sourceMoviesToken,
         exclusionsToken,
-        `${engagementSignals.watchedCount}:${engagementSignals.notInterestedCount}:${engagementSignals.watchRate.toFixed(3)}`,
+        `${engagementSignals.watchedCount}`,
         `epoch:${jitterEpoch}`
     ]);
     
@@ -3424,39 +3404,63 @@ export async function generateCategoryRecommendations(
         };
     }
 
+    // Build a combined genre affinity map for assigning each item to its
+    // best-matching genre. Source-collection genres are weighted higher.
+    const genreAffinityMap = new Map<number, number>();
+    for (const [id, data] of sourceGenreScores) {
+        genreAffinityMap.set(id, data.count * 2);
+    }
+    for (const [id, data] of recommendationGenreScores) {
+        genreAffinityMap.set(id, (genreAffinityMap.get(id) || 0) + data.count);
+    }
+
+    // Build genre rank from sorted order for tiebreaking
+    const genreRankMap = new Map<number, number>();
+    sortedGenres.forEach((genre, index) => {
+        genreRankMap.set(genre.id, index);
+    });
+
+    // Pre-assign each item to its highest-affinity genre so items always
+    // land in the most relevant category rather than spilling into a
+    // less-relevant row when a higher-affinity row fills up first.
+    const genreBuckets = new Map<number, TMDBMovie[]>();
+    for (const item of rankedItems) {
+        if (!item.genre_ids || item.genre_ids.length === 0) continue;
+
+        let bestGenreId = item.genre_ids[0];
+        let bestAffinity = -1;
+        let bestRank = Infinity;
+
+        for (const genreId of item.genre_ids) {
+            const affinity = genreAffinityMap.get(genreId) || 0;
+            const rank = genreRankMap.get(genreId) ?? Infinity;
+            if (affinity > bestAffinity || (affinity === bestAffinity && rank < bestRank)) {
+                bestAffinity = affinity;
+                bestRank = rank;
+                bestGenreId = genreId;
+            }
+        }
+
+        const bucket = genreBuckets.get(bestGenreId);
+        if (bucket) {
+            bucket.push(item);
+        } else {
+            genreBuckets.set(bestGenreId, [item]);
+        }
+    }
+
+    // Build categories from pre-assigned buckets, ordered by genre affinity
     const categories: CategoryRecommendation[] = [];
-    const usedItemKeys = new Set<string>();
-
     for (const genre of sortedGenres) {
-        const genreRecommendations: TMDBMovie[] = [];
+        const items = genreBuckets.get(genre.id);
+        if (!items || items.length === 0) continue;
 
-        for (const item of rankedItems) {
-            if (!item.genre_ids?.includes(genre.id)) {
-                continue;
-            }
-
-            const key = getCandidateKey({ item, score: 0, sources: 0 });
-            if (usedItemKeys.has(key)) {
-                continue;
-            }
-
-            genreRecommendations.push(item);
-            if (genreRecommendations.length >= normalizedLimit) {
-                break;
-            }
-        }
-
-        for (const item of genreRecommendations) {
-            usedItemKeys.add(getCandidateKey({ item, score: 0, sources: 0 }));
-        }
-
-        if (genreRecommendations.length > 0) {
-            categories.push({
-                genre,
-                results: genreRecommendations,
-                total_results: genreRecommendations.length
-            });
-        }
+        const limitedItems = items.slice(0, normalizedLimit);
+        categories.push({
+            genre,
+            results: limitedItems,
+            total_results: limitedItems.length
+        });
     }
 
     const allCategoryItems = categories.flatMap(c => c.results);
@@ -3625,7 +3629,7 @@ export async function generateGenreRecommendations(
         sourceItemsToken,
         exclusionsToken,
         `${genreId}:${mediaType}`,
-        `${engagementSignals.watchedCount}:${engagementSignals.notInterestedCount}:${engagementSignals.watchRate.toFixed(3)}`,
+        `${engagementSignals.watchedCount}`,
         `epoch:${jitterEpoch}`
     ]);
 
@@ -3927,7 +3931,7 @@ export async function generatePersonalizedTheatricalReleases(
         sourceMoviesOnlyToken,
         exclusionsToken,
         `region:${region ?? 'global'}`,
-        `${engagementSignals.watchedCount}:${engagementSignals.notInterestedCount}:${engagementSignals.watchRate.toFixed(3)}`,
+        `${engagementSignals.watchedCount}`,
         `epoch:${jitterEpoch}`
     ]);
 

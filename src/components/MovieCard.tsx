@@ -304,7 +304,7 @@ export function MovieCard({
                       ) : (
                         <ThumbsDown className="h-4 w-4 mr-2 text-muted-foreground" />
                       )}
-                      <span className="whitespace-nowrap">{displayedNotInterested ? 'Interested?' : 'Not interested?'}</span>
+                      <span className="whitespace-nowrap">{displayedNotInterested ? 'Undo skip' : 'Skip'}</span>
                     </DropdownMenuItem>
                   )}
                   {additionalMenuItems}
