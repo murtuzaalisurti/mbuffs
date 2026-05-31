@@ -1008,8 +1008,19 @@ const MovieDetail = () => {
                                                         src={`https://img.youtube.com/vi/${video.key}/maxresdefault.jpg`}
                                                         alt={video.name}
                                                         className="w-full h-full object-cover transition-transform duration-500 group-hover/card:scale-105"
+                                                        onLoad={(e) => {
+                                                            const img = e.target as HTMLImageElement;
+                                                            if (img.naturalWidth === 120 && img.naturalHeight === 90 && backdropPath) {
+                                                                img.src = getImageUrl(backdropPath, 'w780');
+                                                            }
+                                                        }}
                                                         onError={(e) => {
-                                                            (e.target as HTMLImageElement).src = `https://img.youtube.com/vi/${video.key}/sddefault.jpg`;
+                                                            const img = e.target as HTMLImageElement;
+                                                            if (img.src.includes('maxresdefault')) {
+                                                                img.src = `https://img.youtube.com/vi/${video.key}/sddefault.jpg`;
+                                                            } else if (backdropPath) {
+                                                                img.src = getImageUrl(backdropPath, 'w780');
+                                                            }
                                                         }}
                                                     />
                                                     <div className="absolute inset-0 bg-background/30 transition-colors group-hover/card:bg-background/45" />
