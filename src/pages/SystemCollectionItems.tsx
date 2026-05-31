@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigationType } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { Navbar } from "@/components/Navbar";
@@ -34,10 +34,19 @@ const formatMarkedDate = (date: string) => {
   });
 };
 
+const getScrollStateKey = (kind: SystemCollectionKind) => `system-collection-scroll-${kind}`;
+
 export function SystemCollectionItemsPage({ kind }: SystemCollectionItemsPageProps) {
   const { user } = useAuth();
+  const navType = useNavigationType();
   const [mediaTypeFilter, setMediaTypeFilter] = useState("all");
-  const [visibleItemsCount, setVisibleItemsCount] = useState(ITEMS_PER_PAGE);
+  const [visibleItemsCount, setVisibleItemsCount] = useState(() => {
+    if (navType === 'POP') {
+      const saved = sessionStorage.getItem(getScrollStateKey(kind));
+      if (saved) return Math.max(Number(saved), ITEMS_PER_PAGE);
+    }
+    return ITEMS_PER_PAGE;
+  });
   const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   const { data: preferencesData } = useQuery<{ preferences: UserPreferences }, Error>({
@@ -152,6 +161,10 @@ export function SystemCollectionItemsPage({ kind }: SystemCollectionItemsPagePro
 
     if (node) observerRef.current.observe(node);
   }, [isLoadingMore, hasMoreItems]);
+
+  useEffect(() => {
+    sessionStorage.setItem(getScrollStateKey(kind), String(visibleItemsCount));
+  }, [visibleItemsCount, kind]);
 
   useEffect(() => {
     return () => {

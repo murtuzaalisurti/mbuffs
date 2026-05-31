@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useNavigationType } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
 import {
     fetchCollectionDetailsApi,
@@ -46,16 +46,25 @@ type FrontendAddCollaboratorInput = z.infer<typeof frontendAddCollaboratorSchema
 const ITEMS_PER_PAGE = 30;
 type ApiError = Error & { data?: { message?: string } };
 
+const getScrollStateKey = (collectionId: string) => `collection-scroll-${collectionId}`;
+
 const CollectionDetail = () => {
     const { collectionId } = useParams<{ collectionId: string }>();
     const { user: currentUser, isLoggedIn, signIn } = useAuth();
     const queryClient = useQueryClient();
     const navigate = useNavigate();
+    const navType = useNavigationType();
     const [isAddCollabOpen, setIsAddCollabOpen] = useState(false);
     const [isAddMovieOpen, setIsAddMovieOpen] = useState(false);
     const [isCollabListOpen, setIsCollabListOpen] = useState(false);
     const [mediaTypeFilter, setMediaTypeFilter] = useState('all');
-    const [visibleItemsCount, setVisibleItemsCount] = useState(ITEMS_PER_PAGE);
+    const [visibleItemsCount, setVisibleItemsCount] = useState(() => {
+        if (navType === 'POP' && collectionId) {
+            const saved = sessionStorage.getItem(getScrollStateKey(collectionId));
+            if (saved) return Math.max(Number(saved), ITEMS_PER_PAGE);
+        }
+        return ITEMS_PER_PAGE;
+    });
     const [isLoadingMore, setIsLoadingMore] = useState(false);
     const [isBannerDismissed, setIsBannerDismissed] = useState(false);
 
@@ -156,6 +165,12 @@ const CollectionDetail = () => {
             observerRef.current.observe(node);
         }
     }, [isLoadingMore, hasMoreItems]);
+
+    useEffect(() => {
+        if (collectionId) {
+            sessionStorage.setItem(getScrollStateKey(collectionId), String(visibleItemsCount));
+        }
+    }, [visibleItemsCount, collectionId]);
 
     // Cleanup observer on unmount
     useEffect(() => {
