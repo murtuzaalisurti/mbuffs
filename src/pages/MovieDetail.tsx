@@ -1,7 +1,7 @@
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchMovieDetailsApi, fetchTvDetailsApi, fetchVideosApi, fetchCreditsApi, fetchPersonCreditsApi, fetchUserCollectionsApi, fetchCollectionDetailsApi, addMovieToCollectionApi, removeMovieFromCollectionApi, getImageUrl, fetchUserRegion, fetchTmdbCollectionDetailsApi, fetchCombinedRatingsApi, fetchOmdbRatingsApi, getWatchedStatusApi, toggleWatchedStatusApi, getNotInterestedStatusApi, toggleNotInterestedStatusApi, fetchUserPreferencesApi } from '@/lib/api';
-import { MovieDetails, Network, ProductionCompany, Video, CastMember, CrewMember, CollectionSummary, WatchProvider, PersonCreditsResponse, PersonCredit, VideosResponse, CreditsResponse, TmdbCollectionDetails, CombinedRatingsResponse, OmdbRatingsResponse, UserPreferences } from '@/lib/types';
+import { fetchMovieDetailsApi, fetchTvDetailsApi, fetchVideosApi, fetchCreditsApi, fetchPersonCreditsApi, fetchStudioMoviesApi, fetchUserCollectionsApi, fetchCollectionDetailsApi, addMovieToCollectionApi, removeMovieFromCollectionApi, getImageUrl, fetchUserRegion, fetchTmdbCollectionDetailsApi, fetchCombinedRatingsApi, fetchOmdbRatingsApi, getWatchedStatusApi, toggleWatchedStatusApi, getNotInterestedStatusApi, toggleNotInterestedStatusApi, fetchUserPreferencesApi } from '@/lib/api';
+import { MovieDetails, Network, ProductionCompany, Video, CastMember, CrewMember, CollectionSummary, WatchProvider, PersonCreditsResponse, PersonCredit, VideosResponse, CreditsResponse, TmdbCollectionDetails, CombinedRatingsResponse, OmdbRatingsResponse, UserPreferences, SearchResults } from '@/lib/types';
 import { Navbar } from "@/components/Navbar";
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
@@ -239,6 +239,19 @@ const MovieDetail = () => {
 
     const personWorks = useMemo(() => personCreditsData?.crew ?? [], [personCreditsData]);
     const { ratingsMap: personWorksRatingsMap } = useOmdbRatings(personWorks);
+
+    const studioIds = useMemo(() => mediaDetails?.production_companies?.map(c => c.id) ?? [], [mediaDetails]);
+    const { data: studioMoviesData } = useQuery<SearchResults | null>({
+        queryKey: ['studio', 'movies', studioIds],
+        queryFn: () => studioIds.length > 0 ? fetchStudioMoviesApi(studioIds) : null,
+        enabled: studioIds.length > 0,
+        staleTime: 1000 * 60 * 60,
+    });
+
+    const studioMovies = useMemo(() => studioMoviesData?.results?.filter(
+        (m) => String(m.id) !== mediaId && (m.poster_path || m.backdrop_path)
+    )?.slice(0, 10) ?? [], [studioMoviesData, mediaId]);
+    const { ratingsMap: studioRatingsMap } = useOmdbRatings(studioMovies);
 
     // Find the best trailer: prefer official YouTube trailers
     // Filter videos: only YouTube, type Trailer or Teaser
@@ -1356,6 +1369,59 @@ const MovieDetail = () => {
                             );
                         })()
                     )}
+
+                    {/* More from Studio Section */}
+                    {studioIds.length > 0 && studioMovies.length > 0 && (() => {
+                        const topStudioWorks = enrichMoviesWithImdbRatings(studioMovies, studioRatingsMap);
+
+                        return (
+                            <section className="space-y-6">
+                                <h2 className="text-xl md:text-2xl font-semibold text-foreground/90">
+                                    Popular from Producers
+                                </h2>
+                                <div className="flex overflow-x-auto gap-4 pb-4 snap-x scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
+                                    {topStudioWorks.map((work) => (
+                                        <Link
+                                            key={`studio-${work.id}`}
+                                            to={`/media/movie/${work.id}`}
+                                            className="shrink-0 w-32 md:w-40 snap-center group/card block"
+                                        >
+                                            <div className="aspect-2/3 rounded-lg overflow-hidden border border-border/60 bg-muted shadow-md mb-2">
+                                                <img
+                                                    src={getImageUrl(work.poster_path, 'w342')}
+                                                    alt={work.title || work.name}
+                                                    className="w-full h-full object-cover transition-transform duration-300 group-hover/card:scale-105"
+                                                />
+                                            </div>
+                                            <p className="text-sm font-medium text-foreground/90 line-clamp-2 leading-tight">
+                                                {work.title || work.name}
+                                            </p>
+                                            <div className="flex items-center gap-2 mt-1">
+                                                <span className="text-xs text-muted-foreground">
+                                                    {work.release_date ? new Date(work.release_date).getFullYear() : 'N/A'}
+                                                </span>
+                                                {(work.imdb_rating || work.vote_average > 0) && (
+                                                    <span className="flex items-center text-xs text-yellow-500/80">
+                                                        {work.imdb_rating ? (
+                                                            <>
+                                                                <span className="inline-flex items-center justify-center rounded bg-[#f5c518] px-0.5 mr-0.5 text-[7px] font-extrabold leading-none text-black tracking-tight">IMDb</span>
+                                                                {work.imdb_rating.toFixed(1)}
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <Star className="w-3 h-3 mr-0.5 fill-current" />
+                                                                {work.vote_average.toFixed(1)}
+                                                            </>
+                                                        )}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </Link>
+                                    ))}
+                                </div>
+                            </section>
+                        );
+                    })()}
                     </div>
 
                     {/* Right sidebar - Desktop only */}

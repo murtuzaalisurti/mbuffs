@@ -926,6 +926,25 @@ export const fetchTvByGenreApi = async (genreId: number, page = 1): Promise<Sear
     }
 };
 
+export const fetchStudioMoviesApi = async (companyIds: number[]): Promise<SearchResults> => {
+    const defaultResult: SearchResults = { page: 0, results: [], total_pages: 0, total_results: 0 };
+    try {
+        return await fetchBackend(`/content`, {
+            method: 'POST',
+            body: JSON.stringify({
+                endpoint: `/discover/movie`,
+                params: {
+                    with_companies: companyIds.join('|'),
+                    sort_by: 'popularity.desc',
+                },
+            }),
+        });
+    } catch (error) {
+        console.error(`Failed to fetch movies for studios ${companyIds}:`, error);
+        return defaultResult;
+    }
+};
+
 // --- Ratings & Parental Guidance API Functions ---
 
 export const fetchCombinedRatingsApi = async (
