@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchUserCollectionsApi, updateUserPreferencesApi, fetchRecommendationCollectionsApi, setRecommendationCollectionsApi, fetchUserPreferencesApi, fetchWatchedItemsApi, fetchNotInterestedItemsApi, uploadAvatarApi, removeAvatarApi, fetchCurrentUserApi } from '@/lib/api';
 import { UserCollectionsResponse, UpdateUserPreferencesInput, RecommendationCollectionsResponse, UserPreferences } from '@/lib/types';
@@ -69,6 +69,9 @@ const COLLECTIONS_QUERY_KEY = ['collections', 'user'];
 const USER_QUERY_KEY = ['user'];
 const USER_ME_QUERY_KEY = ['user', 'me'];
 const RECOMMENDATION_COLLECTIONS_QUERY_KEY = ['recommendations', 'collections'];
+// Collapse a burst of rapid source-collection toggles into a single network
+// write, so the backend regenerates recommendations once instead of per click.
+const RECOMMENDATION_COLLECTIONS_DEBOUNCE_MS = 800;
 const WATCHED_ITEMS_QUERY_KEY = ['collections', 'watched', 'items'];
 const NOT_INTERESTED_ITEMS_QUERY_KEY = ['collections', 'not-interested', 'items'];
 
@@ -78,6 +81,7 @@ const Profile = () => {
     const preferencesQueryKey = getPreferencesQueryKey(user?.id);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+    const recommendationCollectionsDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Fetch full user data from /me (includes avatarUrl for custom uploads)
     const { data: meData } = useQuery({
@@ -166,40 +170,69 @@ const Profile = () => {
         },
     });
 
-    // Mutation for updating recommendation collections with optimistic updates
+    // Mutation for updating recommendation collections. The optimistic UI update
+    // happens immediately in commitRecommendationCollections (below); the network
+    // write itself is debounced, so this mutation fires once per settled burst.
     const setRecommendationCollectionsMutation = useMutation({
         mutationFn: setRecommendationCollectionsApi,
-        onMutate: async (newCollectionIds: string[]) => {
-            // Cancel outgoing refetches
-            await queryClient.cancelQueries({ queryKey: RECOMMENDATION_COLLECTIONS_QUERY_KEY });
-            
-            // Snapshot previous value
-            const previousCollections = queryClient.getQueryData<RecommendationCollectionsResponse>(RECOMMENDATION_COLLECTIONS_QUERY_KEY);
-            
-            // Optimistically update - we need to construct the new collections array
-            // We'll use the collectionsData to get the collection details
-            const allCollections = collectionsData?.collections || [];
-            const newCollections = allCollections.filter(c => newCollectionIds.includes(c.id));
-            
-            queryClient.setQueryData(RECOMMENDATION_COLLECTIONS_QUERY_KEY, {
-                collections: newCollections
-            });
-            
-            return { previousCollections };
-        },
-        onError: (error: Error, _, context) => {
-            // Rollback on error
-            if (context?.previousCollections) {
-                queryClient.setQueryData(RECOMMENDATION_COLLECTIONS_QUERY_KEY, context.previousCollections);
-            }
+        onError: () => {
+            // The optimistic edit failed: re-sync from the server to discard it.
             toast.error(`Failed to update collections`);
+            queryClient.invalidateQueries({ queryKey: RECOMMENDATION_COLLECTIONS_QUERY_KEY });
         },
-        onSuccess: () => {
+        onSuccess: (data) => {
+            // Adopt the server's authoritative list, unless a newer edit is already
+            // queued (debounce pending) — otherwise we'd revert a change in flight.
+            if (!recommendationCollectionsDebounceRef.current) {
+                queryClient.setQueryData(RECOMMENDATION_COLLECTIONS_QUERY_KEY, data);
+            }
             if (!user?.id) return;
             queryClient.invalidateQueries({ queryKey: getForYouRecommendationsQueryKey(user.id) });
             queryClient.invalidateQueries({ queryKey: getCategoryRecommendationsQueryKey(user.id) });
         },
     });
+
+    // Optimistically reflect the new selection right away, then debounce the write.
+    const commitRecommendationCollections = (rawIds: string[]) => {
+        // Dedupe: overlapping toggle events (row click + checkbox/label change) can
+        // produce the same id twice, which the server would reject as a mismatch.
+        const newIds = Array.from(new Set(rawIds));
+
+        queryClient.cancelQueries({ queryKey: RECOMMENDATION_COLLECTIONS_QUERY_KEY });
+
+        const optimisticCollections = (collectionsData?.collections || [])
+            .filter((c) => newIds.includes(c.id))
+            .map((c) => ({
+                id: c.id,
+                name: c.name,
+                description: c.description,
+                added_at: new Date().toISOString(),
+            }));
+        queryClient.setQueryData<RecommendationCollectionsResponse>(RECOMMENDATION_COLLECTIONS_QUERY_KEY, {
+            collections: optimisticCollections,
+        });
+
+        if (recommendationCollectionsDebounceRef.current) {
+            clearTimeout(recommendationCollectionsDebounceRef.current);
+        }
+        recommendationCollectionsDebounceRef.current = setTimeout(() => {
+            recommendationCollectionsDebounceRef.current = null;
+            setRecommendationCollectionsMutation.mutate(newIds);
+        }, RECOMMENDATION_COLLECTIONS_DEBOUNCE_MS);
+    };
+
+    // Flush a pending change on unmount so navigating away mid-debounce doesn't drop it.
+    useEffect(() => {
+        return () => {
+            if (recommendationCollectionsDebounceRef.current) {
+                clearTimeout(recommendationCollectionsDebounceRef.current);
+                recommendationCollectionsDebounceRef.current = null;
+                const pending = queryClient.getQueryData<RecommendationCollectionsResponse>(RECOMMENDATION_COLLECTIONS_QUERY_KEY);
+                const ids = pending?.collections.map((c) => c.id) ?? [];
+                setRecommendationCollectionsApi(ids).catch(() => { /* best-effort flush */ });
+            }
+        };
+    }, [queryClient]);
 
     const handleToggleRecommendations = (enabled: boolean) => {
         const updateData: UpdateUserPreferencesInput = {
@@ -273,22 +306,23 @@ const Profile = () => {
     };
 
     const handleCollectionToggle = (collectionId: string, isChecked: boolean) => {
-        const currentIds = recommendationCollectionsData?.collections.map(c => c.id) || [];
-        let newIds: string[];
-        
-        if (isChecked) {
-            newIds = [...currentIds, collectionId];
-        } else {
-            newIds = currentIds.filter(id => id !== collectionId);
-        }
-        
-        setRecommendationCollectionsMutation.mutate(newIds);
+        // Read the freshest selection from the cache so rapid toggles within a burst
+        // build on each other's optimistic updates rather than a stale render value.
+        const current = queryClient.getQueryData<RecommendationCollectionsResponse>(RECOMMENDATION_COLLECTIONS_QUERY_KEY);
+        const currentIds = current?.collections.map(c => c.id) || [];
+        const newIds = isChecked
+            ? [...currentIds, collectionId]
+            : currentIds.filter(id => id !== collectionId);
+
+        commitRecommendationCollections(newIds);
     };
 
     const handleRemoveCollection = (collectionId: string) => {
-        const currentIds = recommendationCollectionsData?.collections.map(c => c.id) || [];
+        const current = queryClient.getQueryData<RecommendationCollectionsResponse>(RECOMMENDATION_COLLECTIONS_QUERY_KEY);
+        const currentIds = current?.collections.map(c => c.id) || [];
         const newIds = currentIds.filter(id => id !== collectionId);
-        setRecommendationCollectionsMutation.mutate(newIds);
+
+        commitRecommendationCollections(newIds);
     };
 
     const formatDate = (dateString: string | Date | undefined) => {
