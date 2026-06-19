@@ -1254,11 +1254,15 @@ function isRecommendationGenerationLockActive(generationStartedAt: string | null
     return ageMs >= 0 && ageMs < RECOMMENDATION_CACHE_GENERATION_LOCK_TIMEOUT_MINUTES * 60 * 1000;
 }
 
+// Returns the claimed `generation_started_at` token on success, or null if the
+// slot is already locked by another in-flight generation. The token identifies
+// *this* claim so that releaseGeneration only clears our own lock and never
+// another generation's (important once concurrent generations are allowed).
 async function tryClaimGeneration(
     userId: string,
     cacheKey: string,
     slot: RecommendationCacheSlot
-): Promise<boolean> {
+): Promise<string | null> {
     const claimedRows = await sql`
         INSERT INTO recommendation_cache (
             id,
@@ -1295,16 +1299,27 @@ async function tryClaimGeneration(
 
     const generationStartedAt = (claimedRows[0] as { generation_started_at: string } | undefined)?.generation_started_at;
     if (!generationStartedAt) {
-        return false;
+        return null;
     }
 
-    return Date.now() - new Date(generationStartedAt).getTime() <= RECOMMENDATION_CACHE_CLAIM_WINDOW_MS;
+    // If the claim we just wrote already looks older than the claim window (clock
+    // skew or scheduling delay), don't trust it. Release the lock we just set so
+    // the slot isn't stranded until the 10-minute timeout, then report no claim.
+    if (Date.now() - new Date(generationStartedAt).getTime() > RECOMMENDATION_CACHE_CLAIM_WINDOW_MS) {
+        await releaseGeneration(userId, cacheKey, slot, generationStartedAt).catch((error) => {
+            console.error("Error releasing out-of-window recommendation generation lock:", error);
+        });
+        return null;
+    }
+
+    return generationStartedAt;
 }
 
 async function releaseGeneration(
     userId: string,
     cacheKey: string,
-    slot: RecommendationCacheSlot
+    slot: RecommendationCacheSlot,
+    generationStartedAt: string
 ): Promise<void> {
     await sql`
         UPDATE recommendation_cache
@@ -1313,6 +1328,7 @@ async function releaseGeneration(
         WHERE user_id = ${userId}
           AND cache_key = ${cacheKey}
           AND slot = ${slot}
+          AND generation_started_at = ${generationStartedAt}
     `;
 }
 
@@ -1462,38 +1478,54 @@ async function tryPromoteStaging<T>(userId: string, cacheKey: string): Promise<T
     return parseCachePayload<T>(promotedPayload);
 }
 
+type StagingGenerationOutcome = 'written' | 'skipped-stale' | 'not-claimed' | 'failed';
+
 async function generateAndWriteStaging<T>(
     userId: string,
     cacheKey: string,
-    generator: () => Promise<T>
-): Promise<boolean> {
-    const claimed = await tryClaimGeneration(userId, cacheKey, RECOMMENDATION_CACHE_STAGING_SLOT);
-    if (!claimed) {
-        return false;
+    generator: () => Promise<T>,
+    shouldPersistResult?: () => Promise<boolean>
+): Promise<StagingGenerationOutcome> {
+    const stagingClaimToken = await tryClaimGeneration(userId, cacheKey, RECOMMENDATION_CACHE_STAGING_SLOT);
+    if (!stagingClaimToken) {
+        return 'not-claimed';
     }
 
-    let generated = false;
+    let outcome: StagingGenerationOutcome = 'failed';
 
     try {
         const freshResult = await generator();
-        await writeCacheSlot(userId, cacheKey, RECOMMENDATION_CACHE_STAGING_SLOT, freshResult);
-        generated = true;
+        if (!shouldPersistResult || await shouldPersistResult()) {
+            await writeCacheSlot(userId, cacheKey, RECOMMENDATION_CACHE_STAGING_SLOT, freshResult);
+            outcome = 'written';
+        } else {
+            console.log(`[recommendation-sources] skipped stale staging write user=${userId}`);
+            outcome = 'skipped-stale';
+        }
     } catch (error) {
         console.error("Error generating recommendation staging cache:", error);
+        outcome = 'failed';
     } finally {
-        await releaseGeneration(userId, cacheKey, RECOMMENDATION_CACHE_STAGING_SLOT)
+        await releaseGeneration(userId, cacheKey, RECOMMENDATION_CACHE_STAGING_SLOT, stagingClaimToken)
             .catch((error) => {
                 console.error("Error releasing recommendation staging generation lock:", error);
             });
     }
 
-    return generated;
+    return outcome;
 }
+
+// Bounds the self-heal retries so a continuous stream of input changes can't spin
+// background generations forever. Each retry waits for a full (multi-second)
+// generation, so this is already naturally rate-limited; the cap is a safety net.
+const RECOMMENDATION_STALE_REFRESH_MAX_RETRIES = 3;
 
 async function refreshStaleActiveCacheInBackground<T>(
     userId: string,
     cacheKey: string,
-    generator: () => Promise<T>
+    generator: () => Promise<T>,
+    shouldPersistResult?: () => Promise<boolean>,
+    retryCount: number = 0
 ): Promise<void> {
     try {
         const promotedExisting = await tryPromoteStaging<unknown>(userId, cacheKey);
@@ -1501,12 +1533,24 @@ async function refreshStaleActiveCacheInBackground<T>(
             return;
         }
 
-        const generated = await generateAndWriteStaging(userId, cacheKey, generator);
-        if (!generated) {
+        const outcome = await generateAndWriteStaging(userId, cacheKey, generator, shouldPersistResult);
+
+        if (outcome === 'written') {
+            await tryPromoteStaging<unknown>(userId, cacheKey);
             return;
         }
 
-        await tryPromoteStaging<unknown>(userId, cacheKey);
+        // The inputs changed while this generation was running, so its result was
+        // discarded. Schedule one more refresh (bounded) so the *latest* inputs get
+        // generated in the background instead of waiting for the next read. We rely
+        // on the lock to keep this single-flight: if another generation is already
+        // running for the new inputs, this retry simply no-ops at the claim step.
+        if (outcome === 'skipped-stale' && retryCount < RECOMMENDATION_STALE_REFRESH_MAX_RETRIES) {
+            console.log(`[recommendation-sources] re-generating after stale skip user=${userId} attempt=${retryCount + 1}`);
+            scheduleBackground(
+                refreshStaleActiveCacheInBackground(userId, cacheKey, generator, shouldPersistResult, retryCount + 1)
+            );
+        }
     } catch (error) {
         console.error("Error refreshing stale recommendation cache:", error);
     }
@@ -1516,7 +1560,8 @@ async function getCachedRecommendationResult<T>(
     userId: string,
     endpoint: RecommendationCacheEndpoint,
     params: Record<string, string | number>,
-    generator: () => Promise<T>
+    generator: () => Promise<T>,
+    shouldPersistResult?: () => Promise<boolean>
 ): Promise<T> {
     const startedAt = process.hrtime.bigint();
     cleanupRecommendationCacheInBackground();
@@ -1532,17 +1577,21 @@ async function getCachedRecommendationResult<T>(
     }
 
     if (activePayload) {
-        scheduleBackground(refreshStaleActiveCacheInBackground(userId, cacheKey, generator));
+        scheduleBackground(refreshStaleActiveCacheInBackground(userId, cacheKey, generator, shouldPersistResult));
         logRecommendationTiming('stale cache hit', startedAt, { endpoint, cacheKey });
         return activePayload;
     }
 
-    const claimedActive = await tryClaimGeneration(userId, cacheKey, RECOMMENDATION_CACHE_ACTIVE_SLOT);
-    if (claimedActive) {
+    const activeClaimToken = await tryClaimGeneration(userId, cacheKey, RECOMMENDATION_CACHE_ACTIVE_SLOT);
+    if (activeClaimToken) {
         try {
             const freshResult = await generator();
-            await writeActiveCache(userId, cacheKey, freshResult);
-            logRecommendationTiming('generated active cache', startedAt, { endpoint, cacheKey });
+            if (!shouldPersistResult || await shouldPersistResult()) {
+                await writeActiveCache(userId, cacheKey, freshResult);
+                logRecommendationTiming('generated active cache', startedAt, { endpoint, cacheKey });
+            } else {
+                logRecommendationTiming('skipped stale active cache write', startedAt, { endpoint, cacheKey });
+            }
             return freshResult;
         } catch (error) {
             const fallbackRow = await getRecommendationCacheSlotRow(userId, cacheKey, RECOMMENDATION_CACHE_ACTIVE_SLOT);
@@ -1553,7 +1602,7 @@ async function getCachedRecommendationResult<T>(
             }
             throw error;
         } finally {
-            await releaseGeneration(userId, cacheKey, RECOMMENDATION_CACHE_ACTIVE_SLOT)
+            await releaseGeneration(userId, cacheKey, RECOMMENDATION_CACHE_ACTIVE_SLOT, activeClaimToken)
                 .catch((error) => {
                     console.error("Error releasing recommendation active generation lock:", error);
                 });
@@ -1606,8 +1655,12 @@ async function getCachedRecommendationResult<T>(
     }
 
     const freshResult = await generator();
-    await writeActiveCache(userId, cacheKey, freshResult);
-    logRecommendationTiming('generated cache without claim', startedAt, { endpoint, cacheKey });
+    if (!shouldPersistResult || await shouldPersistResult()) {
+        await writeActiveCache(userId, cacheKey, freshResult);
+        logRecommendationTiming('generated cache without claim', startedAt, { endpoint, cacheKey });
+    } else {
+        logRecommendationTiming('skipped stale cache write without claim', startedAt, { endpoint, cacheKey });
+    }
     return freshResult;
 }
 
@@ -1627,10 +1680,19 @@ export async function expireRecommendationCache(userId: string): Promise<void> {
           AND slot = ${RECOMMENDATION_CACHE_ACTIVE_SLOT}
     `;
 
+    // Only drop staging rows that are NOT mid-generation. Deleting an actively
+    // locked staging row would (a) waste the in-flight generation's work and
+    // (b) let a duplicate generation start immediately. The epoch guard already
+    // prevents a stale in-flight result from being persisted, so it is safe to
+    // leave the locked row in place and let it finish (or self-heal).
     await sql`
         DELETE FROM recommendation_cache
         WHERE user_id = ${userId}
           AND slot = ${RECOMMENDATION_CACHE_STAGING_SLOT}
+          AND (
+            generation_started_at IS NULL
+            OR generation_started_at < NOW() - (${RECOMMENDATION_CACHE_GENERATION_LOCK_TIMEOUT_MINUTES} * INTERVAL '1 minute')
+          )
     `;
 }
 
@@ -1654,12 +1716,17 @@ export async function expireRecommendationCacheByCollection(collectionId: string
         AND rc.slot = ${RECOMMENDATION_CACHE_ACTIVE_SLOT}
     `;
 
+    // See expireRecommendationCache: leave actively-locked staging rows alone.
     await sql`
         DELETE FROM recommendation_cache rc
         USING user_recommendation_collections urc
         WHERE rc.user_id = urc.user_id
           AND urc.collection_id = ${collectionId}
           AND rc.slot = ${RECOMMENDATION_CACHE_STAGING_SLOT}
+          AND (
+            rc.generation_started_at IS NULL
+            OR rc.generation_started_at < NOW() - (${RECOMMENDATION_CACHE_GENERATION_LOCK_TIMEOUT_MINUTES} * INTERVAL '1 minute')
+          )
     `;
 }
 
@@ -2015,6 +2082,47 @@ async function getUserRecommendationCollections(userId: string): Promise<{ id: s
         ORDER BY urc.added_at DESC
     `;
     return result as { id: string; name: string }[];
+}
+
+/**
+ * Epoch token for the inputs that drive a user's recommendation pool.
+ *
+ * A pool generation can take several seconds (it is TMDB-bound). If the user
+ * mutates any of these inputs while a generation is in flight, the result is
+ * computed against an older input set. We capture this token at the moment
+ * generation starts and re-check it right before persisting: if it changed, the
+ * result is stale and must NOT be written to the cache, or a slow generation for
+ * an old input set could overwrite a newer one and pin stale recommendations for
+ * the full cache TTL.
+ *
+ * The token covers every user-driven trigger that changes pool inputs:
+ *   - add/remove/replace a source collection      -> source id set changes
+ *   - add/remove a movie inside a source           -> item set changes
+ *   - mark watched / not-interested (system lists)  -> item set changes
+ * (Adult-filter changes are handled separately via a hard cache invalidation.)
+ */
+async function getRecommendationInputToken(userId: string): Promise<string> {
+    const sources = await getUserRecommendationCollections(userId);
+    const sourceCollectionIds = sources.map((source) => source.id);
+
+    const itemRows = await sql`
+        SELECT cm.movie_id
+        FROM collection_movies cm
+        JOIN user_recommendation_collections urc ON cm.collection_id = urc.collection_id
+        WHERE urc.user_id = ${userId}
+        UNION
+        SELECT cm.movie_id
+        FROM collection_movies cm
+        JOIN collections c ON cm.collection_id = c.id
+        WHERE c.owner_id = ${userId}
+          AND c.is_system = true
+    `;
+    const itemIds = (itemRows as { movie_id: string }[]).map((row) => row.movie_id);
+
+    return buildStringToken([
+        `sources:${buildStringToken(sourceCollectionIds)}`,
+        `items:${buildStringToken(itemIds)}`,
+    ]);
 }
 
 /**
@@ -3223,14 +3331,34 @@ async function generateRecommendationPool(
 }
 
 async function getOrGenerateRecommendationPoolCached(userId: string): Promise<RecommendationPool> {
-    return withRecommendationContext(userId, () =>
-        getCachedRecommendationResult<RecommendationPool>(
+    return withRecommendationContext(userId, () => {
+        // Epoch guard: snapshot the input token when generation starts, then
+        // re-check it right before the result is persisted. If the user changed any
+        // pool input (sources, items in a source, watched/not-interested) while this
+        // (multi-second) generation was running, the pool is stale and must not be
+        // cached.
+        let inputTokenAtGenerationStart: string | null = null;
+        return getCachedRecommendationResult<RecommendationPool>(
             userId,
             'for_you_pool',
             {},
-            () => generateRecommendationPool(userId)
-        )
-    );
+            async () => {
+                inputTokenAtGenerationStart = await getRecommendationInputToken(userId);
+                return generateRecommendationPool(userId);
+            },
+            async () => {
+                if (inputTokenAtGenerationStart === null) {
+                    return true;
+                }
+                const currentInputToken = await getRecommendationInputToken(userId);
+                const isFresh = currentInputToken === inputTokenAtGenerationStart;
+                if (!isFresh) {
+                    console.log(`[recommendation-sources] discarding stale pool user=${userId} (inputs changed during generation)`);
+                }
+                return isFresh;
+            }
+        );
+    });
 }
 
 export async function generateRecommendations(
@@ -4215,41 +4343,53 @@ export async function setRecommendationCollections(
     collectionIds: string[]
 ): Promise<boolean> {
     try {
+        // Dedupe up front. A client that fires overlapping toggle events can send
+        // the same id twice; without this, the access check below (which counts
+        // DISTINCT matching rows) would mismatch the input length and reject a
+        // perfectly valid request.
+        const uniqueCollectionIds = Array.from(new Set(collectionIds));
+
         // Verify user has access to all collections
-        if (collectionIds.length > 0) {
+        if (uniqueCollectionIds.length > 0) {
             const collectionCheck = await sql`
                 SELECT id FROM collections 
-                WHERE id = ANY(${collectionIds})
+                WHERE id = ANY(${uniqueCollectionIds})
                 AND (owner_id = ${userId} OR id IN (
                     SELECT collection_id FROM collection_collaborators WHERE user_id = ${userId}
                 ))
             `;
             
-            if (collectionCheck.length !== collectionIds.length) {
+            if (collectionCheck.length !== uniqueCollectionIds.length) {
                 return false;
             }
         }
         
-        // Remove all existing recommendation collections
-        await sql`
-            DELETE FROM user_recommendation_collections
-            WHERE user_id = ${userId}
-        `;
-        
-        // Add new ones
-        for (const collectionId of collectionIds) {
-            await sql`
-                INSERT INTO user_recommendation_collections (id, user_id, collection_id, added_at)
-                VALUES (gen_random_uuid()::text, ${userId}, ${collectionId}, NOW())
-            `;
-        }
+        console.log(`[recommendation-sources] set user=${userId} requested=${uniqueCollectionIds.length} ids=${JSON.stringify(uniqueCollectionIds)}`);
+
+        // Atomically replace all recommendation source collections in a single
+        // transaction. This avoids a partial state where the DELETE succeeds but
+        // one of the INSERTs fails mid-loop, which would bake recommendations
+        // against an incomplete source set. The multi-row INSERT via unnest also
+        // collapses N round-trips into one. ON CONFLICT keeps it safe if two writes
+        // briefly overlap (concurrent inserts of the same id won't error).
+        await sql.transaction(txn => [
+            txn`DELETE FROM user_recommendation_collections WHERE user_id = ${userId}`,
+            txn`INSERT INTO user_recommendation_collections (id, user_id, collection_id, added_at)
+                SELECT gen_random_uuid()::text, ${userId}, collection_id, NOW()
+                FROM unnest(${uniqueCollectionIds}::text[]) AS collection_id
+                ON CONFLICT (user_id, collection_id) DO NOTHING`
+        ]);
+
+        console.log(`[recommendation-sources] set committed user=${userId} inserted=${uniqueCollectionIds.length}`);
 
         await expireRecommendationCache(userId);
+        console.log(`[recommendation-sources] cache expired user=${userId}`);
         warmPersonalizedRecommendationCache(userId);
-        
+        console.log(`[recommendation-sources] warm scheduled user=${userId}`);
+
         return true;
     } catch (error) {
-        console.error("Error setting recommendation collections:", error);
+        console.error(`[recommendation-sources] set FAILED user=${userId} ids=${JSON.stringify(collectionIds)}:`, error);
         return false;
     }
 }
