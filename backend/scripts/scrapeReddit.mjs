@@ -1,22 +1,73 @@
 /**
  * Reddit Scraper Script - Runs at build time to populate Reddit recommendations
- * 
+ *
  * This script is designed to run during Vercel build to scrape movie recommendations
  * from Reddit and store them in the database. Since serverless functions can't run
  * long background tasks, we do this at build time instead.
- * 
+ *
  * Cache behavior:
  * - Only scrapes if data is older than CACHE_TTL_HOURS
  * - Use --force flag to bypass cache check
+ *
+ * === Manual browser workflow ===
+ *
+ * Reddit blocks automated requests (even curl). Use this 3-step manual flow
+ * to fetch data in your browser and feed it to the script.
+ *
+ * All data lives in a single file: backend/data/reddit/cache.json
+ *
+ * Step 1 — Get subreddit post URLs:
+ *
+ *   node backend/scripts/scrapeReddit.mjs --list-post-urls
+ *
+ *   Visit each URL in your browser. Copy the JSON response and paste it
+ *   into cache.json under the "posts" key, using the subreddit name as key:
+ *
+ *   {
+ *     "posts": {
+ *       "a24": { <paste JSON> },
+ *       "MovieSuggestions": { <paste JSON> },
+ *       ...
+ *     },
+ *     "comments": {}
+ *   }
+ *
+ * Step 2 — Get comment URLs (requires step 1):
+ *
+ *   node backend/scripts/scrapeReddit.mjs --list-comment-urls
+ *
+ *   Reads your saved posts, prints comment URLs for the top posts.
+ *   Visit each URL and paste the JSON into "comments" using the key shown:
+ *
+ *   {
+ *     "posts": { ... },
+ *     "comments": {
+ *       "a24/abc123": { <paste JSON> },
+ *       "MovieSuggestions/def456": { <paste JSON> },
+ *       ...
+ *     }
+ *   }
+ *
+ * Step 3 — Process cached data:
+ *
+ *   node backend/scripts/scrapeReddit.mjs --from-cache --force
+ *
+ *   Reads all data from cache.json, extracts movie titles with AI,
+ *   validates against TMDB, and saves to the database. No Reddit
+ *   requests are made.
  */
 
 import { neon } from '@neondatabase/serverless';
 import { Codex } from '@openai/codex-sdk';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 
 const execFileAsync = promisify(execFile);
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 dotenv.config();
 
@@ -117,12 +168,18 @@ const CACHE_TTL_HOURS = getEnvInt('REDDIT_CACHE_TTL_HOURS', 720, 1); // 720 hour
 // Generate a hash of the subreddit list to detect config changes
 const SUBREDDITS_HASH = MOVIE_SUBREDDITS.slice().sort().join(',').toLowerCase();
 
-// Rate limiting - Reddit allows ~10 req/min for unauthenticated
-const DELAY_BETWEEN_REQUESTS = 2000; // 2 seconds between comment fetches
-const DELAY_BETWEEN_SUBREDDITS = 3000; // 3 seconds between subreddits
+// Rate limiting — unauthenticated allows ~10 req/min, stay well under to avoid 429s
+const DELAY_BETWEEN_REQUESTS = 6000;
+const DELAY_BETWEEN_SUBREDDITS = 8000;
 
 // Check for --force flag
 const FORCE_SCRAPE = process.argv.includes('--force');
+
+// Manual browser-based workflow flags
+const LIST_POST_URLS = process.argv.includes('--list-post-urls');
+const LIST_COMMENT_URLS = process.argv.includes('--list-comment-urls');
+const FROM_CACHE = process.argv.includes('--from-cache');
+const REDDIT_CACHE_FILE = join(__dirname, '..', 'data', 'reddit', 'cache.json');
 
 // ============================================================================
 // HELPERS
@@ -228,48 +285,136 @@ async function fetchTMDBJson(url) {
     return null;
 }
 
-// Reddit rate limit: ~10 requests per minute for unauthenticated
+// ============================================================================
+// MANUAL BROWSER WORKFLOW
+//
+// Single cache file at backend/data/reddit/cache.json with structure:
+// {
+//   "posts": { "subreddit": <raw reddit JSON>, ... },
+//   "comments": { "subreddit/postId": <raw reddit JSON>, ... }
+// }
+// ============================================================================
+
+function readCache() {
+    try {
+        return JSON.parse(readFileSync(REDDIT_CACHE_FILE, 'utf-8'));
+    } catch {
+        return { posts: {}, comments: {} };
+    }
+}
+
+function writeCache(cache) {
+    const dir = dirname(REDDIT_CACHE_FILE);
+    if (!existsSync(dir)) {
+        mkdirSync(dir, { recursive: true });
+    }
+    writeFileSync(REDDIT_CACHE_FILE, JSON.stringify(cache, null, 2));
+}
+
+function listPostUrls() {
+    const cache = readCache();
+
+    console.log('=== Step 1: Subreddit post URLs ===\n');
+    console.log('Visit each URL in your browser, copy the JSON, and paste it into:');
+    console.log(`  ${REDDIT_CACHE_FILE}\n`);
+    console.log('under the "posts" key with the subreddit name as the key.\n');
+
+    for (const subreddit of MOVIE_SUBREDDITS) {
+        const url = `https://www.reddit.com/r/${subreddit}/top.json?t=${TIMEFRAME}&limit=${POSTS_PER_SUBREDDIT}`;
+        const saved = !!cache.posts[subreddit];
+        console.log(`${saved ? '[SAVED]' : '[    ]'} ${url}`);
+    }
+
+    if (!existsSync(REDDIT_CACHE_FILE)) {
+        writeCache({ posts: {}, comments: {} });
+        console.log(`\nCreated empty cache file: ${REDDIT_CACHE_FILE}`);
+    }
+
+    console.log('\nPaste each JSON response as the value for its subreddit key in "posts".');
+    console.log('Then run: node backend/scripts/scrapeReddit.mjs --list-comment-urls');
+}
+
+function listCommentUrls() {
+    const cache = readCache();
+
+    console.log('=== Step 2: Comment URLs ===\n');
+
+    let totalUrls = 0;
+
+    for (const subreddit of MOVIE_SUBREDDITS) {
+        const postsData = cache.posts[subreddit];
+        if (!postsData?.data?.children) {
+            console.log(`  [SKIP] r/${subreddit} — no cached posts yet`);
+            continue;
+        }
+
+        const posts = postsData.data.children
+            .map(child => ({ id: child.data.id, score: child.data.score, numComments: child.data.num_comments }))
+            .filter(p => p.score >= MIN_SCORE)
+            .sort((a, b) => b.numComments - a.numComments)
+            .slice(0, POSTS_TO_FETCH_COMMENTS);
+
+        for (const post of posts) {
+            const url = `https://www.reddit.com/r/${subreddit}/comments/${post.id}.json?limit=50&depth=1&sort=top`;
+            const key = `${subreddit}/${post.id}`;
+            const saved = !!cache.comments[key];
+            console.log(`${saved ? '[SAVED]' : '[    ]'} ${url}`);
+            console.log(`        -> key: "${key}"`);
+            totalUrls++;
+        }
+    }
+
+    console.log(`\n${totalUrls} comment URLs total.`);
+    console.log('Paste each JSON response into the "comments" object with the key shown above.');
+    console.log('Then run: node backend/scripts/scrapeReddit.mjs --from-cache --force');
+}
+
+// ============================================================================
+// REDDIT FETCHING
+// ============================================================================
+
 const REDDIT_MAX_RETRIES = 3;
 
-// Track if we've seen a 403 (datacenter IP blocked)
 let redditBlocked = false;
 
 async function fetchRedditJson(url, retryCount = 0) {
-    // If we already know Reddit is blocking us, skip further requests
     if (redditBlocked) {
         return null;
     }
 
     try {
-        const jsonUrl = url.endsWith('.json') ? url : `${url}.json`;
-        
-        const response = await fetch(jsonUrl, {
-            headers: {
-                'User-Agent': 'mbuffs:v1.0 (movie recommendation app)',
-                'Accept': 'application/json',
-            },
-        });
+        const { stdout } = await execFileAsync('curl', [
+            '-s',
+            '-w', '\n%{http_code}',
+            '-H', 'User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            '-H', 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,application/json;q=0.8,*/*;q=0.7',
+            '-H', 'Accept-Language: en-US,en;q=0.9',
+            url,
+        ], { maxBuffer: 10 * 1024 * 1024 });
 
-        if (!response.ok) {
-            // 403 = Reddit blocking datacenter IPs (common in CI environments)
-            if (response.status === 403) {
-                redditBlocked = true;
-                console.warn(`  Reddit returned 403 Forbidden - datacenter IP likely blocked`);
-                console.warn(`  This is expected in CI environments (Vercel, GitHub Actions, etc.)`);
-                return null;
-            }
-            
-            if (response.status === 429 && retryCount < REDDIT_MAX_RETRIES) {
-                const delay = 10000 * (retryCount + 1); // 10s, 20s, 30s
-                console.warn(`  Reddit rate limit hit, waiting ${delay/1000}s (retry ${retryCount + 1}/${REDDIT_MAX_RETRIES})...`);
-                await sleep(delay);
-                return fetchRedditJson(url, retryCount + 1);
-            }
-            console.error(`  Reddit API error: ${response.status} for ${url}`);
+        const lines = stdout.trimEnd().split('\n');
+        const statusCode = parseInt(lines.pop(), 10);
+        const body = lines.join('\n');
+
+        if (statusCode === 403) {
+            redditBlocked = true;
+            console.warn(`  Reddit returned 403 Forbidden`);
             return null;
         }
 
-        return await response.json();
+        if (statusCode === 429 && retryCount < REDDIT_MAX_RETRIES) {
+            const delay = 10000 * (retryCount + 1);
+            console.warn(`  Reddit rate limit hit, waiting ${delay/1000}s (retry ${retryCount + 1}/${REDDIT_MAX_RETRIES})...`);
+            await sleep(delay);
+            return fetchRedditJson(url, retryCount + 1);
+        }
+
+        if (statusCode < 200 || statusCode >= 300) {
+            console.error(`  Reddit API error: ${statusCode} for ${url}`);
+            return null;
+        }
+
+        return JSON.parse(body);
     } catch (error) {
         console.error(`  Error fetching Reddit data from ${url}:`, error.message);
         return null;
@@ -683,9 +828,28 @@ async function searchTMDB(title, year, mediaTypeHint = 'unknown') {
 // MAIN SCRAPING LOGIC
 // ============================================================================
 
+let redditCache = null;
+
+function getRedditCache() {
+    if (!redditCache) {
+        redditCache = readCache();
+    }
+    return redditCache;
+}
+
 async function fetchSubredditPosts(subreddit) {
-    const url = `https://www.reddit.com/r/${subreddit}/top.json?t=${TIMEFRAME}&limit=${POSTS_PER_SUBREDDIT}`;
-    const response = await fetchRedditJson(url);
+    let response;
+
+    if (FROM_CACHE) {
+        response = getRedditCache().posts[subreddit];
+        if (!response) {
+            console.warn(`  No cached posts for r/${subreddit}`);
+            return [];
+        }
+    } else {
+        const url = `https://www.reddit.com/r/${subreddit}/top.json?t=${TIMEFRAME}&limit=${POSTS_PER_SUBREDDIT}`;
+        response = await fetchRedditJson(url);
+    }
 
     if (!response?.data?.children) {
         return [];
@@ -705,13 +869,19 @@ async function fetchSubredditPosts(subreddit) {
         .filter(p => p.score >= MIN_SCORE);
 }
 
-/**
- * Fetch top comments from a post
- * Many movie recommendations are in comments, not post body
- */
 async function fetchPostComments(subreddit, postId, limit = 50) {
-    const url = `https://www.reddit.com/r/${subreddit}/comments/${postId}.json?limit=${limit}&depth=1&sort=top`;
-    const response = await fetchRedditJson(url);
+    let response;
+
+    if (FROM_CACHE) {
+        response = getRedditCache().comments[`${subreddit}/${postId}`];
+        if (!response) {
+            console.warn(`  No cached comments for r/${subreddit} post ${postId}`);
+            return [];
+        }
+    } else {
+        const url = `https://www.reddit.com/r/${subreddit}/comments/${postId}.json?limit=${limit}&depth=1&sort=top`;
+        response = await fetchRedditJson(url);
+    }
 
     if (!response || !Array.isArray(response) || response.length < 2) {
         return [];
@@ -719,7 +889,7 @@ async function fetchPostComments(subreddit, postId, limit = 50) {
 
     const comments = [];
     const commentsData = response[1]?.data?.children || [];
-    
+
     for (const child of commentsData) {
         if (child.kind === 't1' && child.data.body) {
             comments.push({
@@ -731,7 +901,7 @@ async function fetchPostComments(subreddit, postId, limit = 50) {
         }
     }
 
-    return comments.filter(c => c.score >= 5); // Only comments with decent upvotes
+    return comments.filter(c => c.score >= 5);
 }
 
 // How many posts to fetch comments from (top N by comment count)
@@ -739,6 +909,7 @@ const POSTS_TO_FETCH_COMMENTS = 5;
 
 async function scrapeReddit() {
     console.log('Starting Reddit scrape...');
+
     if (AI_PROVIDER === 'gemini') {
         console.log('  (Gemini CLI will use credentials from `gemini auth login`)');
     } else {
@@ -1014,6 +1185,16 @@ const IS_CI = !!(process.env.CI || process.env.VERCEL || process.env.GITHUB_ACTI
 const REDDIT_SCRAPE_IN_CI = process.env.REDDIT_SCRAPE_IN_CI === 'true';
 
 async function main() {
+    if (LIST_POST_URLS) {
+        listPostUrls();
+        return;
+    }
+
+    if (LIST_COMMENT_URLS) {
+        listCommentUrls();
+        return;
+    }
+
     const aiTimeoutLabel = AI_TIMEOUT_MS > 0 ? `${AI_TIMEOUT_MS}ms` : 'off';
 
     console.log('=== Reddit Recommendations Scraper ===\n');

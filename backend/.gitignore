@@ -7,6 +7,9 @@ dist/
 # Environment Variables File
 .env
 
+# Cached Reddit JSON data
+data/reddit/
+
 # Log files
 *.log
 npm-debug.log*
