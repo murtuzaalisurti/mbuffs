@@ -21,6 +21,7 @@ import {
     getCategoryRecommendationsQueryKey,
     getForYouRecommendationsQueryKey,
     getPreferencesQueryKey,
+    RECOMMENDATION_TOGGLE_DEBOUNCE_MS,
 } from '@/lib/recommendationQueries';
 
 // ============================================================================
@@ -69,9 +70,6 @@ const COLLECTIONS_QUERY_KEY = ['collections', 'user'];
 const USER_QUERY_KEY = ['user'];
 const USER_ME_QUERY_KEY = ['user', 'me'];
 const RECOMMENDATION_COLLECTIONS_QUERY_KEY = ['recommendations', 'collections'];
-// Collapse a burst of rapid source-collection toggles into a single network
-// write, so the backend regenerates recommendations once instead of per click.
-const RECOMMENDATION_COLLECTIONS_DEBOUNCE_MS = 800;
 const WATCHED_ITEMS_QUERY_KEY = ['collections', 'watched', 'items'];
 const NOT_INTERESTED_ITEMS_QUERY_KEY = ['collections', 'not-interested', 'items'];
 
@@ -218,7 +216,7 @@ const Profile = () => {
         recommendationCollectionsDebounceRef.current = setTimeout(() => {
             recommendationCollectionsDebounceRef.current = null;
             setRecommendationCollectionsMutation.mutate(newIds);
-        }, RECOMMENDATION_COLLECTIONS_DEBOUNCE_MS);
+        }, RECOMMENDATION_TOGGLE_DEBOUNCE_MS);
     };
 
     // Flush a pending change on unmount so navigating away mid-debounce doesn't drop it.

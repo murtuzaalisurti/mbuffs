@@ -13,12 +13,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { ImageOff, Star, Play, User, Bookmark, MoreHorizontal, Loader2, Plus, Clock, Calendar, Globe, X, MessageSquare, ChevronRight, Eye, EyeOff, ThumbsDown, ThumbsUp } from 'lucide-react';
-import { useState, useRef, useMemo } from 'react';
+import { useState, useRef, useMemo, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import {
     getPreferencesQueryKey,
     setNotInterestedStatusBatchQueryData,
     setWatchedStatusBatchQueryData,
+    RECOMMENDATION_TOGGLE_DEBOUNCE_MS,
 } from '@/lib/recommendationQueries';
 import { useWarmRecommendations } from '@/App';
 import { toast } from 'sonner';
@@ -378,79 +379,112 @@ const MovieDetail = () => {
     // Type for movie status map
     type MovieStatusMap = Record<string, { hasMedia: boolean; addedByUserId: string | null }>;
 
-    // Add movie to collection mutation with optimistic updates
-    const addToCollectionMutation = useMutation({
-        mutationFn: ({ collectionId }: { collectionId: string }) =>
-            addMovieToCollectionApi(collectionId, { movieId: collectionMediaId as unknown as number }), // API expects number but handles string with 'tv' suffix
-        onMutate: async ({ collectionId }) => {
-            // Cancel outgoing refetches
-            await queryClient.cancelQueries({ queryKey: movieStatusQueryKey });
-            
-            // Snapshot previous value
-            const previousStatus = queryClient.getQueryData<MovieStatusMap>(movieStatusQueryKey);
-            
-            // Optimistically update - current user is adding, so they own it
-            queryClient.setQueryData(movieStatusQueryKey, (old: MovieStatusMap | undefined) => ({
-                ...old,
-                [collectionId]: { hasMedia: true, addedByUserId: currentUser?.id ?? null },
-            }));
-            
-            return { previousStatus };
-        },
-        onSuccess: (_, { collectionId }) => {
-            queryClient.invalidateQueries({ queryKey: ['collection', collectionId] });
-        },
-        onError: (error: Error & { data?: { message?: string } }, _, context) => {
-            // Rollback on error
-            if (context?.previousStatus) {
-                queryClient.setQueryData(movieStatusQueryKey, context.previousStatus);
-            }
-            if (error?.data?.message?.includes('already exists')) {
-                toast.error('Already in this collection');
-            } else {
-                toast.error(`Failed to add to collection`);
-            }
-        },
-    });
+    // Debounce rapid collection toggles (e.g. adding a movie to several
+    // collections in quick succession) into a single batch of API calls so
+    // the backend expires the recommendation cache once per burst instead of
+    // per click. Optimistic UI is instant; the network write is deferred.
+    const collectionToggleDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const pendingCollectionOpsRef = useRef<Map<string, 'add' | 'remove'>>(new Map());
+    const originalMovieStatusRef = useRef<MovieStatusMap | null>(null);
 
-    // Remove movie from collection mutation with optimistic updates
-    const removeFromCollectionMutation = useMutation({
-        mutationFn: ({ collectionId }: { collectionId: string }) =>
-            removeMovieFromCollectionApi(collectionId, collectionMediaId!),
-        onMutate: async ({ collectionId }) => {
-            // Cancel outgoing refetches
-            await queryClient.cancelQueries({ queryKey: movieStatusQueryKey });
-            
-            // Snapshot previous value
-            const previousStatus = queryClient.getQueryData<MovieStatusMap>(movieStatusQueryKey);
-            
-            // Optimistically update
-            queryClient.setQueryData(movieStatusQueryKey, (old: MovieStatusMap | undefined) => ({
-                ...old,
-                [collectionId]: { hasMedia: false, addedByUserId: null },
-            }));
-            
-            return { previousStatus };
-        },
-        onSuccess: (_, { collectionId }) => {
-            queryClient.invalidateQueries({ queryKey: ['collection', collectionId] });
-        },
-        onError: (error: Error, _, context) => {
-            // Rollback on error
-            if (context?.previousStatus) {
-                queryClient.setQueryData(movieStatusQueryKey, context.previousStatus);
+    const flushPendingCollectionOps = async () => {
+        const ops = pendingCollectionOpsRef.current;
+        const original = originalMovieStatusRef.current;
+        if (ops.size === 0) return;
+
+        pendingCollectionOpsRef.current = new Map();
+        originalMovieStatusRef.current = null;
+
+        const tasks: Promise<void>[] = [];
+
+        for (const [collectionId, operation] of ops.entries()) {
+            // Skip no-ops: if the server already has this state, don't write.
+            // (Handles e.g. add → remove → add within one burst.)
+            const originalHasMedia = original?.[collectionId]?.hasMedia ?? false;
+            if (operation === 'add' && originalHasMedia) continue;
+            if (operation === 'remove' && !originalHasMedia) continue;
+
+            if (operation === 'add') {
+                tasks.push(
+                    addMovieToCollectionApi(collectionId, { movieId: collectionMediaId as unknown as number })
+                        .then(() => {
+                            queryClient.invalidateQueries({ queryKey: ['collection', collectionId] });
+                        })
+                        .catch((error: Error & { data?: { message?: string } }) => {
+                            queryClient.setQueryData<MovieStatusMap>(movieStatusQueryKey, (old) => ({
+                                ...old,
+                                [collectionId]: { hasMedia: false, addedByUserId: null },
+                            }));
+                            if (error?.data?.message?.includes('already exists')) {
+                                toast.error('Already in this collection');
+                            } else {
+                                toast.error('Failed to add to collection');
+                            }
+                        })
+                );
+            } else {
+                tasks.push(
+                    removeMovieFromCollectionApi(collectionId, collectionMediaId!)
+                        .then(() => {
+                            queryClient.invalidateQueries({ queryKey: ['collection', collectionId] });
+                        })
+                        .catch(() => {
+                            queryClient.setQueryData<MovieStatusMap>(movieStatusQueryKey, (old) => ({
+                                ...old,
+                                [collectionId]: { hasMedia: true, addedByUserId: currentUser?.id ?? null },
+                            }));
+                            toast.error('Failed to remove from collection');
+                        })
+                );
             }
-            toast.error(`Failed to remove from collection`);
-        },
-    });
+        }
+
+        await Promise.allSettled(tasks);
+        warmRecommendations();
+    };
 
     const handleCollectionToggle = (collectionId: string, isCurrentlyInCollection: boolean) => {
-        if (isCurrentlyInCollection) {
-            removeFromCollectionMutation.mutate({ collectionId });
-        } else {
-            addToCollectionMutation.mutate({ collectionId });
+        const operation: 'add' | 'remove' = isCurrentlyInCollection ? 'remove' : 'add';
+
+        // Snapshot the server state at the start of a burst so we can skip
+        // no-op operations at flush time (e.g. add → remove → add).
+        if (!collectionToggleDebounceRef.current) {
+            originalMovieStatusRef.current = queryClient.getQueryData<MovieStatusMap>(movieStatusQueryKey) ?? null;
         }
+
+        pendingCollectionOpsRef.current.set(collectionId, operation);
+
+        // Optimistic update — instant UI feedback.
+        queryClient.cancelQueries({ queryKey: movieStatusQueryKey });
+        queryClient.setQueryData<MovieStatusMap>(movieStatusQueryKey, (old) => ({
+            ...old,
+            [collectionId]: {
+                hasMedia: operation === 'add',
+                addedByUserId: operation === 'add' ? (currentUser?.id ?? null) : null,
+            },
+        }));
+
+        if (collectionToggleDebounceRef.current) {
+            clearTimeout(collectionToggleDebounceRef.current);
+        }
+        collectionToggleDebounceRef.current = setTimeout(() => {
+            collectionToggleDebounceRef.current = null;
+            void flushPendingCollectionOps();
+        }, RECOMMENDATION_TOGGLE_DEBOUNCE_MS);
     };
+
+    // Flush a pending burst on unmount or navigation to a different movie so
+    // changes are not silently dropped.
+    useEffect(() => {
+        return () => {
+            if (collectionToggleDebounceRef.current) {
+                clearTimeout(collectionToggleDebounceRef.current);
+                collectionToggleDebounceRef.current = null;
+                void flushPendingCollectionOps();
+            }
+        };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [collectionMediaId, queryClient]);
 
     // Watched status query and mutation
     const watchedQueryKey = ['watched', collectionMediaId];
