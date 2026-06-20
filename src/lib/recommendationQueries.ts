@@ -11,6 +11,11 @@ export const FOR_YOU_FULL_PAGE_ITEMS_PER_PAGE = 60;
 export const CATEGORY_PREVIEW_ITEMS_PER_ROW = 10;
 export const CATEGORY_FULL_PAGE_ITEMS_PER_PAGE = 60;
 export const CATEGORY_OVERVIEW_FETCH_LIMIT = 50;
+// Debounce window for collapsing rapid collection/recommendation-source
+// toggles into a single batched network write. Shared across all surfaces
+// (Profile source-collection selector, MovieDetail collection toggles) so
+// the backend regenerates recommendations once per burst instead of per click.
+export const RECOMMENDATION_TOGGLE_DEBOUNCE_MS = 1000;
 // Backward-compatible alias for preview surfaces.
 export const FOR_YOU_ITEMS_PER_PAGE = FOR_YOU_PREVIEW_ITEMS_PER_PAGE;
 export const FOR_YOU_QUERY_STALE_TIME = 1000 * 60 * 5;
