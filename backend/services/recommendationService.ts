@@ -242,7 +242,7 @@ interface RecommendationCacheRow {
     generation_started_at: string | null;
 }
 
-const RECOMMENDATION_CACHE_VERSION = 'v9';
+const RECOMMENDATION_CACHE_VERSION = 'v10';
 const RECOMMENDATION_CACHE_TTL_MINUTES = 30;
 const RECOMMENDATION_CACHE_STAGING_RETENTION_MINUTES = 60 * 2;
 const RECOMMENDATION_CACHE_CLEANUP_INTERVAL_MS = 1000 * 60 * 15;
@@ -2448,6 +2448,101 @@ async function generateColdStartRecommendations(
         });
     }
 
+    // Inject admin-curated candidates so brand-new users (no sources, no watched)
+    // still surface hand-picked titles instead of pure trending.
+    const adminCuratedMap = await getAdminCuratedItemsMap();
+    let adminCuratedInjected = 0;
+
+    for (const [curatedTmdbId, curatedItem] of adminCuratedMap.entries()) {
+        const isMovie = curatedItem.mediaType === 'movie';
+        const key = isMovie ? curatedTmdbId : `${curatedTmdbId}tv`;
+
+        if (excludedMovieIds.has(key)) continue;
+
+        if (allRecommendations.has(key)) {
+            const existing = allRecommendations.get(key)!;
+            const explainability = existing.item.explainability;
+            if (explainability) {
+                explainability.retrieval_channels = addRetrievalChannel(
+                    explainability.retrieval_channels,
+                    'admin_curated'
+                );
+                explainability.reason_codes = addReasonCode(
+                    explainability.reason_codes,
+                    'admin_curated'
+                );
+                const genreMatchCount = (existing.item.genre_ids || []).filter(
+                    (gid) => (genreScores.get(gid) || 0) > 0
+                ).length;
+                const adminBoost = ADMIN_CURATED_BASE_BOOST + genreMatchCount * ADMIN_CURATED_GENRE_MATCH_MULTIPLIER;
+                explainability.score_breakdown.admin_curated_boost = adminBoost;
+                explainability.score_breakdown.total += adminBoost;
+                existing.score += adminBoost;
+            }
+            adminCuratedInjected++;
+        } else {
+            const mediaType = isMovie ? 'movie' : 'tv';
+            const details = await fetchTMDB<TMDBDetailsResponse>(
+                `/${mediaType}/${curatedTmdbId}`,
+                { append_to_response: 'keywords' }
+            );
+            if (!details) continue;
+
+            const genreIds = details.genres?.map((g) => g.id) || [];
+            const matchedGenres = genreIds.filter((gid) => (genreScores.get(gid) || 0) > 0);
+            const adminBoost = ADMIN_CURATED_BASE_BOOST + matchedGenres.length * ADMIN_CURATED_GENRE_MATCH_MULTIPLIER;
+            const baseScore = ((details as unknown as TMDBMovie).vote_average || 0) * 10;
+            const popularityScore = Math.min(((details as unknown as TMDBMovie).popularity || 0) / 10, 50);
+            const totalScore = baseScore + popularityScore + adminBoost;
+
+            allRecommendations.set(key, {
+                item: {
+                    id: Number(curatedTmdbId),
+                    media_type: mediaType,
+                    title: isMovie ? curatedItem.title : undefined,
+                    name: !isMovie ? curatedItem.title : undefined,
+                    poster_path: curatedItem.posterPath,
+                    release_date: (details as unknown as TMDBMovie).release_date,
+                    first_air_date: (details as unknown as TMDBMovie).first_air_date,
+                    vote_average: (details as unknown as TMDBMovie).vote_average || 0,
+                    vote_count: (details as unknown as TMDBMovie).vote_count,
+                    popularity: (details as unknown as TMDBMovie).popularity,
+                    overview: (details as unknown as TMDBMovie).overview || '',
+                    backdrop_path: (details as unknown as TMDBMovie).backdrop_path,
+                    genre_ids: genreIds,
+                    explainability: {
+                        reason_codes: matchedGenres.length > 0
+                            ? ['admin_curated', 'genre_match']
+                            : ['admin_curated'],
+                        source_appearances: 1,
+                        matched_genres: matchedGenres,
+                        retrieval_channels: ['admin_curated'],
+                        score_breakdown: {
+                            base: baseScore,
+                            popularity: popularityScore,
+                            genre: 0,
+                            source_boost: 0,
+                            director_boost: 0,
+                            writer_boost: 0,
+                            actor_boost: 0,
+                            primary_boost: 0,
+                            reddit_boost: 0,
+                            admin_curated_boost: adminBoost,
+                            total: totalScore,
+                        },
+                    },
+                } as TMDBMovie,
+                score: totalScore,
+                sources: 1,
+            });
+            adminCuratedInjected++;
+        }
+    }
+
+    if (adminCuratedInjected > 0) {
+        console.log(`[Admin Curated] Cold start: injected/boosted ${adminCuratedInjected} items (total pool: ${allRecommendations.size})`);
+    }
+
     const redditBoostMap = await getRedditBoostMap();
     const withRedditBoost = applyRedditBoosts(Array.from(allRecommendations.values()), redditBoostMap);
     const ranked = applyMultiObjectiveRanking(withRedditBoost, genreScores, engagementSignals);
@@ -2470,11 +2565,22 @@ async function generateColdStartRecommendations(
         4
     );
 
-    const totalResults = shuffledCandidates.length;
+    // Pin admin-curated items to the top for cold-start users so hand-picked
+    // titles dominate over trending. Relative order within each group is
+    // preserved (both already sorted by score from the ranking pipeline).
+    const curatedPinned = shuffledCandidates.filter(
+        (c) => c.item.explainability?.retrieval_channels?.includes('admin_curated')
+    );
+    const nonCurated = shuffledCandidates.filter(
+        (c) => !c.item.explainability?.retrieval_channels?.includes('admin_curated')
+    );
+    const finalOrdered = [...curatedPinned, ...nonCurated];
+
+    const totalResults = finalOrdered.length;
     const totalPages = tmdbTotalPages > 0
         ? Math.min(Math.ceil(totalResults / limit), tmdbTotalPages)
         : Math.ceil(totalResults / limit);
-    const paginatedResults = paginateOrderedCandidates(shuffledCandidates, page, limit).map((result) => result.item);
+    const paginatedResults = paginateOrderedCandidates(finalOrdered, page, limit).map((result) => result.item);
 
     return {
         results: paginatedResults,
