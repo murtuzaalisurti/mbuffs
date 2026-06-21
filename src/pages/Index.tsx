@@ -97,8 +97,8 @@ const Index = () => {
     [recommendationCandidates]
   );
 
-  const { watchedMap } = useWatchedStatus(recommendationMediaIds);
-  const { notInterestedMap } = useNotInterestedStatus(recommendationsEnabled ? recommendationMediaIds : []);
+  const { watchedMap, isLoading: isLoadingWatched } = useWatchedStatus(recommendationMediaIds);
+  const { notInterestedMap, isLoading: isLoadingNotInterested } = useNotInterestedStatus(recommendationsEnabled ? recommendationMediaIds : []);
   const recommendations = useMemo(
     () => selectForYouPreviewRecommendations(
       excludeFeedbackRecommendations(
@@ -173,7 +173,7 @@ const Index = () => {
           {/* For You Section - Personalized Recommendations */}
           {user && recommendationsEnabled && (
             <section>
-              {isRecommendationsLoading ? (
+              {(isRecommendationsLoading || isLoadingWatched || isLoadingNotInterested) ? (
                 <div className="space-y-4">
                   <div className="flex items-center gap-3">
                     <div className="h-6 w-1 rounded-full bg-primary" />

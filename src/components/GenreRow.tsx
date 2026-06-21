@@ -48,8 +48,8 @@ export function GenreRow({
     [candidateMovies, mediaType]
   );
 
-  const { watchedMap } = useWatchedStatus(mediaIds);
-  const { notInterestedMap } = useNotInterestedStatus(showNotInterested ? mediaIds : []);
+  const { watchedMap, isLoading: isLoadingWatched } = useWatchedStatus(mediaIds);
+  const { notInterestedMap, isLoading: isLoadingNotInterested } = useNotInterestedStatus(showNotInterested ? mediaIds : []);
   const { ratingsMap } = useOmdbRatings(candidateMovies);
   const displayMovies = useMemo(
     () => (isPersonalized
@@ -68,7 +68,9 @@ export function GenreRow({
     [displayMovies, ratingsMap]
   );
 
-  if (isLoading) {
+  const isFeedbackStatusLoading = isPersonalized && (isLoadingWatched || isLoadingNotInterested);
+
+  if (isLoading || isFeedbackStatusLoading) {
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between">
