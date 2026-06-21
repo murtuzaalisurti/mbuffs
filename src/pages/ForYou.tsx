@@ -62,8 +62,8 @@ const ForYou = () => {
     [allMovies]
   );
 
-  const { watchedMap } = useWatchedStatus(mediaIds);
-  const { notInterestedMap } = useNotInterestedStatus(recommendationsEnabled ? mediaIds : []);
+  const { watchedMap, isLoading: isLoadingWatched } = useWatchedStatus(mediaIds);
+  const { notInterestedMap, isLoading: isLoadingNotInterested } = useNotInterestedStatus(recommendationsEnabled ? mediaIds : []);
   const visibleMovies = useMemo(
     () => excludeFeedbackRecommendations(
       allMovies,
@@ -219,7 +219,7 @@ const ForYou = () => {
         </section>
 
         {/* Grid */}
-        {isLoading ? (
+        {(isLoading || isLoadingWatched || isLoadingNotInterested) ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 md:gap-5">
             {Array.from({ length: INITIAL_LOADING_SKELETON_COUNT }).map((_, index) => (
               <div key={index} className="space-y-3">

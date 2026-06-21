@@ -136,6 +136,7 @@ const CategoryDetail = () => {
 
   const hasPagedData = (data?.pages?.length ?? 0) > 0;
   const hasSeedData = showPersonalized && !isTheatrical && personalizedSeedResults.length > 0;
+  const isInitialPagedLoad = showPersonalized && !hasPagedData && isLoadingPersonalized;
 
   const isLoading = showPersonalized
     ? !hasPagedData && !hasSeedData && (isLoadingPersonalized || (!isTheatrical && isLoadingCategoryOverview))
@@ -172,8 +173,9 @@ const CategoryDetail = () => {
     [allMovies, mediaType]
   );
 
-  const { watchedMap } = useWatchedStatus(mediaIds);
-  const { notInterestedMap } = useNotInterestedStatus(showNotInterested ? mediaIds : []);
+  const { watchedMap, isLoading: isLoadingWatched } = useWatchedStatus(mediaIds);
+  const { notInterestedMap, isLoading: isLoadingNotInterested } = useNotInterestedStatus(showNotInterested ? mediaIds : []);
+  const isFeedbackStatusLoading = showPersonalized && (isLoadingWatched || isLoadingNotInterested);
   const visibleMovies = useMemo(
     () => showPersonalized
       ? excludeFeedbackRecommendations(
@@ -255,7 +257,7 @@ const CategoryDetail = () => {
         </section>
 
         {/* Grid */}
-        {isLoading ? (
+        {(isLoading || isFeedbackStatusLoading) ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 md:gap-5">
             {Array.from({ length: 18 }).map((_, index) => (
               <div key={index} className="space-y-3">
@@ -281,7 +283,7 @@ const CategoryDetail = () => {
                 );
               })}
               {/* Skeleton loaders for infinite scroll - inside the same grid */}
-              {isFetchingNextPage && Array.from({ length: 6 }).map((_, index) => (
+              {(isFetchingNextPage || isInitialPagedLoad) && Array.from({ length: 6 }).map((_, index) => (
                 <div key={`skeleton-${index}`} className="space-y-3">
                   <Skeleton className="aspect-[2/3] w-full rounded-xl" />
                   <Skeleton className="h-4 w-[75%] rounded-md" />
