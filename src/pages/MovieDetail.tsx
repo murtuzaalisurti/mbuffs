@@ -406,7 +406,7 @@ const MovieDetail = () => {
 
             if (operation === 'add') {
                 tasks.push(
-                    addMovieToCollectionApi(collectionId, { movieId: collectionMediaId as unknown as number })
+                    addMovieToCollectionApi(collectionId, { movieId: collectionMediaId as unknown as number, title: isMovie ? (mediaDetails as MovieDetails)?.title : (mediaDetails as MovieDetails)?.name, posterPath: mediaDetails?.poster_path ?? null, mediaType })
                         .then(() => {
                             queryClient.invalidateQueries({ queryKey: ['collection', collectionId] });
                         })

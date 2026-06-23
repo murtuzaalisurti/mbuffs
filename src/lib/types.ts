@@ -461,6 +461,9 @@ export interface UpdateCollectionInput {
 // Input type for adding a movie to a collection
 export interface AddMovieInput {
   movieId: number; // TMDB movie ID
+  title?: string;
+  posterPath?: string | null;
+  mediaType?: 'movie' | 'tv';
 }
 
 // Response type after adding a movie
@@ -582,7 +585,7 @@ export interface OmdbRatingsResponse {
 
 // --- Notification & Share Types ---
 
-export type NotificationType = 'media_share' | 'recommendation';
+export type NotificationType = 'media_share' | 'recommendation' | 'collection_item_added';
 
 export interface MediaSharePayload {
   tmdb_id: number;
@@ -590,6 +593,15 @@ export interface MediaSharePayload {
   title: string;
   poster_path: string | null;
   message?: string;
+}
+
+export interface CollectionItemAddedPayload {
+  collection_id: string;
+  collection_name: string;
+  tmdb_id?: string;
+  media_type?: 'movie' | 'tv';
+  title?: string;
+  poster_path?: string | null;
 }
 
 export interface NotificationItem {

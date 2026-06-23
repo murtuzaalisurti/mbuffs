@@ -26,9 +26,9 @@ export type UpdateCollectionInput = z.infer<typeof updateCollectionSchema>;
 
 export const addMovieSchema = z.object({
   movieId: z.string({ message: "Movie ID is required and must be a number or a string." }).or(z.number({ message: "Movie ID is required and must be a number or a string." })),
-  // Optional: could include title/poster directly if desired
-  // title: z.string().optional(),
-  // posterPath: z.string().optional(),
+  title: z.string().max(500).optional(),
+  posterPath: z.string().nullable().optional(),
+  mediaType: z.enum(['movie', 'tv']).optional(),
 });
 
 export type AddMovieInput = z.infer<typeof addMovieSchema>;

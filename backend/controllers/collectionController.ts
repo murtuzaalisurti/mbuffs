@@ -21,6 +21,8 @@ import {
     expireRecommendationCacheByCollection,
     warmPersonalizedRecommendationCache
 } from '../services/recommendationService.js';
+import { createNotification } from '../services/notificationService.js';
+import { scheduleBackground } from '../lib/waitUntilHelper.js';
 
 interface CollectionDetailsResponse {
     collection: CollectionSummary;
@@ -269,20 +271,22 @@ export const deleteCollection = async (req: Request, res: Response, next: NextFu
 export const addMovieToCollection = async (req: Request, res: Response, next: NextFunction) => {
     const userId = req.userId;
     const { collectionId } = req.params;
-    if (!userId) { 
+    if (!userId) {
         res.sendStatus(401);
         return;
     }
     try {
         // Check if user is owner or has edit permission
         const permissionCheck = await sql`
-            SELECT 
-                CASE 
+            SELECT
+                CASE
                     WHEN c.owner_id = ${userId} THEN 'owner'
                     WHEN cc.permission = 'edit' THEN 'edit'
                     WHEN cc.permission = 'view' THEN 'view'
                     ELSE NULL
-                END as role
+                END as role,
+                c.name as collection_name,
+                c.owner_id
             FROM collections c
             LEFT JOIN collection_collaborators cc ON c.id = cc.collection_id AND cc.user_id = ${userId}
             WHERE c.id = ${collectionId}
@@ -304,7 +308,7 @@ export const addMovieToCollection = async (req: Request, res: Response, next: Ne
             res.status(400).json({ message: 'Validation failed', errors: validation.error.issues });
             return;
         }
-        const { movieId } = validation.data;
+        const { movieId, title, posterPath, mediaType } = validation.data;
         const newEntryId = generateId(21);
 
         try {
@@ -317,11 +321,51 @@ export const addMovieToCollection = async (req: Request, res: Response, next: Ne
             await expireRecommendationCacheByCollection(collectionId);
 
             res.status(201).json({ movieEntry: result[0] as {id: string, movie_id: number, added_at: string} });
+
+            // --- Notify other collection members (owner + collaborators, excluding the acting user) ---
+            const collectionName = permissionCheck[0].collection_name;
+            const ownerId = permissionCheck[0].owner_id;
+
+            const collaborators = (await sql`
+                SELECT cc.user_id FROM collection_collaborators cc
+                WHERE cc.collection_id = ${collectionId}
+            `) as Array<{ user_id: string }>;
+
+            const recipientIds = [
+                ...(ownerId && ownerId !== userId ? [ownerId] : []),
+                ...collaborators.map((c) => c.user_id).filter((uid) => uid !== userId),
+            ];
+
+            if (recipientIds.length > 0) {
+                const notifPayload = {
+                    collection_id: collectionId,
+                    collection_name: collectionName,
+                    tmdb_id: typeof movieId === 'string' ? movieId : String(movieId),
+                    media_type: mediaType || undefined,
+                    title: title || undefined,
+                    poster_path: posterPath || undefined,
+                };
+
+                scheduleBackground((async () => {
+                    for (const recipientId of recipientIds) {
+                        try {
+                            await createNotification({
+                                recipientId,
+                                senderId: userId,
+                                type: 'collection_item_added',
+                                payload: notifPayload,
+                            });
+                        } catch (err) {
+                            console.error('[notifications] Failed to notify collection member:', err);
+                        }
+                    }
+                })());
+            }
         } catch (insertError: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
-            if (insertError.code === '23505') { 
+            if (insertError.code === '23505') {
                 res.status(409).json({ message: 'Movie already exists in this collection' });
             } else {
-                next(insertError); 
+                next(insertError);
             }
         }
     } catch (error) {
