@@ -661,7 +661,7 @@ const CollectionDetail = () => {
                             </DialogTrigger>
                             <AddMovieDialog
                                 existingMovieIds={movieIds.map((id) => String(id))}
-                                onAddMovie={(movieId) => addMovieMutation.mutateAsync({ collectionId: collectionId!, data: { movieId: movieId as unknown as number } })}
+                                onAddMovie={(movieId, title, posterPath, mediaType) => addMovieMutation.mutateAsync({ collectionId: collectionId!, data: { movieId: movieId as unknown as number, title, posterPath, mediaType } })}
                             />
                         </Dialog>
                     )}
@@ -756,7 +756,7 @@ const CollectionDetail = () => {
 // --- Add Movie Dialog Component ---
 interface AddMovieDialogProps {
     existingMovieIds: string[];
-    onAddMovie: (movieId: string) => Promise<unknown>;
+    onAddMovie: (movieId: string, title: string, posterPath: string | null, mediaType: 'movie' | 'tv') => Promise<unknown>;
 }
 
 const AddMovieDialog: React.FC<AddMovieDialogProps> = ({ existingMovieIds, onAddMovie }) => {
@@ -784,10 +784,10 @@ const AddMovieDialog: React.FC<AddMovieDialogProps> = ({ existingMovieIds, onAdd
         initialPageParam: 1,
     });
 
-    const handleAddClick = async (movieId: string) => {
+    const handleAddClick = async (movieId: string, title: string, posterPath: string | null, mediaType: 'movie' | 'tv') => {
         setPendingMovieIds((prev) => new Set(prev).add(movieId));
         try {
-            await onAddMovie(movieId);
+            await onAddMovie(movieId, title, posterPath, mediaType);
         } finally {
             setPendingMovieIds((prev) => {
                 const next = new Set(prev);
@@ -873,7 +873,7 @@ const AddMovieDialog: React.FC<AddMovieDialogProps> = ({ existingMovieIds, onAdd
                                 <Button 
                                     size="icon" 
                                     variant={alreadyAdded ? "secondary" : "default"} 
-                                    onClick={() => handleAddClick(movieId as string)} 
+                                    onClick={() => handleAddClick(movieId as string, movie.name || movie.title || '', movie.poster_path || null, movieId.endsWith('tv') ? 'tv' : 'movie')} 
                                     disabled={alreadyAdded || isPendingForItem}
                                     className="shrink-0 h-8 w-8"
                                 >
