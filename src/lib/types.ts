@@ -386,7 +386,6 @@ export interface RecommendationCacheDebugResponse {
     entries: RecommendationCacheDebugEntry[];
   };
   ttl_minutes: number;
-  allowed_debug_email: string;
 }
 
 export type RecommendationCacheDebugInvalidateMode = 'soft' | 'hard';
