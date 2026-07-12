@@ -386,7 +386,6 @@ export interface RecommendationCacheDebugResponse {
     entries: RecommendationCacheDebugEntry[];
   };
   ttl_minutes: number;
-  allowed_debug_email: string;
 }
 
 export type RecommendationCacheDebugInvalidateMode = 'soft' | 'hard';
@@ -473,6 +472,20 @@ export interface AddMovieResponse {
     movie_id: number;
     added_at: string;
   }
+}
+
+// Bulk copy/move/remove operation
+export interface BulkOperationInput {
+  action: 'copy' | 'move' | 'remove';
+  movieIds: string[];
+  targetCollectionId?: string;
+}
+
+export interface BulkOperationResponse {
+  action: 'copy' | 'move';
+  addedCount: number;
+  skippedCount: number;
+  removedCount: number;
 }
 
 // Input type for adding a collaborator
