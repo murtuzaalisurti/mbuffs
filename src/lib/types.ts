@@ -474,6 +474,20 @@ export interface AddMovieResponse {
   }
 }
 
+// Bulk copy/move/remove operation
+export interface BulkOperationInput {
+  action: 'copy' | 'move' | 'remove';
+  movieIds: string[];
+  targetCollectionId?: string;
+}
+
+export interface BulkOperationResponse {
+  action: 'copy' | 'move';
+  addedCount: number;
+  skippedCount: number;
+  removedCount: number;
+}
+
 // Input type for adding a collaborator
 export interface AddCollaboratorInput {
   email: string;

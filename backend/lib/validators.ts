@@ -33,6 +33,14 @@ export const addMovieSchema = z.object({
 
 export type AddMovieInput = z.infer<typeof addMovieSchema>;
 
+export const bulkOperationSchema = z.object({
+  action: z.enum(['copy', 'move', 'remove']),
+  movieIds: z.array(z.string().min(1)).min(1, 'At least one item is required').max(500, 'Cannot process more than 500 items at once'),
+  targetCollectionId: z.string().min(1, 'Target collection ID is required').optional(),
+});
+
+export type BulkOperationInput = z.infer<typeof bulkOperationSchema>;
+
 export const addCollaboratorSchema = z.object({
   email: z.string().email("Invalid email address"),
   permission: z.enum(['view', 'edit']).default('edit'), // Default to edit for simplicity
