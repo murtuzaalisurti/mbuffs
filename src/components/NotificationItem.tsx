@@ -134,9 +134,14 @@ export const NotificationItemComponent = ({ notification, onNavigate }: Notifica
                 "{payload.message}"
               </p>
             )}
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {formatRelativeTime(notification.created_at)}
-            </p>
+            <div className="mt-0.5 flex items-center gap-1.5">
+              <p className="text-xs text-muted-foreground">
+                {formatRelativeTime(notification.created_at)}
+              </p>
+              {!notification.is_read && (
+                <span className="h-2 w-2 shrink-0 rounded-full bg-blue-500" />
+              )}
+            </div>
           </div>
 
           <div className="shrink-0 flex items-center gap-2">
@@ -149,9 +154,6 @@ export const NotificationItemComponent = ({ notification, onNavigate }: Notifica
               />
             ) : (
               <UserCircle className="h-6 w-6 text-muted-foreground" />
-            )}
-            {!notification.is_read && (
-              <span className="h-2 w-2 rounded-full bg-blue-500 shrink-0" />
             )}
           </div>
         </button>
@@ -200,9 +202,14 @@ export const NotificationItemComponent = ({ notification, onNavigate }: Notifica
               {' to '}
               <span className="font-medium">{payload.collection_name || 'a collection'}</span>
             </p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {formatRelativeTime(notification.created_at)}
-            </p>
+            <div className="mt-0.5 flex items-center gap-1.5">
+              <p className="text-xs text-muted-foreground">
+                {formatRelativeTime(notification.created_at)}
+              </p>
+              {!notification.is_read && (
+                <span className="h-2 w-2 shrink-0 rounded-full bg-blue-500" />
+              )}
+            </div>
           </div>
 
           <div className="shrink-0 flex items-center gap-2">
@@ -215,9 +222,6 @@ export const NotificationItemComponent = ({ notification, onNavigate }: Notifica
               />
             ) : (
               <UserCircle className="h-6 w-6 text-muted-foreground" />
-            )}
-            {!notification.is_read && (
-              <span className="h-2 w-2 rounded-full bg-blue-500 shrink-0" />
             )}
           </div>
         </button>
