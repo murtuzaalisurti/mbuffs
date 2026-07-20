@@ -25,6 +25,12 @@ const WatchedItems = lazy(() => import('./pages/WatchedItems'));
 const NotInterestedItems = lazy(() => import('./pages/NotInterestedItems'));
 const Auth = lazy(() => import('./pages/Auth'));
 const Admin = lazy(() => import('./pages/Admin'));
+const Maintenance = lazy(() => import('./pages/Maintenance'));
+
+// Build-time maintenance barrier: VITE_MAINTENANCE_MODE=true replaces the
+// whole app with a maintenance screen (use together with the backend's
+// MAINTENANCE_MODE during DB migrations/cutovers)
+const isMaintenanceMode = import.meta.env.VITE_MAINTENANCE_MODE === 'true';
 
 // Scrolls to top on every navigation (except browser back/forward)
 const ScrollToTop = () => {
@@ -69,7 +75,16 @@ const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   );
 };
 
-const App = () => (
+const App = () => {
+  if (isMaintenanceMode) {
+    return (
+      <Suspense fallback={<RouteLoadingFallback />}>
+        <Maintenance />
+      </Suspense>
+    );
+  }
+
+  return (
   <TooltipProvider>
     <Toaster />
     <Sonner />
@@ -147,7 +162,8 @@ const App = () => (
       </AuthProvider>
     </BrowserRouter>
   </TooltipProvider>
-);
+  );
+};
 
 // Helper component for protected routes
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {

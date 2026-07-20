@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
 import { z } from 'zod';
 import { deserializeUser } from '../middleware/authMiddleware.js';
+import { maintenanceMode } from '../middleware/maintenanceMiddleware.js';
 import oauthRoutes from '../routes/oauthRoutes.js';
 import collectionRoutes from '../routes/collectionRoutes.js';
 import contentRoutes from '../routes/contentRoutes.js';
@@ -44,6 +45,10 @@ export const createApp = (): Express => {
     app.use(cors(corsOptions));
 
     app.use(cookieParser());
+
+    // Maintenance mode barrier: rejects ALL requests with 503 when
+    // MAINTENANCE_MODE=true (must run before any route touches the DB)
+    app.use(maintenanceMode);
 
     // IMPORTANT: Better Auth routes must be mounted BEFORE express.json()
     // Better Auth handles its own body parsing
