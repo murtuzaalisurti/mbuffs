@@ -26,6 +26,8 @@ export interface Movie {
   overview: string;
   backdrop_path: string | null;
   imdb_rating?: number | null;
+  /** TMDB genre ids for this item. By convention genre_ids[0] is the primary genre. */
+  genre_ids?: number[];
   explainability?: {
     reason_codes: string[];
     source_appearances: number;
