@@ -1030,6 +1030,15 @@ export const upsertRatingApi = async (
     });
 };
 
+export const deleteRatingApi = async (
+    mediaType: 'movie' | 'tv',
+    tmdbId: number
+): Promise<{ summary: ReviewSummaryResponse }> => {
+    return fetchBackend(`/reviews/${mediaType}/${tmdbId}/rating`, {
+        method: 'DELETE',
+    });
+};
+
 export const createCommentApi = async (
     mediaType: 'movie' | 'tv',
     tmdbId: number,

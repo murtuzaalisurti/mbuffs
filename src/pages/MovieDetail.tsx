@@ -24,7 +24,7 @@ import {
 import { useWarmRecommendations } from '@/App';
 import { toast } from 'sonner';
 import { ReviewSection, getRatingTier, StarDisplay, InteractiveStarRating } from '@/components/reviews/ReviewSection';
-import { fetchReviewSummaryApi, upsertRatingApi } from '@/lib/api';
+import { deleteRatingApi, fetchReviewSummaryApi, upsertRatingApi } from '@/lib/api';
 import type { ReviewSummaryResponse } from '@/lib/types';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
@@ -314,15 +314,25 @@ const MovieDetail = () => {
     });
 
     const rateMutation = useMutation({
-        mutationFn: (rating: number) => upsertRatingApi(mediaType as 'movie' | 'tv', Number(mediaId), rating),
+        mutationFn: (rating: number | null) => rating === null
+            ? deleteRatingApi(mediaType as 'movie' | 'tv', Number(mediaId))
+            : upsertRatingApi(mediaType as 'movie' | 'tv', Number(mediaId), rating),
         onMutate: async (nextRating) => {
             await queryClient.cancelQueries({ queryKey: reviewSummaryQueryKey });
             const prev = queryClient.getQueryData<ReviewSummaryResponse>(reviewSummaryQueryKey);
             if (!prev) return { prev };
             const prevCount = prev.summary.ratingsCount;
             const prevAvg = prev.summary.averageRating ?? 0;
-            const nextCount = prev.userRating == null ? prevCount + 1 : prevCount;
-            const total = prev.userRating == null ? prevAvg * prevCount + nextRating : prevAvg * prevCount - prev.userRating + nextRating;
+            const nextCount = nextRating === null
+                ? Math.max(0, prevCount - (prev.userRating == null ? 0 : 1))
+                : prev.userRating == null
+                    ? prevCount + 1
+                    : prevCount;
+            const total = nextRating === null
+                ? prevAvg * prevCount - (prev.userRating ?? 0)
+                : prev.userRating == null
+                    ? prevAvg * prevCount + nextRating
+                    : prevAvg * prevCount - prev.userRating + nextRating;
             queryClient.setQueryData<ReviewSummaryResponse>(reviewSummaryQueryKey, {
                 ...prev,
                 userRating: nextRating,
