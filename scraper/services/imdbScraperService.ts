@@ -1,5 +1,6 @@
 import * as cheerio from 'cheerio';
 import type { Element } from 'domhandler';
+import { fetchParentalGuideHtmlWithBrowser, isWafChallengeHtml } from './browserScraper.js';
 
 // Types
 export interface ScrapedParentalGuidance {
@@ -245,8 +246,98 @@ async function fetchParentalGuidanceFromImdbGraphQl(imdbId: string): Promise<Scr
 }
 
 /**
+ * Parse parental guidance severities out of a rendered IMDB parents guide page.
+ * Tries embedded JSON snippets first, then HTML advisory sections.
+ */
+function parseParentalGuidanceFromHtml(imdbId: string, html: string): ScrapedParentalGuidance | null {
+    const $ = cheerio.load(html);
+
+    const result = createEmptyScrapedResult(imdbId);
+
+    // Primary HTML method: parse embedded JSON snippets in multiple known formats.
+    const categoryPatterns = [
+        /"id":"(nudity|violence|profanity|alcohol|frightening)","title":"[^"]*","severitySummaryId":"[^"]*","severitySummaryText":"([^"]*)"/gi,
+        /"category":\{"id":"(NUDITY|VIOLENCE|PROFANITY|ALCOHOL|FRIGHTENING)","text":"[^"]*"\},"severity":\{[\s\S]{0,200}?"text":"([^"]+)"/gi,
+    ];
+
+    for (const categoryPattern of categoryPatterns) {
+        let match: RegExpExecArray | null;
+        while ((match = categoryPattern.exec(html)) !== null) {
+            const category = resolveCategoryField(match[1]);
+            const severity = mapImdbSeverity(match[2]);
+            setCategorySeverity(result, category, severity);
+        }
+    }
+
+    if (hasAnySeverityData(result)) {
+        console.log(`Successfully scraped parental guidance for ${imdbId} via HTML JSON patterns:`, {
+            nudity: result.nudity,
+            violence: result.violence,
+            profanity: result.profanity,
+            alcohol: result.alcohol,
+            frightening: result.frightening,
+        });
+        return result;
+    }
+
+    // Fallback: parse HTML advisory sections.
+    $('section[id^="advisory"]').each((_: number, section: Element) => {
+        const $section = $(section);
+        const sectionId = $section.attr('id') || '';
+
+        const category = resolveCategoryField(sectionId);
+        if (!category) return;
+
+        const sectionText = $section.text().toLowerCase();
+        const severity = parseSeverityLevel(sectionText);
+
+        setCategorySeverity(result, category, severity);
+    });
+
+    // Secondary fallback: inspect raw page text around category IDs.
+    const categories = ['nudity', 'violence', 'profanity', 'alcohol', 'frightening', 'sex', 'gore'] as const;
+    const pageText = html.toLowerCase();
+
+    for (const cat of categories) {
+        const field = CATEGORY_MAPPING[cat];
+        if (result[field]) continue;
+
+        const catIndex = pageText.indexOf(`"id":"${cat}"`);
+
+        if (catIndex !== -1) {
+            const surroundingText = pageText.substring(
+                catIndex,
+                Math.min(pageText.length, catIndex + 300)
+            );
+
+            const severityMatch = surroundingText.match(/severitysummarytext":"([^"]+)"/);
+            if (severityMatch) {
+                const severity = mapImdbSeverity(severityMatch[1]);
+                setCategorySeverity(result, field, severity);
+            }
+        }
+    }
+
+    if (!hasAnySeverityData(result)) {
+        console.warn(`Could not scrape parental guidance for ${imdbId}: no category severities found on IMDB page`);
+        return null;
+    }
+
+    console.log(`Scraped parental guidance for ${imdbId} (fallback methods):`, {
+        nudity: result.nudity,
+        violence: result.violence,
+        profanity: result.profanity,
+        alcohol: result.alcohol,
+        frightening: result.frightening,
+    });
+
+    return result;
+}
+
+/**
  * Scrape parental guidance data from IMDB
- * Uses IMDB GraphQL API first, then falls back to HTML parsing.
+ * Order: GraphQL API -> plain webpage fetch -> headless browser (solves the
+ * AWS WAF JS challenge that plain fetches get stuck on).
  */
 async function scrapeParentalGuidanceFromImdbUncached(imdbId: string): Promise<ScrapedParentalGuidance | null> {
     const graphQlResult = await fetchParentalGuidanceFromImdbGraphQl(imdbId);
@@ -263,6 +354,8 @@ async function scrapeParentalGuidanceFromImdbUncached(imdbId: string): Promise<S
 
     const url = `https://www.imdb.com/title/${imdbId}/parentalguide`;
 
+    let html: string | null = null;
+
     try {
         const response = await fetch(url, {
             headers: {
@@ -273,108 +366,34 @@ async function scrapeParentalGuidanceFromImdbUncached(imdbId: string): Promise<S
         });
 
         if (!response.ok) {
-            console.error(`Failed to fetch IMDB parental guide for ${imdbId}: ${response.status}`);
-            return null;
-        }
-
-        const html = await response.text();
-
-        const isChallengePage = response.status === 202
-            || html.includes('AwsWafIntegration')
-            || html.includes('challenge.js')
-            || html.includes('gokuProps');
-
-        if (isChallengePage) {
-            console.warn(`Could not scrape parental guidance for ${imdbId}: IMDB returned anti-bot challenge page`);
-            return null;
-        }
-
-        const $ = cheerio.load(html);
-
-        const result = createEmptyScrapedResult(imdbId);
-
-        // Primary HTML method: parse embedded JSON snippets in multiple known formats.
-        const categoryPatterns = [
-            /"id":"(nudity|violence|profanity|alcohol|frightening)","title":"[^"]*","severitySummaryId":"[^"]*","severitySummaryText":"([^"]*)"/gi,
-            /"category":\{"id":"(NUDITY|VIOLENCE|PROFANITY|ALCOHOL|FRIGHTENING)","text":"[^"]*"\},"severity":\{[\s\S]{0,200}?"text":"([^"]+)"/gi,
-        ];
-
-        for (const categoryPattern of categoryPatterns) {
-            let match: RegExpExecArray | null;
-            while ((match = categoryPattern.exec(html)) !== null) {
-                const category = resolveCategoryField(match[1]);
-                const severity = mapImdbSeverity(match[2]);
-                setCategorySeverity(result, category, severity);
+            console.warn(`Failed to fetch IMDB parental guide for ${imdbId}: ${response.status}`);
+        } else {
+            const body = await response.text();
+            if (response.status === 202 || isWafChallengeHtml(body)) {
+                console.warn(`Plain fetch of IMDB parental guide for ${imdbId} hit the anti-bot challenge; falling back to headless browser`);
+            } else {
+                html = body;
             }
         }
-
-        if (hasAnySeverityData(result)) {
-            console.log(`Successfully scraped parental guidance for ${imdbId} via HTML JSON patterns:`, {
-                nudity: result.nudity,
-                violence: result.violence,
-                profanity: result.profanity,
-                alcohol: result.alcohol,
-                frightening: result.frightening,
-            });
-            return result;
-        }
-
-        // Fallback: parse HTML advisory sections.
-        $('section[id^="advisory"]').each((_: number, section: Element) => {
-            const $section = $(section);
-            const sectionId = $section.attr('id') || '';
-
-            const category = resolveCategoryField(sectionId);
-            if (!category) return;
-
-            const sectionText = $section.text().toLowerCase();
-            const severity = parseSeverityLevel(sectionText);
-
-            setCategorySeverity(result, category, severity);
-        });
-
-        // Secondary fallback: inspect raw page text around category IDs.
-        const categories = ['nudity', 'violence', 'profanity', 'alcohol', 'frightening', 'sex', 'gore'] as const;
-        const pageText = html.toLowerCase();
-
-        for (const cat of categories) {
-            const field = CATEGORY_MAPPING[cat];
-            if (result[field]) continue;
-
-            const catIndex = pageText.indexOf(`"id":"${cat}"`);
-
-            if (catIndex !== -1) {
-                const surroundingText = pageText.substring(
-                    catIndex,
-                    Math.min(pageText.length, catIndex + 300)
-                );
-
-                const severityMatch = surroundingText.match(/severitysummarytext":"([^"]+)"/);
-                if (severityMatch) {
-                    const severity = mapImdbSeverity(severityMatch[1]);
-                    setCategorySeverity(result, field, severity);
-                }
-            }
-        }
-
-        if (!hasAnySeverityData(result)) {
-            console.warn(`Could not scrape parental guidance for ${imdbId}: no category severities found on IMDB page`);
-            return null;
-        }
-
-        console.log(`Scraped parental guidance for ${imdbId} (fallback methods):`, {
-            nudity: result.nudity,
-            violence: result.violence,
-            profanity: result.profanity,
-            alcohol: result.alcohol,
-            frightening: result.frightening,
-        });
-
-        return result;
     } catch (error) {
-        console.error(`Error scraping parental guidance for ${imdbId}:`, error);
-        return null;
+        console.warn(`Error fetching IMDB parental guide page for ${imdbId}:`, error);
     }
+
+    if (!html) {
+        html = await fetchParentalGuideHtmlWithBrowser(imdbId);
+
+        if (!html) {
+            console.warn(`Could not scrape parental guidance for ${imdbId}: headless browser returned no HTML`);
+            return null;
+        }
+
+        if (isWafChallengeHtml(html)) {
+            console.warn(`Could not scrape parental guidance for ${imdbId}: IMDB returned anti-bot challenge page even in headless browser`);
+            return null;
+        }
+    }
+
+    return parseParentalGuidanceFromHtml(imdbId, html);
 }
 
 /**

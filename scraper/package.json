@@ -13,10 +13,12 @@
   "license": "ISC",
   "description": "IMDB parental guidance scraper microservice (separate Vercel project to avoid IP-level anti-bot blocks on the main backend).",
   "dependencies": {
+    "@sparticuz/chromium": "^149.0.0",
     "cheerio": "1.2.0",
     "cors": "2.8.6",
     "dotenv": "17.4.2",
-    "express": "5.2.1"
+    "express": "5.2.1",
+    "puppeteer-core": "^25.4.0"
   },
   "devDependencies": {
     "@types/cors": "2.8.19",
