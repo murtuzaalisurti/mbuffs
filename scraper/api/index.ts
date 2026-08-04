@@ -17,6 +17,11 @@ const corsOptions = {
     methods: 'GET,POST',
 };
 
+// Known crawler/bot user agents. This is an internal API, so none are welcome.
+const BOT_UA_PATTERN = /(googlebot|bingbot|slurp|duckduckbot|baiduspider|yandexbot|sogou|exabot|facebookexternalhit|facebot|twitterbot|linkedinbot|discordbot|telegrambot|slackbot|applebot|whatsapp|semrushbot|ahrefsbot|mj12bot|dotbot|petalbot|bytespider|gptbot|claudebot|ccbot|perplexitybot|ia_archiver)/i;
+
+const ROBOTS_TXT = 'User-agent: *\nDisallow: /\n';
+
 if (process.env.NODE_ENV !== 'production') {
     console.debug('[scraper] CORS configured', { origin: corsOptions.origin });
 }
@@ -29,6 +34,31 @@ export const createApp = (): Express => {
     app.use(cors(corsOptions));
     app.use(express.json());
 
+    // Belt-and-suspenders: tell crawlers not to index anything,
+    // even if they fetch pages directly without reading robots.txt.
+    app.use((_req: Request, res: Response, next: NextFunction) => {
+        res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
+        next();
+    });
+
+    // The only public route - bots must be able to read the disallow rules.
+    app.get('/robots.txt', (_req: Request, res: Response) => {
+        res.type('text/plain').send(ROBOTS_TXT);
+    });
+
+    // Reject known bots outright.
+    app.use((req: Request, res: Response, next: NextFunction) => {
+        const userAgent = req.header('user-agent') || '';
+        if (BOT_UA_PATTERN.test(userAgent)) {
+            res.status(403).json({ ok: false, error: 'Forbidden' });
+            return;
+        }
+        next();
+    });
+
+    // Everything below requires the shared secret - no public endpoints.
+    app.use(requireScraperKey);
+
     app.get('/health', (_req: Request, res: Response) => {
         res.json({ ok: true, service: 'scraper' });
     });
@@ -37,7 +67,6 @@ export const createApp = (): Express => {
     // GET /scrape/parental-guidance/:imdbId
     app.get(
         '/scrape/parental-guidance/:imdbId',
-        requireScraperKey,
         async (req: Request, res: Response, next: NextFunction) => {
             try {
                 const rawParam = req.params.imdbId;
