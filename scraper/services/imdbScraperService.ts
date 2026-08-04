@@ -33,48 +33,6 @@ const CATEGORY_MAPPING: Record<string, SeverityCategoryField> = {
     'gore': 'violence', // Sometimes labeled as 'gore'
 };
 
-const IMDB_GRAPHQL_ENDPOINT = 'https://api.graphql.imdb.com/';
-const IMDB_PARENTS_GUIDE_QUERY = `
-    query ParentsGuide($id: ID!) {
-        title(id: $id) {
-            parentsGuide {
-                categories {
-                    category {
-                        id
-                        text
-                    }
-                    severity {
-                        id
-                        text
-                        voteType
-                    }
-                }
-            }
-        }
-    }
-`;
-
-interface ImdbGraphQlParentsGuideResponse {
-    data?: {
-        title?: {
-            parentsGuide?: {
-                categories?: Array<{
-                    category?: {
-                        id?: string;
-                        text?: string;
-                    };
-                    severity?: {
-                        id?: string;
-                        text?: string;
-                        voteType?: string;
-                    };
-                }>;
-            };
-        };
-    };
-    errors?: Array<{ message?: string }>;
-}
-
 const IMDB_PARENTAL_GUIDANCE_CACHE_SUCCESS_TTL_MS = 24 * 60 * 60 * 1000;
 const IMDB_PARENTAL_GUIDANCE_CACHE_FAILURE_TTL_MS = 15 * 60 * 1000;
 const IMDB_PARENTAL_GUIDANCE_CACHE_MAX_ENTRIES = 1000;
@@ -193,58 +151,6 @@ function setCategorySeverity(
     }
 }
 
-async function fetchParentalGuidanceFromImdbGraphQl(imdbId: string): Promise<ScrapedParentalGuidance | null> {
-    try {
-        const response = await fetch(IMDB_GRAPHQL_ENDPOINT, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept-Language': 'en-US,en;q=0.5',
-            },
-            body: JSON.stringify({
-                query: IMDB_PARENTS_GUIDE_QUERY,
-                variables: { id: imdbId },
-            }),
-        });
-
-        if (!response.ok) {
-            console.warn(`IMDB GraphQL parental guide request failed for ${imdbId}: ${response.status}`);
-            return null;
-        }
-
-        const payload = await response.json() as ImdbGraphQlParentsGuideResponse;
-
-        if (payload.errors?.length) {
-            console.warn(`IMDB GraphQL parental guide errors for ${imdbId}: ${payload.errors.map(err => err.message).filter(Boolean).join('; ')}`);
-        }
-
-        const categories = payload.data?.title?.parentsGuide?.categories;
-        if (!categories || categories.length === 0) {
-            return null;
-        }
-
-        const result = createEmptyScrapedResult(imdbId);
-
-        for (const categorySummary of categories) {
-            const category = resolveCategoryField(categorySummary.category?.id)
-                ?? resolveCategoryField(categorySummary.category?.text);
-
-            const severity = mapImdbSeverity(categorySummary.severity?.text)
-                ?? mapImdbSeverity(categorySummary.severity?.voteType)
-                ?? mapImdbSeverity(categorySummary.severity?.id);
-
-            setCategorySeverity(result, category, severity);
-        }
-
-        return hasAnySeverityData(result) ? result : null;
-    } catch (error) {
-        console.warn(`Error fetching IMDB parental guide via GraphQL for ${imdbId}:`, error);
-        return null;
-    }
-}
-
 /**
  * Parse parental guidance severities out of a rendered IMDB parents guide page.
  * Tries embedded JSON snippets first, then HTML advisory sections.
@@ -335,62 +241,21 @@ function parseParentalGuidanceFromHtml(imdbId: string, html: string): ScrapedPar
 }
 
 /**
- * Scrape parental guidance data from IMDB
- * Order: GraphQL API -> plain webpage fetch -> headless browser (solves the
- * AWS WAF JS challenge that plain fetches get stuck on).
+ * Scrape parental guidance data from IMDB.
+ * Goes straight to the headless browser - it executes the AWS WAF JS challenge
+ * that plain fetches (403) and the GraphQL API (403) get blocked on.
  */
 async function scrapeParentalGuidanceFromImdbUncached(imdbId: string): Promise<ScrapedParentalGuidance | null> {
-    const graphQlResult = await fetchParentalGuidanceFromImdbGraphQl(imdbId);
-    if (graphQlResult) {
-        console.log(`Successfully scraped parental guidance for ${imdbId} via GraphQL:`, {
-            nudity: graphQlResult.nudity,
-            violence: graphQlResult.violence,
-            profanity: graphQlResult.profanity,
-            alcohol: graphQlResult.alcohol,
-            frightening: graphQlResult.frightening,
-        });
-        return graphQlResult;
-    }
-
-    const url = `https://www.imdb.com/title/${imdbId}/parentalguide`;
-
-    let html: string | null = null;
-
-    try {
-        const response = await fetch(url, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.5',
-            }
-        });
-
-        if (!response.ok) {
-            console.warn(`Failed to fetch IMDB parental guide for ${imdbId}: ${response.status}`);
-        } else {
-            const body = await response.text();
-            if (response.status === 202 || isWafChallengeHtml(body)) {
-                console.warn(`Plain fetch of IMDB parental guide for ${imdbId} hit the anti-bot challenge; falling back to headless browser`);
-            } else {
-                html = body;
-            }
-        }
-    } catch (error) {
-        console.warn(`Error fetching IMDB parental guide page for ${imdbId}:`, error);
-    }
+    const html = await fetchParentalGuideHtmlWithBrowser(imdbId);
 
     if (!html) {
-        html = await fetchParentalGuideHtmlWithBrowser(imdbId);
+        console.warn(`Could not scrape parental guidance for ${imdbId}: headless browser returned no HTML`);
+        return null;
+    }
 
-        if (!html) {
-            console.warn(`Could not scrape parental guidance for ${imdbId}: headless browser returned no HTML`);
-            return null;
-        }
-
-        if (isWafChallengeHtml(html)) {
-            console.warn(`Could not scrape parental guidance for ${imdbId}: IMDB returned anti-bot challenge page even in headless browser`);
-            return null;
-        }
+    if (isWafChallengeHtml(html)) {
+        console.warn(`Could not scrape parental guidance for ${imdbId}: IMDB returned anti-bot challenge page even in headless browser`);
+        return null;
     }
 
     return parseParentalGuidanceFromHtml(imdbId, html);
