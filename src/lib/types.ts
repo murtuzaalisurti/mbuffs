@@ -372,6 +372,7 @@ export interface CategoryRecommendationsResponse {
 export interface RecommendationCacheDebugEntry {
   cache_key: string;
   slot: 'active' | 'staging';
+  endpoint: string;
   cache_version: string;
   expires_at: string;
   generation_started_at: string | null;

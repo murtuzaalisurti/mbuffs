@@ -23,6 +23,8 @@ import { Switch } from '@/components/ui/switch';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/hooks/useAuth';
@@ -31,7 +33,7 @@ import { useDebounce } from '@/hooks/use-debounce';
 import { MovieCard } from '@/components/MovieCard';
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
-import { Plus, Search as SearchIcon, Loader2, Check, Trash2, Database, Clock3, RefreshCw, ShieldAlert, Zap } from 'lucide-react';
+import { Plus, Search as SearchIcon, Loader2, Check, Trash2, Database, Clock3, RefreshCw, ShieldAlert, Zap, ChevronRight, Copy, Lock, Hourglass } from 'lucide-react';
 
 const ADMIN_USERS_QUERY_KEY = ['admin', 'users'];
 const ADMIN_CURATED_QUERY_KEY = ['admin', 'curated-items'];
@@ -965,6 +967,37 @@ const CollageItemsTab = () => {
 // ============================================================================
 const CACHE_DEBUG_QUERY_KEY = ['recommendations', 'cache', 'debug'];
 
+// Mirrors backend retention rules so the UI can surface sweep-eligible rows.
+const PAGE_CACHE_RETENTION_DAYS = 15;
+const STAGING_RETENTION_HOURS = 2;
+
+type SlotFilter = 'all' | 'active' | 'staging';
+type FreshnessFilter = 'all' | 'fresh' | 'expired';
+
+interface CacheEntryStatus {
+  isFresh: boolean;
+  isGenerating: boolean;
+  isSweepDue: boolean;
+  isKeptForever: boolean;
+}
+
+const getEntryStatus = (entry: RecommendationCacheDebugResponse['cache']['entries'][number], nowMs: number): CacheEntryStatus => {
+  const isFresh = new Date(entry.expires_at).getTime() > nowMs;
+  const isGenerating = Boolean(entry.generation_started_at);
+  const isKeptForever = entry.slot === 'active' && entry.endpoint === 'for_you_pool';
+
+  let isSweepDue = false;
+  if (!isGenerating) {
+    if (entry.slot === 'staging') {
+      isSweepDue = new Date(entry.updated_at).getTime() < nowMs - STAGING_RETENTION_HOURS * 60 * 60 * 1000;
+    } else if (!isKeptForever && !isFresh) {
+      isSweepDue = new Date(entry.expires_at).getTime() < nowMs - PAGE_CACHE_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+    }
+  }
+
+  return { isFresh, isGenerating, isSweepDue, isKeptForever };
+};
+
 const formatDateTime = (value: string | null) => {
   if (!value) return 'n/a';
   const date = new Date(value);
@@ -996,6 +1029,41 @@ const formatBytes = (bytes: number) => {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
+
+const shortCacheKey = (key: string) => `${key.slice(0, 8)}…${key.slice(-4)}`;
+
+const StatSegment = ({ label, value, tone }: { label: string; value: string | number; tone?: 'emerald' | 'amber' | 'sky' | 'default' }) => {
+  const toneClasses = {
+    emerald: 'text-emerald-500',
+    amber: 'text-amber-500',
+    sky: 'text-sky-500',
+    default: 'text-foreground',
+  } as const;
+  return (
+    <div className="flex flex-col gap-0.5 min-w-0">
+      <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{label}</span>
+      <span className={`text-xl font-semibold tabular-nums leading-none ${toneClasses[tone ?? 'default']}`}>{value}</span>
+    </div>
+  );
+};
+
+const FilterSelect = ({ value, onChange, options, ariaLabel }: {
+  value: string;
+  onChange: (value: string) => void;
+  options: { value: string; label: string }[];
+  ariaLabel: string;
+}) => (
+  <Select value={value} onValueChange={onChange}>
+    <SelectTrigger className="h-9 w-full sm:w-[122px] text-xs" aria-label={ariaLabel}>
+      <SelectValue />
+    </SelectTrigger>
+    <SelectContent>
+      {options.map((option) => (
+        <SelectItem key={option.value} value={option.value} className="text-xs">{option.label}</SelectItem>
+      ))}
+    </SelectContent>
+  </Select>
+);
 
 const CacheDebugTab = () => {
   const queryClient = useQueryClient();
@@ -1037,23 +1105,74 @@ const CacheDebugTab = () => {
     const id = setInterval(() => setNowMs(Date.now()), 30_000);
     return () => clearInterval(id);
   }, []);
-  const activeEntries = entries.filter((entry) => entry.slot === 'active');
-  const stagingEntries = entries.filter((entry) => entry.slot === 'staging');
-  const activeFresh = activeEntries.filter((entry) => new Date(entry.expires_at).getTime() > nowMs).length;
-  const activeExpired = activeEntries.length - activeFresh;
-  const generationLocks = entries.filter((entry) => Boolean(entry.generation_started_at)).length;
+
+  const [slotFilter, setSlotFilter] = useState<SlotFilter>('all');
+  const [freshnessFilter, setFreshnessFilter] = useState<FreshnessFilter>('all');
+  const [endpointFilter, setEndpointFilter] = useState<string>('all');
+  const [search, setSearch] = useState('');
+  const [expandedRowKey, setExpandedRowKey] = useState<string | null>(null);
   const isMutating = invalidateMutation.isPending;
+
+  const statusByEntry = useMemo(() => {
+    const map = new Map<string, CacheEntryStatus>();
+    for (const entry of entries) {
+      map.set(`${entry.cache_key}-${entry.slot}`, getEntryStatus(entry, nowMs));
+    }
+    return map;
+  }, [entries, nowMs]);
+
+  const stats = useMemo(() => {
+    const activeEntries = entries.filter((entry) => entry.slot === 'active');
+    const stagingEntries = entries.filter((entry) => entry.slot === 'staging');
+    const activeFresh = activeEntries.filter((entry) => statusByEntry.get(`${entry.cache_key}-${entry.slot}`)?.isFresh).length;
+    const sweepDue = entries.filter((entry) => statusByEntry.get(`${entry.cache_key}-${entry.slot}`)?.isSweepDue).length;
+    const totalSize = entries.reduce((sum, entry) => sum + entry.payload_size, 0);
+    return {
+      total: cache?.total ?? entries.length,
+      active: activeEntries.length,
+      staging: stagingEntries.length,
+      activeFresh,
+      activeExpired: activeEntries.length - activeFresh,
+      locks: entries.filter((entry) => Boolean(entry.generation_started_at)).length,
+      sweepDue,
+      totalSize,
+    };
+  }, [cache?.total, entries, statusByEntry]);
+
+  const endpointOptions = useMemo(
+    () => [...new Set(entries.map((entry) => entry.endpoint))].sort(),
+    [entries]
+  );
+
+  const filteredEntries = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return entries.filter((entry) => {
+      const status = statusByEntry.get(`${entry.cache_key}-${entry.slot}`);
+      if (!status) return false;
+      if (slotFilter !== 'all' && entry.slot !== slotFilter) return false;
+      if (freshnessFilter !== 'all' && (freshnessFilter === 'fresh') !== status.isFresh) return false;
+      if (endpointFilter !== 'all' && entry.endpoint !== endpointFilter) return false;
+      if (query && !entry.cache_key.toLowerCase().includes(query) && !entry.endpoint.toLowerCase().includes(query)) return false;
+      return true;
+    });
+  }, [entries, statusByEntry, slotFilter, freshnessFilter, endpointFilter, search]);
+
+  const handleCopyKey = (cacheKey: string) => {
+    navigator.clipboard.writeText(cacheKey)
+      .then(() => toast.success('Cache key copied'))
+      .catch(() => toast.error('Failed to copy cache key'));
+  };
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between gap-4">
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold">Recommendation Cache</h2>
           <p className="text-sm text-muted-foreground mt-1">
-            Debug view for recommendation snapshots (TTL: {data?.ttl_minutes ?? 30} minutes).
+            Server-side snapshots for recommendations. TTL {data?.ttl_minutes ?? 30}m · pool kept indefinitely · pages swept after {PAGE_CACHE_RETENTION_DAYS}d.
           </p>
         </div>
-        <Button onClick={() => { setNowMs(Date.now()); void refetch(); }} disabled={isFetching || isMutating} variant="outline">
+        <Button onClick={() => { setNowMs(Date.now()); void refetch(); }} disabled={isFetching || isMutating} variant="outline" className="w-full sm:w-auto shrink-0">
           <RefreshCw className={`h-4 w-4 mr-2 ${isFetching ? 'animate-spin' : ''}`} />
           Refresh
         </Button>
@@ -1061,7 +1180,7 @@ const CacheDebugTab = () => {
 
       {isLoading ? (
         <div className="space-y-4">
-          <Skeleton className="h-28 w-full" />
+          <Skeleton className="h-20 w-full" />
           <Skeleton className="h-64 w-full" />
         </div>
       ) : isError ? (
@@ -1075,79 +1194,258 @@ const CacheDebugTab = () => {
           </CardHeader>
         </Card>
       ) : (
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Cache Controls</CardTitle>
-              <CardDescription>
-                Use soft expire to keep serving stale active cache while background refresh runs.
-                Use hard invalidate only when you need a full reset.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-wrap gap-3">
-              <Button onClick={() => void handleInvalidate('soft', true)} disabled={isMutating || isFetching} className="gap-2">
-                <Zap className="h-4 w-4" />
-                Soft Expire + Warm
-              </Button>
-              <Button variant="destructive" onClick={() => void handleInvalidate('hard', true)} disabled={isMutating || isFetching} className="gap-2">
-                <Trash2 className="h-4 w-4" />
-                Hard Invalidate + Warm
-              </Button>
+        <div className="space-y-4">
+          {/* Stat strip */}
+          <Card className="py-3">
+            <CardContent className="px-4">
+              <div className="grid grid-cols-3 sm:grid-cols-6 gap-x-4 gap-y-3">
+                <StatSegment label="Total" value={stats.total} />
+                <StatSegment label="Active" value={stats.active} />
+                <StatSegment label="Fresh" value={stats.activeFresh} tone="emerald" />
+                <StatSegment label="Expired" value={stats.activeExpired} tone="amber" />
+                <StatSegment label="Staging" value={stats.staging} />
+                <StatSegment label="Locks" value={stats.locks} tone="sky" />
+              </div>
+              <Separator className="my-3" />
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-muted-foreground">
+                <span className="tabular-nums">Payload {formatBytes(stats.totalSize)}</span>
+                <span className="inline-flex items-center gap-1.5">
+                  <Hourglass className="h-3 w-3 text-amber-500" />
+                  {stats.sweepDue} sweep-eligible
+                </span>
+              </div>
             </CardContent>
           </Card>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            <Card><CardHeader className="pb-2"><CardDescription>Total Entries</CardDescription><CardTitle className="text-3xl">{cache?.total ?? 0}</CardTitle></CardHeader></Card>
-            <Card><CardHeader className="pb-2"><CardDescription>Active Rows</CardDescription><CardTitle className="text-3xl">{activeEntries.length}</CardTitle></CardHeader></Card>
-            <Card><CardHeader className="pb-2"><CardDescription>Staging Rows</CardDescription><CardTitle className="text-3xl">{stagingEntries.length}</CardTitle></CardHeader></Card>
-            <Card><CardHeader className="pb-2"><CardDescription>Active Fresh</CardDescription><CardTitle className="text-3xl text-emerald-500">{activeFresh}</CardTitle></CardHeader></Card>
-            <Card><CardHeader className="pb-2"><CardDescription>Active Expired</CardDescription><CardTitle className="text-3xl text-amber-500">{activeExpired}</CardTitle></CardHeader></Card>
-            <Card><CardHeader className="pb-2"><CardDescription>Generation Locks</CardDescription><CardTitle className="text-3xl text-sky-500">{generationLocks}</CardTitle></CardHeader></Card>
+          {/* Cache actions: destructive operations, kept separate from table filters */}
+          <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-x-4 gap-y-2">
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Button size="sm" onClick={() => void handleInvalidate('soft', true)} disabled={isMutating || isFetching} className="w-full sm:w-auto justify-center">
+                <Zap className="h-3.5 w-3.5 mr-1.5" />
+                Soft Expire + Warm
+              </Button>
+              <Button size="sm" variant="destructive" onClick={() => void handleInvalidate('hard', true)} disabled={isMutating || isFetching} className="w-full sm:w-auto justify-center">
+                <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                Hard Invalidate + Warm
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground sm:flex-1 sm:min-w-[220px]">
+              Soft expire keeps serving stale data while background refresh runs. Hard invalidate clears everything immediately.
+            </p>
           </div>
 
+          {/* Entries table */}
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Database className="h-5 w-5" />
-                Cache Entries
-              </CardTitle>
-              <CardDescription>Showing newest entries first.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {!entries.length ? (
-                <p className="text-sm text-muted-foreground">No cached recommendation entries found yet.</p>
-              ) : (
-                <div className="space-y-3">
-                  {entries.map((entry) => {
-                    const isFresh = new Date(entry.expires_at).getTime() > nowMs;
-                    return (
-                      <div key={`${entry.cache_key}-${entry.slot}-${entry.updated_at}`} className="rounded-lg border p-3 bg-card/50">
-                        <div className="flex flex-wrap items-center gap-2 mb-2">
-                          <Badge variant={isFresh ? 'default' : 'secondary'}>{isFresh ? 'fresh' : 'expired'}</Badge>
-                          <Badge variant={entry.slot === 'active' ? 'default' : 'outline'}>{entry.slot}</Badge>
-                          <Badge variant="outline">{entry.cache_version}</Badge>
-                          <Badge variant="outline">{formatBytes(entry.payload_size)}</Badge>
-                          {entry.generation_started_at ? <Badge variant="secondary">generating</Badge> : null}
-                        </div>
-                        <p className="text-xs text-muted-foreground break-all">{entry.cache_key}</p>
-                        <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-xs text-muted-foreground">
-                          <span className="inline-flex items-center gap-1">
-                            <Clock3 className="h-3 w-3" /> Expires {formatDateTime(entry.expires_at)} ({formatRelative(entry.expires_at, nowMs)})
-                          </span>
-                          <span>Created {formatDateTime(entry.created_at)}</span>
-                          <span>Updated {formatDateTime(entry.updated_at)}</span>
-                          <span>
-                            Generation started {formatDateTime(entry.generation_started_at)}
-                            {entry.generation_started_at ? ` (${formatRelative(entry.generation_started_at, nowMs)})` : ''}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
+            <CardHeader className="pb-3">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="space-y-1.5">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Database className="h-4 w-4" />
+                    Entries
+                  </CardTitle>
+                  <CardDescription>
+                    Newest first · showing {filteredEntries.length} of {entries.length} · click a row for full detail
+                  </CardDescription>
                 </div>
+                <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                  <div className="relative flex-1 min-w-[150px] sm:flex-none">
+                    <SearchIcon className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      value={search}
+                      onChange={(event) => setSearch(event.target.value)}
+                      placeholder="Search key or endpoint"
+                      className="h-9 w-full sm:w-[170px] pl-8 text-xs"
+                    />
+                  </div>
+                  <FilterSelect
+                    ariaLabel="Filter by slot"
+                    value={slotFilter}
+                    onChange={(value) => setSlotFilter(value as SlotFilter)}
+                    options={[
+                      { value: 'all', label: 'Slot: all' },
+                      { value: 'active', label: 'Slot: active' },
+                      { value: 'staging', label: 'Slot: staging' },
+                    ]}
+                  />
+                  <FilterSelect
+                    ariaLabel="Filter by freshness"
+                    value={freshnessFilter}
+                    onChange={(value) => setFreshnessFilter(value as FreshnessFilter)}
+                    options={[
+                      { value: 'all', label: 'Age: all' },
+                      { value: 'fresh', label: 'Age: fresh' },
+                      { value: 'expired', label: 'Age: expired' },
+                    ]}
+                  />
+                  <FilterSelect
+                    ariaLabel="Filter by endpoint"
+                    value={endpointFilter}
+                    onChange={setEndpointFilter}
+                    options={[
+                      { value: 'all', label: 'Endpoint: all' },
+                      ...endpointOptions.map((endpoint) => ({ value: endpoint, label: endpoint })),
+                    ]}
+                  />
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="px-0 pb-0">
+              {!entries.length ? (
+                <p className="text-sm text-muted-foreground px-6 pb-6">No cached recommendation entries found yet.</p>
+              ) : !filteredEntries.length ? (
+                <p className="text-sm text-muted-foreground px-6 pb-6">No entries match the current filters.</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead className="pl-6 w-[120px]">Status</TableHead>
+                      <TableHead className="w-[80px]">Slot</TableHead>
+                      <TableHead className="w-[120px]">Endpoint</TableHead>
+                      <TableHead className="w-[110px]">Key</TableHead>
+                      <TableHead className="w-[80px] text-right">Size</TableHead>
+                      <TableHead className="w-[100px]">Updated</TableHead>
+                      <TableHead className="w-[150px]">Expires</TableHead>
+                      <TableHead className="w-10" />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredEntries.map((entry) => {
+                      const rowKey = `${entry.cache_key}-${entry.slot}`;
+                      const status = statusByEntry.get(rowKey)!;
+                      const isExpanded = expandedRowKey === rowKey;
+                      return (
+                        <TableRow
+                          key={rowKey}
+                          className="cursor-pointer"
+                          onClick={() => setExpandedRowKey(isExpanded ? null : rowKey)}
+                        >
+                          <TableCell className="pl-6">
+                            {status.isGenerating ? (
+                              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-sky-500">
+                                <span className="h-1.5 w-1.5 rounded-full bg-sky-500 animate-pulse" />
+                                generating
+                              </span>
+                            ) : (
+                              <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${status.isFresh ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                                <span className={`h-1.5 w-1.5 rounded-full ${status.isFresh ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                                {status.isFresh ? 'fresh' : 'expired'}
+                              </span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <span className={`text-xs ${entry.slot === 'active' ? 'font-medium' : 'text-muted-foreground'}`}>{entry.slot}</span>
+                          </TableCell>
+                          <TableCell>
+                            <span className="inline-flex items-center gap-1.5 text-xs">
+                              {entry.endpoint}
+                              {status.isKeptForever && (
+                                <Lock className="h-3 w-3 text-muted-foreground/70" aria-label="kept indefinitely" />
+                              )}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            <span className="font-mono text-xs text-muted-foreground">{shortCacheKey(entry.cache_key)}</span>
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums text-xs">{formatBytes(entry.payload_size)}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">{formatRelative(entry.updated_at, nowMs)}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1.5">
+                              <span className={`text-xs tabular-nums ${status.isFresh ? 'text-muted-foreground' : 'text-amber-600 dark:text-amber-400'}`}>
+                                {formatRelative(entry.expires_at, nowMs)}
+                              </span>
+                              {status.isSweepDue && (
+                                <span className="inline-flex items-center gap-1 rounded border border-amber-500/30 bg-amber-500/10 px-1 py-px text-[10px] font-medium text-amber-600 dark:text-amber-400">
+                                  <Hourglass className="h-2.5 w-2.5" />
+                                  sweep
+                                </span>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <ChevronRight className={`h-4 w-4 text-muted-foreground transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
               )}
             </CardContent>
           </Card>
+
+          {/* Expanded detail panel */}
+          {(() => {
+            const expandedEntry = filteredEntries.find((entry) => `${entry.cache_key}-${entry.slot}` === expandedRowKey);
+            if (!expandedEntry) return null;
+            const status = statusByEntry.get(expandedRowKey)!;
+            return (
+              <Card className="border-primary/20">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-sm">
+                    Entry detail
+                    <Badge variant="outline" className="font-mono text-[10px]">{expandedEntry.cache_version}</Badge>
+                    {status.isKeptForever && (
+                      <Badge variant="outline" className="text-[10px] gap-1">
+                        <Lock className="h-2.5 w-2.5" /> kept indefinitely
+                      </Badge>
+                    )}
+                    {status.isSweepDue && (
+                      <Badge variant="outline" className="text-[10px] gap-1 border-amber-500/30 text-amber-600 dark:text-amber-400">
+                        <Hourglass className="h-2.5 w-2.5" /> sweep-eligible
+                      </Badge>
+                    )}
+                  </CardTitle>
+                  <CardDescription>
+                    {expandedEntry.slot === 'active'
+                      ? 'Served on request; regenerated in background when expired.'
+                      : 'Held for background refresh, then promoted to active.'}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 min-w-0 block rounded bg-muted px-3 py-2 font-mono text-xs break-all">
+                      {expandedEntry.cache_key}
+                    </code>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 gap-1.5 shrink-0"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        handleCopyKey(expandedEntry.cache_key);
+                      }}
+                    >
+                      <Copy className="h-3 w-3" />
+                      Copy
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-3 text-xs">
+                    <div>
+                      <p className="text-muted-foreground mb-0.5">Created</p>
+                      <p className="tabular-nums">{formatDateTime(expandedEntry.created_at)}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground mb-0.5">Updated</p>
+                      <p className="tabular-nums">{formatDateTime(expandedEntry.updated_at)}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground mb-0.5">Expires</p>
+                      <p className="tabular-nums">{formatDateTime(expandedEntry.expires_at)}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground mb-0.5">Generation started</p>
+                      <p className="tabular-nums">
+                        {formatDateTime(expandedEntry.generation_started_at)}
+                        {expandedEntry.generation_started_at ? (
+                          <span className="text-muted-foreground"> · {formatRelative(expandedEntry.generation_started_at, nowMs)}</span>
+                        ) : null}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })()}
         </div>
       )}
     </div>
@@ -1175,26 +1473,26 @@ const Admin = () => {
         <p className="text-muted-foreground mb-6">Manage users and curated recommendations.</p>
 
         <Tabs value={activeTab} onValueChange={handleTabChange}>
-          <TabsList className="mb-6">
-            <TabsTrigger value="users">Users</TabsTrigger>
-            <TabsTrigger value="curated">Curated Items</TabsTrigger>
-            <TabsTrigger value="collage">Collage</TabsTrigger>
-            <TabsTrigger value="cache-debug">Cache Debug</TabsTrigger>
+          <TabsList className="mb-6 flex w-full justify-start overflow-x-auto sm:w-fit">
+            <TabsTrigger value="users" className="flex-1 sm:flex-none">Users</TabsTrigger>
+            <TabsTrigger value="curated" className="flex-1 sm:flex-none">Curated Items</TabsTrigger>
+            <TabsTrigger value="collage" className="flex-1 sm:flex-none">Collage</TabsTrigger>
+            <TabsTrigger value="cache-debug" className="flex-1 sm:flex-none">Cache Debug</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="users">
+          <TabsContent value="users" className="px-1 sm:px-2 py-2">
             <UsersTab />
           </TabsContent>
 
-          <TabsContent value="curated">
+          <TabsContent value="curated" className="px-1 sm:px-2 py-2">
             <CuratedItemsTab />
           </TabsContent>
 
-          <TabsContent value="collage">
+          <TabsContent value="collage" className="px-1 sm:px-2 py-2">
             <CollageItemsTab />
           </TabsContent>
 
-          <TabsContent value="cache-debug">
+          <TabsContent value="cache-debug" className="px-1 sm:px-2 py-2">
             <CacheDebugTab />
           </TabsContent>
         </Tabs>

@@ -225,6 +225,7 @@ export const recommendationCache = pgTable("recommendation_cache", {
 	userId: text("user_id").notNull(),
 	cacheKey: text("cache_key").notNull(),
 	slot: text().default('active').notNull(),
+	endpoint: text().default('unknown').notNull(),
 	payloadJson: text("payload_json").notNull(),
 	cacheVersion: text("cache_version").default('v1').notNull(),
 	expiresAt: timestamp("expires_at", { withTimezone: true, mode: 'string' }).notNull(),

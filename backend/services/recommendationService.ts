@@ -228,6 +228,7 @@ type RecommendationCacheSlot = 'active' | 'staging';
 interface RecommendationCacheDebugEntry {
     cache_key: string;
     slot: RecommendationCacheSlot;
+    endpoint: string;
     cache_version: string;
     expires_at: string;
     generation_started_at: string | null;
@@ -245,9 +246,17 @@ interface RecommendationCacheRow {
 const RECOMMENDATION_CACHE_VERSION = 'v10';
 const RECOMMENDATION_CACHE_TTL_MINUTES = 30;
 const RECOMMENDATION_CACHE_STAGING_RETENTION_MINUTES = 60 * 2;
+// Paged endpoints (genre/theatrical) are swept this long after expiry. The shared
+// for_you_pool row is kept indefinitely: it is one row per user (bounded) and the
+// stale-serve fast path that makes the app feel instant for returning users.
+const RECOMMENDATION_CACHE_PAGED_RETENTION_MINUTES = 60 * 24 * 15;
 const RECOMMENDATION_CACHE_CLEANUP_INTERVAL_MS = 1000 * 60 * 15;
 const RECOMMENDATION_WARM_CATEGORY_OVERVIEW_LIMIT = 50;
-const RECOMMENDATION_CACHE_GENERATION_LOCK_TIMEOUT_MINUTES = 10;
+const RECOMMENDATION_CACHE_GENERATION_HEARTBEAT_MS = 30 * 1000;
+// A generation lock whose timestamp is older than this is considered abandoned
+// (the holder heartbeats every RECOMMENDATION_CACHE_GENERATION_HEARTBEAT_MS, so
+// this tolerates several missed beats before letting another worker steal it).
+const RECOMMENDATION_CACHE_GENERATION_STEAL_SECONDS = 120;
 const RECOMMENDATION_CACHE_CLAIM_WINDOW_MS = 2000;
 const RECOMMENDATION_CACHE_WAIT_AFTER_LOCK_MS = 1500;
 const RECOMMENDATION_CACHE_PENDING_POLL_INTERVAL_MS = 500;
@@ -1251,7 +1260,7 @@ function isRecommendationGenerationLockActive(generationStartedAt: string | null
     }
 
     const ageMs = Date.now() - new Date(generationStartedAt).getTime();
-    return ageMs >= 0 && ageMs < RECOMMENDATION_CACHE_GENERATION_LOCK_TIMEOUT_MINUTES * 60 * 1000;
+    return ageMs >= 0 && ageMs < RECOMMENDATION_CACHE_GENERATION_STEAL_SECONDS * 1000;
 }
 
 // Returns the claimed `generation_started_at` token on success, or null if the
@@ -1293,7 +1302,7 @@ async function tryClaimGeneration(
             generation_started_at = NOW(),
             updated_at = NOW()
         WHERE recommendation_cache.generation_started_at IS NULL
-           OR recommendation_cache.generation_started_at < NOW() - (${RECOMMENDATION_CACHE_GENERATION_LOCK_TIMEOUT_MINUTES} * INTERVAL '1 minute')
+           OR recommendation_cache.generation_started_at < NOW() - (${RECOMMENDATION_CACHE_GENERATION_STEAL_SECONDS} * INTERVAL '1 second')
         RETURNING generation_started_at
     `;
 
@@ -1332,6 +1341,52 @@ async function releaseGeneration(
     `;
 }
 
+// Refreshes a held generation lock so other workers can tell the holder is alive.
+// Token-guarded: only succeeds while `claimToken` is still the current lock value,
+// so a stale heartbeat can never refresh a lock that was stolen by someone else.
+// Returns the new lock timestamp (the token to use for release), or null if the
+// lock was stolen/lost and generation should be considered abandoned.
+async function heartbeatGeneration(
+    userId: string,
+    cacheKey: string,
+    slot: RecommendationCacheSlot,
+    claimToken: string
+): Promise<string | null> {
+    const rows = await sql`
+        UPDATE recommendation_cache
+        SET generation_started_at = NOW()
+        WHERE user_id = ${userId}
+          AND cache_key = ${cacheKey}
+          AND slot = ${slot}
+          AND generation_started_at = ${claimToken}
+        RETURNING generation_started_at
+    `;
+
+    return (rows[0] as { generation_started_at: string } | undefined)?.generation_started_at ?? null;
+}
+
+// Runs heartbeatGeneration on an interval for the duration of a generation.
+// Tracks the latest token so releaseGeneration uses the newest lock value even
+// if a heartbeat lands between generation completing and the release call.
+function startGenerationHeartbeat(
+    userId: string,
+    cacheKey: string,
+    slot: RecommendationCacheSlot,
+    claimTokenRef: { current: string }
+): ReturnType<typeof setInterval> {
+    return setInterval(() => {
+        heartbeatGeneration(userId, cacheKey, slot, claimTokenRef.current)
+            .then((latestToken) => {
+                if (latestToken) {
+                    claimTokenRef.current = latestToken;
+                }
+            })
+            .catch((error) => {
+                console.error("Error heartbeating recommendation generation lock:", error);
+            });
+    }, RECOMMENDATION_CACHE_GENERATION_HEARTBEAT_MS);
+}
+
 function cleanupRecommendationCacheInBackground(): void {
     const now = Date.now();
     if (
@@ -1349,6 +1404,11 @@ function cleanupRecommendationCacheInBackground(): void {
                 slot = ${RECOMMENDATION_CACHE_STAGING_SLOT}
                 AND updated_at < NOW() - (${RECOMMENDATION_CACHE_STAGING_RETENTION_MINUTES} * INTERVAL '1 minute')
             )
+           OR (
+                slot = ${RECOMMENDATION_CACHE_ACTIVE_SLOT}
+                AND endpoint <> 'for_you_pool'
+                AND expires_at < NOW() - (${RECOMMENDATION_CACHE_PAGED_RETENTION_MINUTES} * INTERVAL '1 minute')
+            )
     `.then(() => undefined)
         .catch((error) => {
             console.error("Error cleaning recommendation cache:", error);
@@ -1365,7 +1425,8 @@ async function writeCacheSlot<T>(
     userId: string,
     cacheKey: string,
     slot: RecommendationCacheSlot,
-    result: T
+    result: T,
+    endpoint: RecommendationCacheEndpoint
 ): Promise<void> {
     cleanupRecommendationCacheInBackground();
 
@@ -1375,6 +1436,7 @@ async function writeCacheSlot<T>(
             user_id,
             cache_key,
             slot,
+            endpoint,
             payload_json,
             cache_version,
             expires_at,
@@ -1387,6 +1449,7 @@ async function writeCacheSlot<T>(
             ${userId},
             ${cacheKey},
             ${slot},
+            ${endpoint},
             ${JSON.stringify(result)},
             ${RECOMMENDATION_CACHE_VERSION},
             NOW() + (${RECOMMENDATION_CACHE_TTL_MINUTES} * INTERVAL '1 minute'),
@@ -1396,6 +1459,7 @@ async function writeCacheSlot<T>(
         )
         ON CONFLICT (user_id, cache_key, slot)
         DO UPDATE SET
+            endpoint = EXCLUDED.endpoint,
             payload_json = EXCLUDED.payload_json,
             cache_version = EXCLUDED.cache_version,
             expires_at = EXCLUDED.expires_at,
@@ -1407,15 +1471,16 @@ async function writeCacheSlot<T>(
 async function writeActiveCache<T>(
     userId: string,
     cacheKey: string,
-    result: T
+    result: T,
+    endpoint: RecommendationCacheEndpoint
 ): Promise<void> {
-    await writeCacheSlot(userId, cacheKey, RECOMMENDATION_CACHE_ACTIVE_SLOT, result);
+    await writeCacheSlot(userId, cacheKey, RECOMMENDATION_CACHE_ACTIVE_SLOT, result, endpoint);
 }
 
-async function tryPromoteStaging<T>(userId: string, cacheKey: string): Promise<T | null> {
+async function tryPromoteStaging<T>(userId: string, cacheKey: string, endpoint: RecommendationCacheEndpoint): Promise<T | null> {
     const promotedRows = await sql`
         WITH eligible_staging AS (
-            SELECT id, user_id, cache_key, payload_json, cache_version, expires_at
+            SELECT id, user_id, cache_key, endpoint, payload_json, cache_version, expires_at
             FROM recommendation_cache
             WHERE user_id = ${userId}
               AND cache_key = ${cacheKey}
@@ -1433,6 +1498,7 @@ async function tryPromoteStaging<T>(userId: string, cacheKey: string): Promise<T
                 user_id,
                 cache_key,
                 slot,
+                endpoint,
                 payload_json,
                 cache_version,
                 expires_at,
@@ -1445,6 +1511,7 @@ async function tryPromoteStaging<T>(userId: string, cacheKey: string): Promise<T
                 user_id,
                 cache_key,
                 ${RECOMMENDATION_CACHE_ACTIVE_SLOT},
+                endpoint,
                 payload_json,
                 cache_version,
                 expires_at,
@@ -1454,6 +1521,7 @@ async function tryPromoteStaging<T>(userId: string, cacheKey: string): Promise<T
             FROM eligible_staging
             ON CONFLICT (user_id, cache_key, slot)
             DO UPDATE SET
+                endpoint = EXCLUDED.endpoint,
                 payload_json = EXCLUDED.payload_json,
                 cache_version = EXCLUDED.cache_version,
                 expires_at = EXCLUDED.expires_at,
@@ -1484,19 +1552,23 @@ async function generateAndWriteStaging<T>(
     userId: string,
     cacheKey: string,
     generator: () => Promise<T>,
-    shouldPersistResult?: () => Promise<boolean>
+    shouldPersistResult: (() => Promise<boolean>) | undefined,
+    endpoint: RecommendationCacheEndpoint
 ): Promise<StagingGenerationOutcome> {
     const stagingClaimToken = await tryClaimGeneration(userId, cacheKey, RECOMMENDATION_CACHE_STAGING_SLOT);
     if (!stagingClaimToken) {
         return 'not-claimed';
     }
 
+    const claimTokenRef = { current: stagingClaimToken };
+    const heartbeat = startGenerationHeartbeat(userId, cacheKey, RECOMMENDATION_CACHE_STAGING_SLOT, claimTokenRef);
+
     let outcome: StagingGenerationOutcome = 'failed';
 
     try {
         const freshResult = await generator();
         if (!shouldPersistResult || await shouldPersistResult()) {
-            await writeCacheSlot(userId, cacheKey, RECOMMENDATION_CACHE_STAGING_SLOT, freshResult);
+            await writeCacheSlot(userId, cacheKey, RECOMMENDATION_CACHE_STAGING_SLOT, freshResult, endpoint);
             outcome = 'written';
         } else {
             console.log(`[recommendation-sources] skipped stale staging write user=${userId}`);
@@ -1506,7 +1578,8 @@ async function generateAndWriteStaging<T>(
         console.error("Error generating recommendation staging cache:", error);
         outcome = 'failed';
     } finally {
-        await releaseGeneration(userId, cacheKey, RECOMMENDATION_CACHE_STAGING_SLOT, stagingClaimToken)
+        clearInterval(heartbeat);
+        await releaseGeneration(userId, cacheKey, RECOMMENDATION_CACHE_STAGING_SLOT, claimTokenRef.current)
             .catch((error) => {
                 console.error("Error releasing recommendation staging generation lock:", error);
             });
@@ -1524,19 +1597,20 @@ async function refreshStaleActiveCacheInBackground<T>(
     userId: string,
     cacheKey: string,
     generator: () => Promise<T>,
-    shouldPersistResult?: () => Promise<boolean>,
+    shouldPersistResult: (() => Promise<boolean>) | undefined,
+    endpoint: RecommendationCacheEndpoint,
     retryCount: number = 0
 ): Promise<void> {
     try {
-        const promotedExisting = await tryPromoteStaging<unknown>(userId, cacheKey);
+        const promotedExisting = await tryPromoteStaging<unknown>(userId, cacheKey, endpoint);
         if (promotedExisting) {
             return;
         }
 
-        const outcome = await generateAndWriteStaging(userId, cacheKey, generator, shouldPersistResult);
+        const outcome = await generateAndWriteStaging(userId, cacheKey, generator, shouldPersistResult, endpoint);
 
         if (outcome === 'written') {
-            await tryPromoteStaging<unknown>(userId, cacheKey);
+            await tryPromoteStaging<unknown>(userId, cacheKey, endpoint);
             return;
         }
 
@@ -1548,7 +1622,7 @@ async function refreshStaleActiveCacheInBackground<T>(
         if (outcome === 'skipped-stale' && retryCount < RECOMMENDATION_STALE_REFRESH_MAX_RETRIES) {
             console.log(`[recommendation-sources] re-generating after stale skip user=${userId} attempt=${retryCount + 1}`);
             scheduleBackground(
-                refreshStaleActiveCacheInBackground(userId, cacheKey, generator, shouldPersistResult, retryCount + 1)
+                refreshStaleActiveCacheInBackground(userId, cacheKey, generator, shouldPersistResult, endpoint, retryCount + 1)
             );
         }
     } catch (error) {
@@ -1577,17 +1651,19 @@ async function getCachedRecommendationResult<T>(
     }
 
     if (activePayload) {
-        scheduleBackground(refreshStaleActiveCacheInBackground(userId, cacheKey, generator, shouldPersistResult));
+        scheduleBackground(refreshStaleActiveCacheInBackground(userId, cacheKey, generator, shouldPersistResult, endpoint));
         logRecommendationTiming('stale cache hit', startedAt, { endpoint, cacheKey });
         return activePayload;
     }
 
     const activeClaimToken = await tryClaimGeneration(userId, cacheKey, RECOMMENDATION_CACHE_ACTIVE_SLOT);
     if (activeClaimToken) {
+        const claimTokenRef = { current: activeClaimToken };
+        const heartbeat = startGenerationHeartbeat(userId, cacheKey, RECOMMENDATION_CACHE_ACTIVE_SLOT, claimTokenRef);
         try {
             const freshResult = await generator();
             if (!shouldPersistResult || await shouldPersistResult()) {
-                await writeActiveCache(userId, cacheKey, freshResult);
+                await writeActiveCache(userId, cacheKey, freshResult, endpoint);
                 logRecommendationTiming('generated active cache', startedAt, { endpoint, cacheKey });
             } else {
                 logRecommendationTiming('skipped stale active cache write', startedAt, { endpoint, cacheKey });
@@ -1602,7 +1678,8 @@ async function getCachedRecommendationResult<T>(
             }
             throw error;
         } finally {
-            await releaseGeneration(userId, cacheKey, RECOMMENDATION_CACHE_ACTIVE_SLOT, activeClaimToken)
+            clearInterval(heartbeat);
+            await releaseGeneration(userId, cacheKey, RECOMMENDATION_CACHE_ACTIVE_SLOT, claimTokenRef.current)
                 .catch((error) => {
                     console.error("Error releasing recommendation active generation lock:", error);
                 });
@@ -1618,7 +1695,7 @@ async function getCachedRecommendationResult<T>(
         return delayedPayload;
     }
 
-    const promotedFromStaging = await tryPromoteStaging<T>(userId, cacheKey);
+    const promotedFromStaging = await tryPromoteStaging<T>(userId, cacheKey, endpoint);
     if (promotedFromStaging) {
         logRecommendationTiming('promoted staging cache', startedAt, { endpoint, cacheKey });
         return promotedFromStaging;
@@ -1637,7 +1714,7 @@ async function getCachedRecommendationResult<T>(
                 return delayedPayload;
             }
 
-            const promotedDuringWait = await tryPromoteStaging<T>(userId, cacheKey);
+            const promotedDuringWait = await tryPromoteStaging<T>(userId, cacheKey, endpoint);
             if (promotedDuringWait) {
                 logRecommendationTiming('promoted staging cache during pending wait', startedAt, { endpoint, cacheKey });
                 return promotedDuringWait;
@@ -1656,7 +1733,7 @@ async function getCachedRecommendationResult<T>(
 
     const freshResult = await generator();
     if (!shouldPersistResult || await shouldPersistResult()) {
-        await writeActiveCache(userId, cacheKey, freshResult);
+        await writeActiveCache(userId, cacheKey, freshResult, endpoint);
         logRecommendationTiming('generated cache without claim', startedAt, { endpoint, cacheKey });
     } else {
         logRecommendationTiming('skipped stale cache write without claim', startedAt, { endpoint, cacheKey });
@@ -1691,7 +1768,7 @@ export async function expireRecommendationCache(userId: string): Promise<void> {
           AND slot = ${RECOMMENDATION_CACHE_STAGING_SLOT}
           AND (
             generation_started_at IS NULL
-            OR generation_started_at < NOW() - (${RECOMMENDATION_CACHE_GENERATION_LOCK_TIMEOUT_MINUTES} * INTERVAL '1 minute')
+            OR generation_started_at < NOW() - (${RECOMMENDATION_CACHE_GENERATION_STEAL_SECONDS} * INTERVAL '1 second')
           )
     `;
 }
@@ -1725,7 +1802,7 @@ export async function expireRecommendationCacheByCollection(collectionId: string
           AND rc.slot = ${RECOMMENDATION_CACHE_STAGING_SLOT}
           AND (
             rc.generation_started_at IS NULL
-            OR rc.generation_started_at < NOW() - (${RECOMMENDATION_CACHE_GENERATION_LOCK_TIMEOUT_MINUTES} * INTERVAL '1 minute')
+            OR rc.generation_started_at < NOW() - (${RECOMMENDATION_CACHE_GENERATION_STEAL_SECONDS} * INTERVAL '1 second')
           )
     `;
 }
@@ -1768,6 +1845,7 @@ export async function getRecommendationCacheDebug(userId: string): Promise<{
         SELECT
             cache_key,
             slot,
+            endpoint,
             cache_version,
             expires_at,
             generation_started_at,
@@ -1782,6 +1860,7 @@ export async function getRecommendationCacheDebug(userId: string): Promise<{
     const entries = (entriesResult as Array<{
         cache_key: string;
         slot: RecommendationCacheSlot;
+        endpoint: string;
         cache_version: string;
         expires_at: string;
         generation_started_at: string | null;
