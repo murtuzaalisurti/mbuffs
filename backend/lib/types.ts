@@ -124,6 +124,12 @@ export interface GoogleUser {
 // --- Reviews Types ---
 export type MediaType = 'movie' | 'tv';
 
+export interface SeasonRatingSummary {
+    seasonNumber: number;
+    averageRating: number;
+    ratingsCount: number;
+}
+
 export interface ReviewSummaryResponse {
     media: {
         mediaType: MediaType;
@@ -133,7 +139,13 @@ export interface ReviewSummaryResponse {
         averageRating: number | null;
         ratingsCount: number;
         commentsCount: number;
+        // TV show-level summaries only. The show score blends every group:
+        // each rated season's score + the overall show ratings group.
+        seasonsRated?: number;
+        overallRatingsCount?: number;
     };
+    // TV show-level summaries only: per-season score breakdown (rated seasons only).
+    seasons?: SeasonRatingSummary[];
     userRating: number | null;
 }
 
@@ -147,6 +159,8 @@ export interface ReviewComment {
     id: string;
     mediaType: MediaType;
     tmdbId: number;
+    // null = show-level comment; 0 = specials; 1..N = season
+    seasonNumber: number | null;
     parentCommentId: string | null;
     replyToCommentId: string | null;
     replyToAuthorName: string | null;

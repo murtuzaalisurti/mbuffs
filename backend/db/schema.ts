@@ -1,4 +1,4 @@
-import { pgTable, index, foreignKey, unique, text, varchar, timestamp, boolean, primaryKey, pgSequence, integer, numeric, check } from "drizzle-orm/pg-core"
+import { pgTable, index, uniqueIndex, foreignKey, unique, text, varchar, timestamp, boolean, primaryKey, pgSequence, integer, numeric, check } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 
 export const migrationsIdSeq = pgSequence("_migrations_id_seq", { startWith: "1", increment: "1", minValue: "1", maxValue: "2147483647", cache: "1", cycle: false })
@@ -362,6 +362,8 @@ export const mediaRatings = pgTable("media_ratings", {
 	userId: text("user_id").notNull(),
 	mediaType: text("media_type").notNull(), // 'movie' | 'tv'
 	tmdbId: integer("tmdb_id").notNull(),
+	// NULL = show-level (overall) rating; 0 = TMDB specials; 1..N = season number
+	seasonNumber: integer("season_number"),
 	rating: integer().notNull(), // 1..10
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
@@ -372,10 +374,13 @@ export const mediaRatings = pgTable("media_ratings", {
 		name: "media_ratings_user_id_fkey"
 	}).onDelete("cascade"),
 	index("idx_media_ratings_media").using("btree", table.mediaType.asc().nullsLast().op("text_ops"), table.tmdbId.asc().nullsLast()),
+	index("idx_media_ratings_media_season").using("btree", table.mediaType.asc().nullsLast().op("text_ops"), table.tmdbId.asc().nullsLast(), table.seasonNumber.asc().nullsLast()),
 	index("idx_media_ratings_user_id").using("btree", table.userId.asc().nullsLast().op("text_ops")),
-	unique("media_ratings_user_media_unique").on(table.userId, table.mediaType, table.tmdbId),
+	uniqueIndex("media_ratings_user_media_overall_unique").on(table.userId, table.mediaType, table.tmdbId).where(sql`season_number IS NULL`),
+	uniqueIndex("media_ratings_user_media_season_unique").on(table.userId, table.mediaType, table.tmdbId, table.seasonNumber).where(sql`season_number IS NOT NULL`),
 	check("media_ratings_media_type_check", sql`${table.mediaType} IN ('movie', 'tv')`),
 	check("media_ratings_rating_check", sql`${table.rating} >= 1 AND ${table.rating} <= 10`),
+	check("media_ratings_season_number_check", sql`${table.seasonNumber} IS NULL OR (${table.seasonNumber} >= 0 AND ${table.seasonNumber} <= 500)`),
 ]);
 
 // ============================================================================

@@ -30,6 +30,10 @@ const adminUser = {
 const mediaType = 'movie';
 const tmdbId = 990000 + Math.floor(Math.random() * 1000);
 
+// TV shows used for season-scoped tests
+const tvTmdbId = 790000 + Math.floor(Math.random() * 1000);
+const legacyTvTmdbId = 780000 + Math.floor(Math.random() * 1000);
+
 const authed = (
     req: request.Test,
     user: { id: string; role: string },
@@ -56,6 +60,8 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+    await sql`DELETE FROM media_ratings WHERE tmdb_id IN (${tvTmdbId}, ${legacyTvTmdbId})`;
+    await sql`DELETE FROM media_comments WHERE tmdb_id IN (${tvTmdbId}, ${legacyTvTmdbId})`;
     await sql`DELETE FROM media_ratings WHERE user_id IN (${ownerUser.id}, ${otherUser.id}, ${adminUser.id})`;
     await sql`DELETE FROM media_comments WHERE user_id IN (${ownerUser.id}, ${otherUser.id}, ${adminUser.id})`;
     await sql`DELETE FROM "user" WHERE id IN (${ownerUser.id}, ${otherUser.id}, ${adminUser.id})`;
@@ -240,4 +246,170 @@ test('enforces comment ownership and allows admin moderation delete', async () =
     const commentsList = await request(app).get(`/api/reviews/${mediaType}/${tmdbId}/comments?limit=20`);
     expect(commentsList.status).toBe(200);
     expect(commentsList.body.comments.some((comment: { id: string }) => comment.id === commentId)).toBe(false);
+});
+
+test('rejects seasonNumber for movies', async () => {
+    const response = await authed(
+        request(app).get(`/api/reviews/${mediaType}/${tmdbId}/summary?seasonNumber=1`),
+        ownerUser
+    );
+
+    expect(response.status).toBe(400);
+});
+
+test('rates TV seasons independently from the overall show rating', async () => {
+    const firstSeasonRating = await authed(
+        request(app).put(`/api/reviews/tv/${tvTmdbId}/rating?seasonNumber=1`).send({ rating: 8 }),
+        ownerUser
+    );
+    expect(firstSeasonRating.status).toBe(200);
+
+    // Upsert: rating the same season again replaces it
+    const updatedSeasonRating = await authed(
+        request(app).put(`/api/reviews/tv/${tvTmdbId}/rating?seasonNumber=1`).send({ rating: 9 }),
+        ownerUser
+    );
+    expect(updatedSeasonRating.status).toBe(200);
+
+    const secondSeasonRating = await authed(
+        request(app).put(`/api/reviews/tv/${tvTmdbId}/rating?seasonNumber=2`).send({ rating: 7 }),
+        otherUser
+    );
+    expect(secondSeasonRating.status).toBe(200);
+
+    // Overall show rating is stored separately from season ratings
+    const overallRating = await authed(
+        request(app).put(`/api/reviews/tv/${tvTmdbId}/rating`).send({ rating: 6 }),
+        ownerUser
+    );
+    expect(overallRating.status).toBe(200);
+
+    // Season summary is scoped to the season
+    const seasonSummary = await authed(
+        request(app).get(`/api/reviews/tv/${tvTmdbId}/summary?seasonNumber=1`),
+        ownerUser
+    );
+    expect(seasonSummary.status).toBe(200);
+    expect(seasonSummary.body.summary.averageRating).toBe(9);
+    expect(seasonSummary.body.summary.ratingsCount).toBe(1);
+    expect(seasonSummary.body.userRating).toBe(9);
+    expect(seasonSummary.body.seasons).toBeUndefined();
+    expect(seasonSummary.body.summary.seasonsRated).toBeUndefined();
+});
+
+test('aggregates season scores and overall ratings into the show-level mbuff score', async () => {
+    const summary = await authed(
+        request(app).get(`/api/reviews/tv/${tvTmdbId}/summary`),
+        ownerUser
+    );
+
+    expect(summary.status).toBe(200);
+    // Blend of all groups: (season 1: 9 + season 2: 7 + overall: 6) / 3 = 7.3
+    expect(summary.body.summary.averageRating).toBe(7.3);
+    expect(summary.body.summary.seasonsRated).toBe(2);
+    expect(summary.body.summary.overallRatingsCount).toBe(1);
+    expect(summary.body.summary.ratingsCount).toBe(3);
+    expect(summary.body.userRating).toBe(6);
+
+    const seasons = summary.body.seasons;
+    expect(Array.isArray(seasons)).toBe(true);
+    expect(seasons).toHaveLength(2);
+    expect(seasons[0]).toMatchObject({ seasonNumber: 1, averageRating: 9, ratingsCount: 1 });
+    expect(seasons[1]).toMatchObject({ seasonNumber: 2, averageRating: 7, ratingsCount: 1 });
+});
+
+test('deletes a season rating without touching the overall rating', async () => {
+    const response = await authed(
+        request(app).delete(`/api/reviews/tv/${tvTmdbId}/rating?seasonNumber=2`),
+        otherUser
+    );
+
+    expect(response.status).toBe(200);
+    // The delete response is scoped to season 2, so it reports that season's summary
+    expect(response.body.summary.summary.averageRating).toBeNull();
+    expect(response.body.summary.userRating).toBeNull();
+
+    // Show-level summary: season 1 (9) + overall (6) blend to 7.5
+    const overall = await authed(
+        request(app).get(`/api/reviews/tv/${tvTmdbId}/summary`),
+        ownerUser
+    );
+    expect(overall.body.summary.averageRating).toBe(7.5);
+    expect(overall.body.summary.seasonsRated).toBe(1);
+    expect(overall.body.summary.overallRatingsCount).toBe(1);
+    expect(overall.body.summary.ratingsCount).toBe(2);
+    expect(overall.body.userRating).toBe(6);
+});
+
+test('scores shows from overall ratings alone before any season is rated', async () => {
+    await authed(
+        request(app).put(`/api/reviews/tv/${legacyTvTmdbId}/rating`).send({ rating: 9 }),
+        ownerUser
+    );
+    await authed(
+        request(app).put(`/api/reviews/tv/${legacyTvTmdbId}/rating`).send({ rating: 7 }),
+        otherUser
+    );
+
+    const summary = await authed(
+        request(app).get(`/api/reviews/tv/${legacyTvTmdbId}/summary`),
+        ownerUser
+    );
+
+    expect(summary.status).toBe(200);
+    expect(summary.body.summary.averageRating).toBe(8);
+    expect(summary.body.summary.ratingsCount).toBe(2);
+    expect(summary.body.summary.seasonsRated).toBe(0);
+    expect(summary.body.summary.overallRatingsCount).toBe(2);
+    expect(summary.body.seasons).toEqual([]);
+});
+
+test('scopes comments to seasons and replies inherit the season', async () => {
+    const seasonComment = await authed(
+        request(app)
+            .post(`/api/reviews/tv/${tvTmdbId}/comments?seasonNumber=1`)
+            .send({ comment: `Season comment ${Date.now()}` }),
+        ownerUser
+    );
+
+    expect(seasonComment.status).toBe(201);
+    expect(seasonComment.body.comment.seasonNumber).toBe(1);
+
+    const showComment = await authed(
+        request(app)
+            .post(`/api/reviews/tv/${tvTmdbId}/comments`)
+            .send({ comment: `Show comment ${Date.now()}` }),
+        ownerUser
+    );
+
+    expect(showComment.status).toBe(201);
+    expect(showComment.body.comment.seasonNumber).toBeNull();
+
+    const reply = await authed(
+        request(app)
+            .post(`/api/reviews/comments/${seasonComment.body.comment.id}/replies`)
+            .send({ comment: `Season reply ${Date.now()}` }),
+        otherUser
+    );
+
+    expect(reply.status).toBe(201);
+    expect(reply.body.comment.seasonNumber).toBe(1);
+    expect(reply.body.comment.parentCommentId).toBe(seasonComment.body.comment.id);
+
+    const seasonComments = await authed(
+        request(app).get(`/api/reviews/tv/${tvTmdbId}/comments?seasonNumber=1`),
+        ownerUser
+    );
+
+    expect(seasonComments.status).toBe(200);
+    expect(seasonComments.body.comments.some((comment: { id: string }) => comment.id === seasonComment.body.comment.id)).toBe(true);
+    expect(seasonComments.body.comments.some((comment: { id: string }) => comment.id === showComment.body.comment.id)).toBe(false);
+
+    const showComments = await authed(
+        request(app).get(`/api/reviews/tv/${tvTmdbId}/comments`),
+        ownerUser
+    );
+
+    expect(showComments.body.comments.some((comment: { id: string }) => comment.id === showComment.body.comment.id)).toBe(true);
+    expect(showComments.body.comments.some((comment: { id: string }) => comment.id === seasonComment.body.comment.id)).toBe(false);
 });

@@ -8,6 +8,7 @@ import {
     createReplySchema,
     deleteCommentSchema,
     mediaIdentityParamsSchema,
+    seasonScopeQuerySchema,
     updateCommentSchema,
     upsertRatingSchema,
 } from '../lib/validators.js';
@@ -16,6 +17,7 @@ import type {
     PaginatedCommentsResponse,
     ReviewComment,
     ReviewSummaryResponse,
+    SeasonRatingSummary,
 } from '../lib/types.js';
 import '../middleware/authMiddleware.js';
 
@@ -24,6 +26,7 @@ type RawCommentRow = {
     user_id: string;
     media_type: 'movie' | 'tv';
     tmdb_id: number;
+    season_number: number | null;
     parent_comment_id: string | null;
     reply_to_comment_id: string | null;
     reply_to_author_name: string | null;
@@ -61,11 +64,32 @@ const asBoolean = (value: unknown): boolean => {
     return false;
 };
 
+type SeasonScope = { seasonNumber?: number };
+
+const resolveSeasonScope = (
+    mediaType: 'movie' | 'tv',
+    query: unknown
+): SeasonScope | { error: string } => {
+    const parsed = seasonScopeQuerySchema.safeParse(query ?? {});
+    if (!parsed.success) {
+        return { error: 'Invalid seasonNumber' };
+    }
+
+    if (parsed.data.seasonNumber !== undefined && mediaType === 'movie') {
+        return { error: 'Seasons are only applicable to TV shows' };
+    }
+
+    return { seasonNumber: parsed.data.seasonNumber };
+};
+
 const mapCommentRow = (row: RawCommentRow, userId?: string | null, replies: ReviewComment[] = []): ReviewComment => {
     return {
         id: String(row.id),
         mediaType: row.media_type,
         tmdbId: Number(row.tmdb_id),
+        seasonNumber: row.season_number === null || row.season_number === undefined
+            ? null
+            : Number(row.season_number),
         parentCommentId: row.parent_comment_id ? String(row.parent_comment_id) : null,
         replyToCommentId: row.reply_to_comment_id ? String(row.reply_to_comment_id) : null,
         replyToAuthorName: row.reply_to_author_name ? String(row.reply_to_author_name) : null,
@@ -93,6 +117,7 @@ const getCommentById = async (commentId: string, viewerId?: string | null): Prom
             c.user_id,
             c.media_type,
             c.tmdb_id,
+            c.season_number,
             c.parent_comment_id,
             c.reply_to_comment_id,
             (
@@ -166,45 +191,140 @@ const getCommentLikeSnapshot = async (commentId: string, viewerId: string): Prom
 const buildSummary = async (
     mediaType: 'movie' | 'tv',
     tmdbId: number,
-    userId?: string | null
+    userId?: string | null,
+    seasonNumber?: number
 ): Promise<ReviewSummaryResponse> => {
-    const [aggregate] = await sql`
-        SELECT
-            COALESCE(ROUND(AVG(rating)::numeric, 1), NULL) AS average_rating,
-            COUNT(*)::int AS ratings_count
-        FROM media_ratings
-        WHERE media_type = ${mediaType} AND tmdb_id = ${tmdbId}
-    `;
+    // Season scope: only TV shows can be scoped to a season.
+    // Movies and show-level summaries always operate on season_number IS NULL rows.
+    const isSeasonScoped = mediaType === 'tv' && typeof seasonNumber === 'number';
+    const isShowLevelSummary = mediaType === 'tv' && !isSeasonScoped;
 
-    const [commentsAggregate] = await sql`
-        SELECT COUNT(*)::int AS comments_count
-        FROM media_comments
-        WHERE media_type = ${mediaType}
-          AND tmdb_id = ${tmdbId}
-          AND parent_comment_id IS NULL
-          AND deleted_at IS NULL
-    `;
+    const [commentsAggregate] = isSeasonScoped
+        ? await sql`
+            SELECT COUNT(*)::int AS comments_count
+            FROM media_comments
+            WHERE media_type = ${mediaType}
+              AND tmdb_id = ${tmdbId}
+              AND season_number = ${seasonNumber}
+              AND parent_comment_id IS NULL
+              AND deleted_at IS NULL
+        `
+        : await sql`
+            SELECT COUNT(*)::int AS comments_count
+            FROM media_comments
+            WHERE media_type = ${mediaType}
+              AND tmdb_id = ${tmdbId}
+              AND season_number IS NULL
+              AND parent_comment_id IS NULL
+              AND deleted_at IS NULL
+        `;
+
+    let averageRating: number | null = null;
+    let ratingsCount = 0;
+    let seasons: SeasonRatingSummary[] = [];
+    let seasonsRated = 0;
+    let overallRatingsCount = 0;
+
+    if (isShowLevelSummary) {
+        // Per-season scores
+        const seasonRows = await sql`
+            SELECT
+                season_number,
+                AVG(rating) AS average_rating,
+                COUNT(*)::int AS ratings_count
+            FROM media_ratings
+            WHERE media_type = ${mediaType}
+              AND tmdb_id = ${tmdbId}
+              AND season_number IS NOT NULL
+            GROUP BY season_number
+            ORDER BY season_number ASC
+        `;
+
+        seasons = seasonRows.map((row) => ({
+            seasonNumber: Number(row.season_number),
+            averageRating: Number(Number(row.average_rating).toFixed(1)),
+            ratingsCount: Number(row.ratings_count),
+        }));
+        seasonsRated = seasons.length;
+
+        // Overall (show-level) ratings form one more group alongside the seasons
+        const [overallAggregate] = await sql`
+            SELECT
+                AVG(rating) AS average_rating,
+                COUNT(*)::int AS ratings_count
+            FROM media_ratings
+            WHERE media_type = ${mediaType}
+              AND tmdb_id = ${tmdbId}
+              AND season_number IS NULL
+        `;
+
+        overallRatingsCount = Number(overallAggregate?.ratings_count ?? 0);
+        const overallScore = overallRatingsCount > 0 && overallAggregate?.average_rating != null
+            ? Number(overallAggregate.average_rating)
+            : null;
+
+        // Show mbuff score = average of all group scores:
+        // every rated season + the overall show ratings group.
+        const groupScores = seasons.map((season) => season.averageRating);
+        if (overallScore !== null) {
+            groupScores.push(overallScore);
+        }
+
+        if (groupScores.length > 0) {
+            const groupScoreTotal = groupScores.reduce((total, score) => total + score, 0);
+            averageRating = Number((groupScoreTotal / groupScores.length).toFixed(1));
+            ratingsCount = seasons.reduce((total, season) => total + season.ratingsCount, 0) + overallRatingsCount;
+        }
+    } else {
+        const [aggregate] = await sql`
+            SELECT
+                COALESCE(ROUND(AVG(rating)::numeric, 1), NULL) AS average_rating,
+                COUNT(*)::int AS ratings_count
+            FROM media_ratings
+            WHERE media_type = ${mediaType}
+              AND tmdb_id = ${tmdbId}
+              AND ${isSeasonScoped ? sql`season_number = ${seasonNumber}` : sql`season_number IS NULL`}
+        `;
+
+        averageRating = aggregate?.average_rating === null || aggregate?.average_rating === undefined
+            ? null
+            : Number(aggregate.average_rating);
+        ratingsCount = Number(aggregate?.ratings_count ?? 0);
+    }
 
     let userRating: number | null = null;
     if (userId) {
-        const userRows = await sql`
-            SELECT rating
-            FROM media_ratings
-            WHERE user_id = ${userId} AND media_type = ${mediaType} AND tmdb_id = ${tmdbId}
-            LIMIT 1
-        `;
+        const userRows = isSeasonScoped
+            ? await sql`
+                SELECT rating
+                FROM media_ratings
+                WHERE user_id = ${userId}
+                  AND media_type = ${mediaType}
+                  AND tmdb_id = ${tmdbId}
+                  AND season_number = ${seasonNumber}
+                LIMIT 1
+            `
+            : await sql`
+                SELECT rating
+                FROM media_ratings
+                WHERE user_id = ${userId}
+                  AND media_type = ${mediaType}
+                  AND tmdb_id = ${tmdbId}
+                  AND season_number IS NULL
+                LIMIT 1
+            `;
         userRating = userRows.length > 0 ? Number(userRows[0].rating) : null;
     }
 
     return {
         media: { mediaType, tmdbId },
         summary: {
-            averageRating: aggregate?.average_rating === null || aggregate?.average_rating === undefined
-                ? null
-                : Number(aggregate.average_rating),
-            ratingsCount: Number(aggregate?.ratings_count ?? 0),
+            averageRating,
+            ratingsCount,
             commentsCount: Number(commentsAggregate?.comments_count ?? 0),
+            ...(isShowLevelSummary ? { seasonsRated, overallRatingsCount } : {}),
         },
+        ...(isShowLevelSummary ? { seasons } : {}),
         userRating,
     };
 };
@@ -216,8 +336,13 @@ export const getReviewSummary = async (req: Request, res: Response, next: NextFu
             return res.status(400).json({ message: 'Validation failed', errors: parsed.error.issues });
         }
 
+        const scope = resolveSeasonScope(parsed.data.mediaType, req.query);
+        if ('error' in scope) {
+            return res.status(400).json({ message: scope.error });
+        }
+
         const { mediaType, tmdbId } = parsed.data;
-        const payload = await buildSummary(mediaType, tmdbId, req.userId);
+        const payload = await buildSummary(mediaType, tmdbId, req.userId, scope.seasonNumber);
         res.status(200).json(payload);
     } catch (error) {
         next(error);
@@ -236,13 +361,23 @@ export const getComments = async (req: Request, res: Response, next: NextFunctio
             return res.status(400).json({ message: 'Validation failed', errors: queryParsed.error.issues });
         }
 
+        const scope = resolveSeasonScope(paramsParsed.data.mediaType, req.query);
+        if ('error' in scope) {
+            return res.status(400).json({ message: scope.error });
+        }
+
         const { mediaType, tmdbId } = paramsParsed.data;
         const { cursor, limit } = queryParsed.data;
         const decodedCursor = cursor ? decodeCursor(cursor) : null;
+        const seasonNumber = scope.seasonNumber;
 
         if (cursor && !decodedCursor) {
             return res.status(400).json({ message: 'Invalid cursor' });
         }
+
+        const seasonFilter = seasonNumber !== undefined
+            ? sql` AND c.season_number = ${seasonNumber}`
+            : sql` AND c.season_number IS NULL`;
 
         const rows = decodedCursor
             ? await sql`
@@ -251,6 +386,7 @@ export const getComments = async (req: Request, res: Response, next: NextFunctio
                     c.user_id,
                     c.media_type,
                     c.tmdb_id,
+                    c.season_number,
                     c.parent_comment_id,
                     c.reply_to_comment_id,
                     (
@@ -291,7 +427,7 @@ export const getComments = async (req: Request, res: Response, next: NextFunctio
                   AND (
                     c.created_at < ${decodedCursor.createdAt}::timestamptz
                     OR (c.created_at = ${decodedCursor.createdAt}::timestamptz AND c.id < ${decodedCursor.id})
-                  )
+                  )${seasonFilter}
                 ORDER BY c.created_at DESC, c.id DESC
                 LIMIT ${limit + 1}
             `
@@ -301,6 +437,7 @@ export const getComments = async (req: Request, res: Response, next: NextFunctio
                     c.user_id,
                     c.media_type,
                     c.tmdb_id,
+                    c.season_number,
                     c.parent_comment_id,
                     c.reply_to_comment_id,
                     (
@@ -337,7 +474,7 @@ export const getComments = async (req: Request, res: Response, next: NextFunctio
                 WHERE c.media_type = ${mediaType}
                   AND c.tmdb_id = ${tmdbId}
                   AND c.parent_comment_id IS NULL
-                  AND c.deleted_at IS NULL
+                  AND c.deleted_at IS NULL${seasonFilter}
                 ORDER BY c.created_at DESC, c.id DESC
                 LIMIT ${limit + 1}
             `;
@@ -360,6 +497,7 @@ export const getComments = async (req: Request, res: Response, next: NextFunctio
                         c.user_id,
                         c.media_type,
                         c.tmdb_id,
+                        c.season_number,
                         c.parent_comment_id,
                         c.reply_to_comment_id,
                         (
@@ -438,20 +576,35 @@ export const upsertRating = async (req: Request, res: Response, next: NextFuncti
             return res.status(400).json({ message: 'Validation failed', errors: bodyParsed.error.issues });
         }
 
+        const scope = resolveSeasonScope(paramsParsed.data.mediaType, req.query);
+        if ('error' in scope) {
+            return res.status(400).json({ message: scope.error });
+        }
+
         const { mediaType, tmdbId } = paramsParsed.data;
         const { rating } = bodyParsed.data;
+        const seasonNumber = scope.seasonNumber;
+        const isSeasonScoped = seasonNumber !== undefined;
 
         const id = generateId(21);
 
-        const rows = await sql`
-            INSERT INTO media_ratings (id, user_id, media_type, tmdb_id, rating)
-            VALUES (${id}, ${req.userId}, ${mediaType}, ${tmdbId}, ${rating})
-            ON CONFLICT (user_id, media_type, tmdb_id)
-            DO UPDATE SET rating = EXCLUDED.rating, updated_at = CURRENT_TIMESTAMP
-            RETURNING id, user_id, media_type, tmdb_id, rating, created_at, updated_at
-        `;
+        const rows = isSeasonScoped
+            ? await sql`
+                INSERT INTO media_ratings (id, user_id, media_type, tmdb_id, season_number, rating)
+                VALUES (${id}, ${req.userId}, ${mediaType}, ${tmdbId}, ${seasonNumber}, ${rating})
+                ON CONFLICT (user_id, media_type, tmdb_id, season_number) WHERE season_number IS NOT NULL
+                DO UPDATE SET rating = EXCLUDED.rating, updated_at = CURRENT_TIMESTAMP
+                RETURNING id, user_id, media_type, tmdb_id, season_number, rating, created_at, updated_at
+            `
+            : await sql`
+                INSERT INTO media_ratings (id, user_id, media_type, tmdb_id, rating)
+                VALUES (${id}, ${req.userId}, ${mediaType}, ${tmdbId}, ${rating})
+                ON CONFLICT (user_id, media_type, tmdb_id) WHERE season_number IS NULL
+                DO UPDATE SET rating = EXCLUDED.rating, updated_at = CURRENT_TIMESTAMP
+                RETURNING id, user_id, media_type, tmdb_id, season_number, rating, created_at, updated_at
+            `;
 
-        const summary = await buildSummary(mediaType, tmdbId, req.userId);
+        const summary = await buildSummary(mediaType, tmdbId, req.userId, seasonNumber);
 
         res.status(200).json({
             rating: rows[0],
@@ -473,15 +626,34 @@ export const deleteRating = async (req: Request, res: Response, next: NextFuncti
             return res.status(400).json({ message: 'Validation failed', errors: paramsParsed.error.issues });
         }
 
-        const { mediaType, tmdbId } = paramsParsed.data;
-        await sql`
-            DELETE FROM media_ratings
-            WHERE user_id = ${req.userId}
-              AND media_type = ${mediaType}
-              AND tmdb_id = ${tmdbId}
-        `;
+        const scope = resolveSeasonScope(paramsParsed.data.mediaType, req.query);
+        if ('error' in scope) {
+            return res.status(400).json({ message: scope.error });
+        }
 
-        const summary = await buildSummary(mediaType, tmdbId, req.userId);
+        const { mediaType, tmdbId } = paramsParsed.data;
+        const seasonNumber = scope.seasonNumber;
+        const isSeasonScoped = seasonNumber !== undefined;
+
+        if (isSeasonScoped) {
+            await sql`
+                DELETE FROM media_ratings
+                WHERE user_id = ${req.userId}
+                  AND media_type = ${mediaType}
+                  AND tmdb_id = ${tmdbId}
+                  AND season_number = ${seasonNumber}
+            `;
+        } else {
+            await sql`
+                DELETE FROM media_ratings
+                WHERE user_id = ${req.userId}
+                  AND media_type = ${mediaType}
+                  AND tmdb_id = ${tmdbId}
+                  AND season_number IS NULL
+            `;
+        }
+
+        const summary = await buildSummary(mediaType, tmdbId, req.userId, seasonNumber);
         res.status(200).json({ summary });
     } catch (error) {
         next(error);
@@ -504,13 +676,27 @@ export const createComment = async (req: Request, res: Response, next: NextFunct
             return res.status(400).json({ message: 'Validation failed', errors: bodyParsed.error.issues });
         }
 
+        const scope = resolveSeasonScope(paramsParsed.data.mediaType, req.query);
+        if ('error' in scope) {
+            return res.status(400).json({ message: scope.error });
+        }
+
         const { mediaType, tmdbId } = paramsParsed.data;
+        const { seasonNumber } = scope;
+        const isSeasonScoped = seasonNumber !== undefined;
         const id = generateId(21);
 
-        await sql`
-            INSERT INTO media_comments (id, user_id, media_type, tmdb_id, comment)
-            VALUES (${id}, ${req.userId}, ${mediaType}, ${tmdbId}, ${bodyParsed.data.comment})
-        `;
+        if (isSeasonScoped) {
+            await sql`
+                INSERT INTO media_comments (id, user_id, media_type, tmdb_id, season_number, comment)
+                VALUES (${id}, ${req.userId}, ${mediaType}, ${tmdbId}, ${seasonNumber}, ${bodyParsed.data.comment})
+            `;
+        } else {
+            await sql`
+                INSERT INTO media_comments (id, user_id, media_type, tmdb_id, comment)
+                VALUES (${id}, ${req.userId}, ${mediaType}, ${tmdbId}, ${bodyParsed.data.comment})
+            `;
+        }
 
         const createdComment = await getCommentById(id, req.userId);
         if (!createdComment) {
@@ -542,7 +728,7 @@ export const createReply = async (req: Request, res: Response, next: NextFunctio
         const { commentId } = paramsParsed.data;
 
         const parentRows = await sql`
-            SELECT id, media_type, tmdb_id, parent_comment_id, deleted_at
+            SELECT id, media_type, tmdb_id, season_number, parent_comment_id, deleted_at
             FROM media_comments
             WHERE id = ${commentId}
             LIMIT 1
@@ -558,26 +744,56 @@ export const createReply = async (req: Request, res: Response, next: NextFunctio
 
         const id = generateId(21);
 
-        await sql`
-            INSERT INTO media_comments (
-                id,
-                user_id,
-                media_type,
-                tmdb_id,
-                parent_comment_id,
-                reply_to_comment_id,
-                comment
-            )
-            VALUES (
-                ${id},
-                ${req.userId},
-                ${parentRows[0].media_type},
-                ${parentRows[0].tmdb_id},
-                ${threadParentId},
-                ${commentId},
-                ${bodyParsed.data.comment}
-            )
-        `;
+        // Replies inherit the parent comment's season scope
+        const parentSeasonNumber = parentRows[0].season_number === null || parentRows[0].season_number === undefined
+            ? null
+            : Number(parentRows[0].season_number);
+
+        if (parentSeasonNumber === null) {
+            await sql`
+                INSERT INTO media_comments (
+                    id,
+                    user_id,
+                    media_type,
+                    tmdb_id,
+                    parent_comment_id,
+                    reply_to_comment_id,
+                    comment
+                )
+                VALUES (
+                    ${id},
+                    ${req.userId},
+                    ${parentRows[0].media_type},
+                    ${parentRows[0].tmdb_id},
+                    ${threadParentId},
+                    ${commentId},
+                    ${bodyParsed.data.comment}
+                )
+            `;
+        } else {
+            await sql`
+                INSERT INTO media_comments (
+                    id,
+                    user_id,
+                    media_type,
+                    tmdb_id,
+                    season_number,
+                    parent_comment_id,
+                    reply_to_comment_id,
+                    comment
+                )
+                VALUES (
+                    ${id},
+                    ${req.userId},
+                    ${parentRows[0].media_type},
+                    ${parentRows[0].tmdb_id},
+                    ${parentSeasonNumber},
+                    ${threadParentId},
+                    ${commentId},
+                    ${bodyParsed.data.comment}
+                )
+            `;
+        }
 
         const createdReply = await getCommentById(id, req.userId);
         if (!createdReply) {

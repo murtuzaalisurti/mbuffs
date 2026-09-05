@@ -998,21 +998,32 @@ export const fetchOmdbRatingsBatchApi = async (
 };
 
 // --- Reviews API Functions ---
+// seasonNumber: optional season scope for TV shows (absent = show-level scope)
+type ReviewScope = { seasonNumber?: number };
+
+const appendSeasonScope = (path: string, scope?: ReviewScope): string => {
+    if (scope?.seasonNumber === undefined) return path;
+    const separator = path.includes('?') ? '&' : '?';
+    return `${path}${separator}seasonNumber=${scope.seasonNumber}`;
+};
+
 export const fetchReviewSummaryApi = async (
     mediaType: 'movie' | 'tv',
-    tmdbId: number
+    tmdbId: number,
+    scope?: ReviewScope
 ): Promise<ReviewSummaryResponse> => {
-    return fetchBackend(`/reviews/${mediaType}/${tmdbId}/summary`);
+    return fetchBackend(appendSeasonScope(`/reviews/${mediaType}/${tmdbId}/summary`, scope));
 };
 
 export const fetchCommentsApi = async (
     mediaType: 'movie' | 'tv',
     tmdbId: number,
-    options: { cursor?: string; limit?: number } = {}
+    options: { cursor?: string; limit?: number; seasonNumber?: number } = {}
 ): Promise<PaginatedCommentsResponse> => {
     const params = new URLSearchParams();
     if (options.cursor) params.set('cursor', options.cursor);
     if (options.limit) params.set('limit', String(options.limit));
+    if (options.seasonNumber !== undefined) params.set('seasonNumber', String(options.seasonNumber));
 
     const query = params.toString();
     const suffix = query ? `?${query}` : '';
@@ -1022,9 +1033,10 @@ export const fetchCommentsApi = async (
 export const upsertRatingApi = async (
     mediaType: 'movie' | 'tv',
     tmdbId: number,
-    rating: number
+    rating: number,
+    scope?: ReviewScope
 ): Promise<{ rating: { rating: number }; summary: ReviewSummaryResponse }> => {
-    return fetchBackend(`/reviews/${mediaType}/${tmdbId}/rating`, {
+    return fetchBackend(appendSeasonScope(`/reviews/${mediaType}/${tmdbId}/rating`, scope), {
         method: 'PUT',
         body: JSON.stringify({ rating }),
     });
@@ -1032,9 +1044,10 @@ export const upsertRatingApi = async (
 
 export const deleteRatingApi = async (
     mediaType: 'movie' | 'tv',
-    tmdbId: number
+    tmdbId: number,
+    scope?: ReviewScope
 ): Promise<{ summary: ReviewSummaryResponse }> => {
-    return fetchBackend(`/reviews/${mediaType}/${tmdbId}/rating`, {
+    return fetchBackend(appendSeasonScope(`/reviews/${mediaType}/${tmdbId}/rating`, scope), {
         method: 'DELETE',
     });
 };
@@ -1042,9 +1055,10 @@ export const deleteRatingApi = async (
 export const createCommentApi = async (
     mediaType: 'movie' | 'tv',
     tmdbId: number,
-    comment: string
+    comment: string,
+    scope?: ReviewScope
 ): Promise<{ comment: ReviewComment }> => {
-    return fetchBackend(`/reviews/${mediaType}/${tmdbId}/comments`, {
+    return fetchBackend(appendSeasonScope(`/reviews/${mediaType}/${tmdbId}/comments`, scope), {
         method: 'POST',
         body: JSON.stringify({ comment }),
     });
