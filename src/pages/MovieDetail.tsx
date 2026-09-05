@@ -23,11 +23,9 @@ import {
 } from '@/lib/recommendationQueries';
 import { useWarmRecommendations } from '@/App';
 import { toast } from 'sonner';
-import { ReviewSection, getRatingTier, StarDisplay, InteractiveStarRating } from '@/components/reviews/ReviewSection';
-import { deleteRatingApi, fetchReviewSummaryApi, upsertRatingApi } from '@/lib/api';
+import { ReviewSection, MbuffScoreCard } from '@/components/reviews/ReviewSection';
+import { fetchReviewSummaryApi } from '@/lib/api';
 import type { ReviewSummaryResponse } from '@/lib/types';
-import { Separator } from '@/components/ui/separator';
-import { cn } from '@/lib/utils';
 import { useOmdbRatings, enrichMoviesWithImdbRatings } from '@/hooks/useOmdbRatings';
 
 const TMDB_LOGO_BASE = 'https://image.tmdb.org/t/p/w92';
@@ -306,7 +304,7 @@ const MovieDetail = () => {
     });
 
     // Review summary + rating (for sidebar)
-    const reviewSummaryQueryKey = ['reviews', mediaType, Number(mediaId), 'summary'];
+    const reviewSummaryQueryKey = ['reviews', mediaType, Number(mediaId), 'summary', 'show'];
     const { data: summaryData } = useQuery<ReviewSummaryResponse>({
         queryKey: reviewSummaryQueryKey,
         queryFn: () => fetchReviewSummaryApi(mediaType as 'movie' | 'tv', Number(mediaId)),
@@ -314,44 +312,10 @@ const MovieDetail = () => {
         staleTime: 60_000,
     });
 
-    const rateMutation = useMutation({
-        mutationFn: (rating: number | null) => rating === null
-            ? deleteRatingApi(mediaType as 'movie' | 'tv', Number(mediaId))
-            : upsertRatingApi(mediaType as 'movie' | 'tv', Number(mediaId), rating),
-        onMutate: async (nextRating) => {
-            await queryClient.cancelQueries({ queryKey: reviewSummaryQueryKey });
-            const prev = queryClient.getQueryData<ReviewSummaryResponse>(reviewSummaryQueryKey);
-            if (!prev) return { prev };
-            const prevCount = prev.summary.ratingsCount;
-            const prevAvg = prev.summary.averageRating ?? 0;
-            const nextCount = nextRating === null
-                ? Math.max(0, prevCount - (prev.userRating == null ? 0 : 1))
-                : prev.userRating == null
-                    ? prevCount + 1
-                    : prevCount;
-            const total = nextRating === null
-                ? prevAvg * prevCount - (prev.userRating ?? 0)
-                : prev.userRating == null
-                    ? prevAvg * prevCount + nextRating
-                    : prevAvg * prevCount - prev.userRating + nextRating;
-            queryClient.setQueryData<ReviewSummaryResponse>(reviewSummaryQueryKey, {
-                ...prev,
-                userRating: nextRating,
-                summary: { ...prev.summary, averageRating: nextCount > 0 ? Number((total / nextCount).toFixed(1)) : null, ratingsCount: nextCount },
-            });
-            return { prev };
-        },
-        onSuccess: (result) => {
-            queryClient.setQueryData<ReviewSummaryResponse>(reviewSummaryQueryKey, result.summary);
-        },
-        onError: (_err: Error, _v, ctx) => {
-            if (ctx?.prev) queryClient.setQueryData(reviewSummaryQueryKey, ctx.prev);
-            toast.error('Failed to save rating');
-        },
-        onSettled: () => {
-            queryClient.invalidateQueries({ queryKey: reviewSummaryQueryKey, refetchType: 'inactive' });
-        },
-    });
+    // Per-season mbuff scores for the seasons strip
+    const seasonScoresMap = useMemo(() => {
+        return new Map((summaryData?.seasons ?? []).map((season) => [season.seasonNumber, season]));
+    }, [summaryData?.seasons]);
 
     // Construct the media ID as stored in collections (TV shows have 'tv' suffix)
     const collectionMediaId = isMovie ? mediaId : `${mediaId}tv`;
@@ -1136,7 +1100,9 @@ const MovieDetail = () => {
                                 {mediaDetails.seasons.some(s => s.name.includes('Part')) ? 'Parts' : 'Seasons'}
                             </h2>
                             <div className="flex overflow-x-auto gap-4 pb-4 snap-x scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
-                                {mediaDetails.seasons.map((season) => (
+                                {mediaDetails.seasons.map((season) => {
+                                    const seasonScore = seasonScoresMap.get(season.season_number);
+                                    return (
                                     <Link
                                         key={season.id}
                                         to={`/tv/${mediaId}/season/${season.season_number}`}
@@ -1158,6 +1124,15 @@ const MovieDetail = () => {
                                             <div className="absolute top-2 right-2 bg-background/80 backdrop-blur-sm px-1.5 py-0.5 rounded text-[10px] font-medium text-foreground/90">
                                                 {season.episode_count} eps
                                             </div>
+                                            {seasonScore && (
+                                                <div
+                                                    className="absolute top-2 left-2 bg-background/80 backdrop-blur-sm px-1.5 py-0.5 rounded text-[10px] font-semibold text-amber-400 flex items-center gap-0.5"
+                                                    title={`mbuff score · ${seasonScore.ratingsCount} ${seasonScore.ratingsCount === 1 ? 'rating' : 'ratings'}`}
+                                                >
+                                                    <Star className="w-2.5 h-2.5 fill-current" />
+                                                    {seasonScore.averageRating.toFixed(1)}
+                                                </div>
+                                            )}
                                         </div>
                                         <p className="text-sm font-medium text-foreground/90 line-clamp-1 group-hover/card:text-primary transition-colors" title={season.name}>
                                             {season.name}
@@ -1174,7 +1149,8 @@ const MovieDetail = () => {
                                             )}
                                         </div>
                                     </Link>
-                                ))}
+                                    );
+                                })}
                             </div>
                         </section>
                     )}
@@ -1611,69 +1587,11 @@ const MovieDetail = () => {
                             </div>
 
                             {/* Mbuff Score & Your Rating */}
-                            <div className="mt-4 rounded-2xl border border-border bg-secondary/40 p-5 space-y-4">
-                                {(summaryData?.summary.ratingsCount ?? 0) > 0 ? (
-                                    <div className="space-y-2.5 flex flex-col items-center">
-                                        <span className="text-[10px] font-bold text-amber-400 uppercase tracking-[0.2em]">
-                                            mbuff score
-                                        </span>
-                                        <div className="flex items-baseline gap-1.5">
-                                            <span className={cn(
-                                                'text-4xl font-extrabold tabular-nums tracking-tighter leading-none transition-colors',
-                                                summaryData?.summary.averageRating != null
-                                                    ? getRatingTier(summaryData.summary.averageRating).color
-                                                    : 'text-muted-foreground/20'
-                                            )}>
-                                                {summaryData?.summary.averageRating ?? '—'}
-                                            </span>
-                                            <span className="text-sm text-muted-foreground/50 font-semibold">/10</span>
-                                        </div>
-                                        {summaryData?.summary.averageRating != null && (() => {
-                                            const tier = getRatingTier(summaryData.summary.averageRating);
-                                            return (
-                                                <div className="space-y-1.5 flex flex-col items-center">
-                                                    <StarDisplay rating={summaryData.summary.averageRating} size="sm" />
-                                                    <span className={cn(
-                                                        'inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold border',
-                                                        tier.color, tier.bgColor, tier.borderColor
-                                                    )}>
-                                                        {tier.label}
-                                                    </span>
-                                                </div>
-                                            );
-                                        })()}
-                                        <span className="text-xs text-muted-foreground">
-                                            {summaryData?.summary.ratingsCount ?? 0}{' '}
-                                            {(summaryData?.summary.ratingsCount ?? 0) === 1 ? 'rating' : 'ratings'}
-                                        </span>
-                                    </div>
-                                ) : (
-                                    <div className="space-y-1.5 flex flex-col items-center">
-                                        <span className="text-[10px] font-bold text-amber-400 uppercase tracking-[0.2em]">
-                                            mbuff score
-                                        </span>
-                                        <p className="text-sm text-muted-foreground">No ratings yet</p>
-                                    </div>
-                                )}
-
-                                {isLoggedIn && (
-                                    <>
-                                        <Separator className="opacity-40" />
-                                        <div className="space-y-2 flex flex-col items-center">
-                                            <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-[0.12em]">
-                                                Your Rating
-                                            </span>
-                                            <InteractiveStarRating
-                                                value={summaryData?.userRating ?? null}
-                                                onChange={(r) => rateMutation.mutate(r)}
-                                                starSize="h-5 w-5"
-                                                className="items-center"
-                                                readoutClassName="items-center"
-                                            />
-                                        </div>
-                                    </>
-                                )}
-                            </div>
+                            <MbuffScoreCard
+                                mediaType={mediaType as 'movie' | 'tv'}
+                                tmdbId={Number(mediaId)}
+                                className="mt-4"
+                            />
                         </div>
                     </aside>
                 </div>

@@ -659,6 +659,12 @@ export interface ShareMediaInput {
 }
 
 // --- Reviews Types ---
+export interface SeasonRatingSummary {
+  seasonNumber: number;
+  averageRating: number;
+  ratingsCount: number;
+}
+
 export interface ReviewSummaryResponse {
   media: {
     mediaType: 'movie' | 'tv';
@@ -668,7 +674,13 @@ export interface ReviewSummaryResponse {
     averageRating: number | null;
     ratingsCount: number;
     commentsCount: number;
+    /** TV show-level summaries only. The show score blends every group:
+     *  each rated season's score + the overall show ratings group. */
+    seasonsRated?: number;
+    overallRatingsCount?: number;
   };
+  /** TV show-level summaries only: per-season mbuff scores (rated seasons only). */
+  seasons?: SeasonRatingSummary[];
   userRating: number | null;
 }
 
@@ -676,6 +688,7 @@ export interface ReviewComment {
   id: string;
   mediaType: 'movie' | 'tv';
   tmdbId: number;
+  seasonNumber: number | null;
   parentCommentId: string | null;
   replyToCommentId: string | null;
   replyToAuthorName: string | null;

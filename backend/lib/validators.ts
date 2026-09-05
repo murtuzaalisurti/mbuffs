@@ -70,6 +70,17 @@ export const mediaIdentityParamsSchema = z.object({
 
 export type MediaIdentityParamsInput = z.infer<typeof mediaIdentityParamsSchema>;
 
+// Optional season scope for review endpoints (TV only).
+// Absent/undefined = show-level (overall) scope; 0 = TMDB specials; 1..N = season.
+export const seasonScopeQuerySchema = z.object({
+  seasonNumber: z.preprocess(
+    (value) => (value === '' || value === undefined ? undefined : value),
+    z.coerce.number().int().min(0).max(500).optional()
+  ),
+});
+
+export type SeasonScopeQueryInput = z.infer<typeof seasonScopeQuerySchema>;
+
 export const upsertRatingSchema = z.object({
   rating: z.number().int().min(1).max(10),
 });

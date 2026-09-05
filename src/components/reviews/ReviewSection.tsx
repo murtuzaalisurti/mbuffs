@@ -23,7 +23,7 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Star, Pencil, Trash2, Loader2, MessageSquare, MoreHorizontal, Send, Heart, Reply, ChevronDown, ChevronRight } from 'lucide-react';
+import { Star, Info, Pencil, Trash2, Loader2, MessageSquare, MoreHorizontal, Send, Heart, Reply, ChevronDown, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
@@ -35,6 +35,8 @@ import { cn } from '@/lib/utils';
 interface ReviewSectionProps {
     mediaType: 'movie' | 'tv';
     tmdbId: number;
+    /** Season scope for TV shows (e.g. 2 for Season 2). Omit for show-level. */
+    seasonNumber?: number;
 }
 
 /* ========================================================================== */
@@ -405,7 +407,231 @@ function updateCommentInTree(
 /*  Main Component                                                            */
 /* ========================================================================== */
 
-export const ReviewSection = ({ mediaType, tmdbId }: ReviewSectionProps) => {
+/**
+ * "mbuff score" heading with an info tooltip for TV show-level scores.
+ * - Season pages & movies render the plain label.
+ * - Show-level: explains the blend of season scores + overall show ratings.
+ */
+export function MbuffScoreHeading({
+    seasonsRated,
+    overallRatingsCount,
+    hasScore,
+    labelClassName,
+}: {
+    /** undefined = not a show-level score (movie or season page) */
+    seasonsRated?: number;
+    overallRatingsCount?: number;
+    hasScore: boolean;
+    labelClassName?: string;
+}) {
+    const baseLabel = (
+        <span className={cn('font-bold text-amber-400 uppercase tracking-[0.2em] text-[10px]', labelClassName)}>
+            mbuff score
+        </span>
+    );
+
+    const showTooltip = seasonsRated !== undefined && hasScore;
+    if (!showTooltip) {
+        return baseLabel;
+    }
+
+    const parts: string[] = [];
+    if (seasonsRated > 0) {
+        parts.push(`${seasonsRated} rated season ${seasonsRated === 1 ? 'score' : 'scores'}`);
+    }
+    if (overallRatingsCount > 0) {
+        parts.push(`${overallRatingsCount} overall show ${overallRatingsCount === 1 ? 'rating' : 'ratings'}`);
+    }
+
+    if (parts.length === 0) {
+        return baseLabel;
+    }
+
+    let tooltipText = `Aggregated from ${parts.join(' + ')}`;
+    if (seasonsRated === 0) {
+        tooltipText += ' — rate seasons to shape this score too';
+    }
+
+    return (
+        <span className="inline-flex items-center gap-1">
+            {baseLabel}
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <button
+                        type="button"
+                        aria-label="About the mbuff score"
+                        className="text-amber-400/70 hover:text-amber-300 transition-colors cursor-help"
+                    >
+                        <Info className="h-3 w-3" />
+                    </button>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-[240px] text-center leading-snug">
+                    {tooltipText}
+                </TooltipContent>
+            </Tooltip>
+        </span>
+    );
+}
+
+/**
+ * "mbuff score" + "Your Rating" card, scoped to a movie, a TV show overall,
+ * or a single TV season. Shares the summary query cache with ReviewSection.
+ */
+export function MbuffScoreCard({
+    mediaType,
+    tmdbId,
+    seasonNumber,
+    className,
+}: {
+    mediaType: 'movie' | 'tv';
+    tmdbId: number;
+    seasonNumber?: number;
+    className?: string;
+}) {
+    const { isLoggedIn } = useAuth();
+    const queryClient = useQueryClient();
+
+    const scopeKey = seasonNumber ?? 'show';
+    const summaryQueryKey = ['reviews', mediaType, tmdbId, 'summary', scopeKey];
+
+    const { data: summaryData } = useQuery({
+        queryKey: summaryQueryKey,
+        queryFn: () => fetchReviewSummaryApi(mediaType, tmdbId, { seasonNumber }),
+        staleTime: 60_000,
+    });
+
+    const rateMutation = useMutation({
+        mutationFn: (rating: number | null) => rating === null
+            ? deleteRatingApi(mediaType, tmdbId, { seasonNumber })
+            : upsertRatingApi(mediaType, tmdbId, rating, { seasonNumber }),
+        onMutate: async (nextRating) => {
+            await queryClient.cancelQueries({ queryKey: summaryQueryKey });
+
+            const prev = queryClient.getQueryData<ReviewSummaryResponse>(summaryQueryKey);
+            if (!prev) {
+                return { prev };
+            }
+
+            const prevCount = prev.summary.ratingsCount;
+            const prevAvg = prev.summary.averageRating ?? 0;
+            const nextCount = nextRating === null
+                ? Math.max(0, prevCount - (prev.userRating == null ? 0 : 1))
+                : prev.userRating == null
+                    ? prevCount + 1
+                    : prevCount;
+            const total = nextRating === null
+                ? prevAvg * prevCount - (prev.userRating ?? 0)
+                : prev.userRating == null
+                    ? prevAvg * prevCount + nextRating
+                    : prevAvg * prevCount - prev.userRating + nextRating;
+
+            queryClient.setQueryData<ReviewSummaryResponse>(summaryQueryKey, {
+                ...prev,
+                userRating: nextRating,
+                summary: {
+                    ...prev.summary,
+                    averageRating: nextCount > 0 ? Number((total / nextCount).toFixed(1)) : null,
+                    ratingsCount: nextCount,
+                },
+            });
+
+            return { prev };
+        },
+        onSuccess: (result) => {
+            queryClient.setQueryData<ReviewSummaryResponse>(summaryQueryKey, result.summary);
+        },
+        onError: (error: Error, _nextRating, context) => {
+            if (context?.prev) {
+                queryClient.setQueryData(summaryQueryKey, context.prev);
+            }
+
+            toast.error(error.message || 'Failed to save rating');
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: summaryQueryKey, refetchType: 'inactive' });
+        },
+    });
+
+    const isShowLevel = mediaType === 'tv' && seasonNumber === undefined;
+
+    return (
+        <div className={cn('rounded-2xl border border-border bg-secondary/40 p-5 space-y-4', className)}>
+            {(summaryData?.summary.ratingsCount ?? 0) > 0 ? (
+                <div className="space-y-2.5 flex flex-col items-center">
+                    <MbuffScoreHeading
+                        seasonsRated={isShowLevel ? summaryData?.summary.seasonsRated : undefined}
+                        overallRatingsCount={isShowLevel ? summaryData?.summary.overallRatingsCount : undefined}
+                        hasScore={(summaryData?.summary.ratingsCount ?? 0) > 0}
+                    />
+                    <div className="flex items-baseline gap-1.5">
+                        <span className={cn(
+                            'text-4xl font-extrabold tabular-nums tracking-tighter leading-none transition-colors',
+                            summaryData?.summary.averageRating != null
+                                ? getRatingTier(summaryData.summary.averageRating).color
+                                : 'text-muted-foreground/20'
+                        )}>
+                            {summaryData?.summary.averageRating ?? '—'}
+                        </span>
+                        <span className="text-sm text-muted-foreground/50 font-semibold">/10</span>
+                    </div>
+                    {summaryData?.summary.averageRating != null && (() => {
+                        const tier = getRatingTier(summaryData.summary.averageRating);
+                        return (
+                            <div className="space-y-1.5 flex flex-col items-center">
+                                <StarDisplay rating={summaryData.summary.averageRating} size="sm" />
+                                <span className={cn(
+                                    'inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold border',
+                                    tier.color, tier.bgColor, tier.borderColor
+                                )}>
+                                    {tier.label}
+                                </span>
+                            </div>
+                        );
+                    })()}
+                    <span className="text-xs text-muted-foreground">
+                        {summaryData?.summary.ratingsCount ?? 0}{' '}
+                        {(summaryData?.summary.ratingsCount ?? 0) === 1 ? 'rating' : 'ratings'}
+                        {isShowLevel && (summaryData?.summary.seasonsRated ?? 0) > 0 && (
+                            <> across {summaryData?.summary.seasonsRated}{' '}
+                                {(summaryData?.summary.seasonsRated ?? 0) === 1 ? 'season' : 'seasons'}
+                                {(summaryData?.summary.overallRatingsCount ?? 0) > 0 && ' + overall'}
+                            </>
+                        )}
+                    </span>
+                </div>
+            ) : (
+                <div className="space-y-1.5 flex flex-col items-center">
+                    <MbuffScoreHeading
+                        seasonsRated={isShowLevel ? summaryData?.summary.seasonsRated : undefined}
+                        overallRatingsCount={isShowLevel ? summaryData?.summary.overallRatingsCount : undefined}
+                        hasScore={false}
+                    />
+                    <p className="text-sm text-muted-foreground">No ratings yet</p>
+                </div>
+            )}
+
+            {isLoggedIn && (
+                <>
+                    <Separator className="opacity-40" />
+                    <div className="space-y-2 flex flex-col items-center">
+                        <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-[0.12em]">
+                            Your Rating
+                        </span>
+                        <InteractiveStarRating
+                            value={summaryData?.userRating ?? null}
+                            onChange={(r) => rateMutation.mutate(r)}
+                            starSize="h-5 w-5"
+                            className="items-center"
+                            readoutClassName="items-center"
+                        />
+                    </div>
+                </>
+            )}
+        </div>
+    );
+}
+
+export const ReviewSection = ({ mediaType, tmdbId, seasonNumber }: ReviewSectionProps) => {
     const { isLoggedIn, user } = useAuth();
     const queryClient = useQueryClient();
     const [draftComment, setDraftComment] = useState('');
@@ -426,12 +652,13 @@ export const ReviewSection = ({ mediaType, tmdbId }: ReviewSectionProps) => {
 
     /* ── Queries ─────────────────────────────────────────────────────────── */
 
-    const summaryQueryKey = ['reviews', mediaType, tmdbId, 'summary'];
-    const commentsQueryKey = ['reviews', mediaType, tmdbId, 'comments'];
+    const scopeKey = seasonNumber ?? 'show';
+    const summaryQueryKey = ['reviews', mediaType, tmdbId, 'summary', scopeKey];
+    const commentsQueryKey = ['reviews', mediaType, tmdbId, 'comments', scopeKey];
 
     const { data: summaryData } = useQuery({
         queryKey: summaryQueryKey,
-        queryFn: () => fetchReviewSummaryApi(mediaType, tmdbId),
+        queryFn: () => fetchReviewSummaryApi(mediaType, tmdbId, { seasonNumber }),
         staleTime: 60_000,
     });
 
@@ -441,6 +668,7 @@ export const ReviewSection = ({ mediaType, tmdbId }: ReviewSectionProps) => {
             fetchCommentsApi(mediaType, tmdbId, {
                 cursor: pageParam as string | undefined,
                 limit: 10,
+                seasonNumber,
             }),
         initialPageParam: undefined as string | undefined,
         getNextPageParam: (lastPage) => lastPage.pagination.nextCursor ?? undefined,
@@ -533,8 +761,8 @@ export const ReviewSection = ({ mediaType, tmdbId }: ReviewSectionProps) => {
 
     const rateMutation = useMutation({
         mutationFn: (rating: number | null) => rating === null
-            ? deleteRatingApi(mediaType, tmdbId)
-            : upsertRatingApi(mediaType, tmdbId, rating),
+            ? deleteRatingApi(mediaType, tmdbId, { seasonNumber })
+            : upsertRatingApi(mediaType, tmdbId, rating, { seasonNumber }),
         onMutate: async (nextRating) => {
             await queryClient.cancelQueries({ queryKey: summaryQueryKey });
 
@@ -592,7 +820,7 @@ export const ReviewSection = ({ mediaType, tmdbId }: ReviewSectionProps) => {
     });
 
     const createCommentMutation = useMutation({
-        mutationFn: (comment: string) => createCommentApi(mediaType, tmdbId, comment),
+        mutationFn: (comment: string) => createCommentApi(mediaType, tmdbId, comment, { seasonNumber }),
         onSuccess: async () => {
             setDraftComment('');
             setIsComposerFocused(false);
@@ -1079,9 +1307,15 @@ export const ReviewSection = ({ mediaType, tmdbId }: ReviewSectionProps) => {
                     >
                         {(summaryData?.summary.ratingsCount ?? 0) > 0 ? (
                             <div className="space-y-2.5 flex flex-col items-center md:items-start">
-                                <span className="text-[10px] font-bold text-amber-400 uppercase tracking-[0.2em]">
-                                    mbuff score
-                                </span>
+                                <MbuffScoreHeading
+                                    seasonsRated={mediaType === 'tv' && seasonNumber === undefined
+                                        ? summaryData?.summary.seasonsRated
+                                        : undefined}
+                                    overallRatingsCount={mediaType === 'tv' && seasonNumber === undefined
+                                        ? summaryData?.summary.overallRatingsCount
+                                        : undefined}
+                                    hasScore={(summaryData?.summary.ratingsCount ?? 0) > 0}
+                                />
                                 <div className="flex items-baseline gap-1.5">
                                     <span className={cn(
                                         'text-5xl font-extrabold tabular-nums tracking-tighter leading-none transition-colors',
@@ -1110,13 +1344,26 @@ export const ReviewSection = ({ mediaType, tmdbId }: ReviewSectionProps) => {
                                 <span className="text-xs text-muted-foreground">
                                     {summaryData?.summary.ratingsCount ?? 0}{' '}
                                     {(summaryData?.summary.ratingsCount ?? 0) === 1 ? 'rating' : 'ratings'}
+                                    {mediaType === 'tv' && seasonNumber === undefined
+                                        && (summaryData?.summary.seasonsRated ?? 0) > 0 && (
+                                        <> across {summaryData?.summary.seasonsRated}{' '}
+                                            {(summaryData?.summary.seasonsRated ?? 0) === 1 ? 'season' : 'seasons'}
+                                            {(summaryData?.summary.overallRatingsCount ?? 0) > 0 && ' + overall'}
+                                        </>
+                                    )}
                                 </span>
                             </div>
                         ) : (
                             <div className="space-y-1.5 flex flex-col items-center md:items-start">
-                                <span className="text-[10px] font-bold text-amber-400 uppercase tracking-[0.2em]">
-                                    mbuff score
-                                </span>
+                                <MbuffScoreHeading
+                                    seasonsRated={mediaType === 'tv' && seasonNumber === undefined
+                                        ? summaryData?.summary.seasonsRated
+                                        : undefined}
+                                    overallRatingsCount={mediaType === 'tv' && seasonNumber === undefined
+                                        ? summaryData?.summary.overallRatingsCount
+                                        : undefined}
+                                    hasScore={false}
+                                />
                                 <p className="text-sm text-muted-foreground">No ratings yet</p>
                             </div>
                         )}
