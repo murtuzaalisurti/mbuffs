@@ -5,6 +5,7 @@ import { fetchTvSeasonDetailsApi, fetchTvDetailsApi, getImageUrl } from '@/lib/a
 import { SeasonDetails, Episode, MovieDetails, Season } from '@/lib/types';
 import { Navbar } from "@/components/Navbar";
 import { ReviewSection, MbuffScoreCard } from '@/components/reviews/ReviewSection';
+import { MbuffPicks } from '@/components/MbuffPicks';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Star, ArrowLeft, ArrowRight, Clock, ImageOff, ChevronDown, ChevronUp } from 'lucide-react';
@@ -408,11 +409,21 @@ const SeasonDetail = () => {
 
                         {/* Ratings & Reviews for this season */}
                         {mediaId && seasonNumber && (
-                            <ReviewSection
-                                mediaType="tv"
-                                tmdbId={Number(mediaId)}
-                                seasonNumber={Number(seasonNumber)}
-                            />
+                            <>
+                                <ReviewSection
+                                    mediaType="tv"
+                                    tmdbId={Number(mediaId)}
+                                    seasonNumber={Number(seasonNumber)}
+                                />
+
+                                {/* mbuff picks on mobile: horizontal row below reviews */}
+                                <MbuffPicks
+                                    orientation="row"
+                                    excludeMediaType="tv"
+                                    excludeTmdbId={Number(mediaId)}
+                                    className="md:hidden"
+                                />
+                            </>
                         )}
                     </div>
 
@@ -424,6 +435,13 @@ const SeasonDetail = () => {
                                     mediaType="tv"
                                     tmdbId={Number(mediaId)}
                                     seasonNumber={Number(seasonNumber)}
+                                />
+                            )}
+                            {mediaId && (
+                                <MbuffPicks
+                                    excludeMediaType="tv"
+                                    excludeTmdbId={Number(mediaId)}
+                                    className="mt-4"
                                 />
                             )}
                         </div>

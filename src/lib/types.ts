@@ -312,6 +312,22 @@ export interface HomepageCollageItemsPublicResponse {
   minItems: number;
 }
 
+// --- mbuff picks (detail page sidebar) ---
+export interface MbuffPickItem {
+  tmdb_id: string;
+  media_type: 'movie' | 'tv';
+  title: string;
+  poster_path: string | null;
+  /** mbuff score when known (community top-rated items, or curated items also rated) */
+  score: number | null;
+  source: 'curated' | 'top_rated';
+}
+
+export interface MbuffPicksResponse {
+  items: MbuffPickItem[];
+  total: number;
+}
+
 // --- User Preferences Types ---
 export interface UserPreferences {
   recommendations_enabled: boolean;

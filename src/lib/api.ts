@@ -2,6 +2,7 @@ import dayjs from 'dayjs';
 import {
     Movie, MovieDetails, SearchResults, User, AdminUsersResponse, AdminCuratedItem, AdminCuratedItemsResponse,
     HomepageCollageItem, HomepageCollageItemsResponse, HomepageCollageItemsPublicResponse,
+    MbuffPicksResponse,
     CollectionSummary, CollectionDetails, CollectionCollaborator, UserCollectionsResponse,
     CreateCollectionInput, UpdateCollectionInput, AddMovieInput, AddCollaboratorInput,
     UpdateCollaboratorInput, AddMovieResponse, BulkOperationInput, BulkOperationResponse, VideosResponse, CreditsResponse,
@@ -128,6 +129,20 @@ export const fetchCollageItemsApi = async (): Promise<HomepageCollageItemsRespon
 
 export const fetchCollageItemsPublicApi = async (): Promise<HomepageCollageItemsPublicResponse> => {
     return fetchBackend('/content/collage');
+};
+
+// --- mbuff picks (detail page sidebar) ---
+export const fetchMbuffPicksApi = async (exclude?: {
+    mediaType: 'movie' | 'tv';
+    tmdbId: number | string;
+}): Promise<MbuffPicksResponse> => {
+    const params = new URLSearchParams();
+    if (exclude) {
+        params.set('exclude_tmdb_id', String(exclude.tmdbId));
+        params.set('exclude_media_type', exclude.mediaType);
+    }
+    const qs = params.toString();
+    return fetchBackend(`/content/mbuff-picks${qs ? `?${qs}` : ''}`);
 };
 
 export const addCollageItemApi = async (data: {

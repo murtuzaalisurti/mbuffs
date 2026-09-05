@@ -24,6 +24,7 @@ import {
 import { useWarmRecommendations } from '@/App';
 import { toast } from 'sonner';
 import { ReviewSection, MbuffScoreCard } from '@/components/reviews/ReviewSection';
+import { MbuffPicks } from '@/components/MbuffPicks';
 import { fetchReviewSummaryApi } from '@/lib/api';
 import type { ReviewSummaryResponse } from '@/lib/types';
 import { useOmdbRatings, enrichMoviesWithImdbRatings } from '@/hooks/useOmdbRatings';
@@ -1090,7 +1091,17 @@ const MovieDetail = () => {
                     )}
 
                     {mediaType && mediaId && (
-                        <ReviewSection mediaType={mediaType} tmdbId={Number(mediaId)} />
+                        <>
+                            <ReviewSection mediaType={mediaType} tmdbId={Number(mediaId)} />
+
+                            {/* mbuff picks on mobile: horizontal row below reviews */}
+                            <MbuffPicks
+                                orientation="row"
+                                excludeMediaType={mediaType as 'movie' | 'tv'}
+                                excludeTmdbId={Number(mediaId)}
+                                className="md:hidden"
+                            />
+                        </>
                     )}
 
                     {/* Seasons Section (TV Shows) */}
@@ -1590,6 +1601,13 @@ const MovieDetail = () => {
                             <MbuffScoreCard
                                 mediaType={mediaType as 'movie' | 'tv'}
                                 tmdbId={Number(mediaId)}
+                                className="mt-4"
+                            />
+
+                            {/* mbuff picks: curated + community favorites */}
+                            <MbuffPicks
+                                excludeMediaType={mediaType as 'movie' | 'tv'}
+                                excludeTmdbId={Number(mediaId)}
                                 className="mt-4"
                             />
                         </div>

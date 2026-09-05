@@ -1,5 +1,5 @@
 import express, { RequestHandler } from 'express';
-import { fetchDetailsFromMoviesAPI } from '../controllers/contentController.js';
+import { fetchDetailsFromMoviesAPI, getMbuffPicks } from '../controllers/contentController.js';
 import { getCollageItemsPublic } from '../controllers/adminController.js';
 
 const router = express.Router();
@@ -14,6 +14,12 @@ router.post(
 router.get(
     '/collage',
     getCollageItemsPublic as RequestHandler,
+);
+
+// Public route: "mbuff picks" sidebar items (curated + community top-rated, max 5).
+router.get(
+    '/mbuff-picks',
+    getMbuffPicks as RequestHandler,
 );
 
 export default router;
