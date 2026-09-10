@@ -1,5 +1,4 @@
 import { createAuthClient } from "better-auth/react";
-import type { BetterFetchError } from "@better-fetch/fetch";
 
 const BACKEND_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5001';
 
@@ -15,47 +14,11 @@ export const authClient = createAuthClient({
     },
 });
 
-export type AuthSessionUser = {
-    id: string;
-    email: string;
-    name?: string | null;
-    image?: string | null;
-    username?: string | null;
-    firstName?: string | null;
-    lastName?: string | null;
-    role?: string | null;
-    recommendationsEnabled?: boolean | null;
-    recommendationsCollectionId?: string | null;
-    showRedditLabel?: boolean | null;
-    createdAt?: string | Date;
-    [key: string]: unknown;
-};
-
-export type AuthSessionData = {
-    user: AuthSessionUser;
-    session: {
-        id: string;
-        userId: string;
-        expiresAt: string | Date;
-        token?: string;
-        [key: string]: unknown;
-    };
-};
-
-export type UseSessionResult = {
-    data: AuthSessionData | null;
-    isPending: boolean;
-    isRefetching: boolean;
-    error: BetterFetchError | null;
-    refetch: (queryParams?: { query?: Record<string, unknown> }) => Promise<void>;
-};
-
 // Export commonly used functions for convenience
 export const {
     signIn,
     signUp,
     signOut,
+    useSession,
     getSession,
 } = authClient;
-
-export const useSession = authClient.useSession as unknown as () => UseSessionResult;
