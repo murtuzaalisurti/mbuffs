@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { ChevronRight, Sparkles } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { Movie, Genre } from "@/lib/types";
 import { MovieCard } from "./MovieCard";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -103,11 +103,8 @@ export function GenreRow({
       {/* Header with title and See All link */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <h2 className="text-xl md:text-2xl font-semibold tracking-tight flex items-center gap-2">
+          <h2 className="font-display text-2xl md:text-3xl font-bold tracking-tight lowercase">
             {rowTitle}
-            {isPersonalized && (
-              <Sparkles className="h-4 w-4 text-primary" />
-            )}
           </h2>
         </div>
         {showSeeAll && (

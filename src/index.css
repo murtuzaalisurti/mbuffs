@@ -52,6 +52,7 @@
   --radius: 0.67rem;
   --font-primary: "Google Sans Flex Variable", system-ui, sans-serif;
   --font-heading: "Plus Jakarta Sans Variable", var(--font-primary);
+  --font-display: "Fraunces Variable", Georgia, serif;
 }
 
 @theme inline {
@@ -102,6 +103,7 @@
   --radius-sm: calc(var(--radius) - 4px);
   --font-sans: var(--font-primary);
   --font-heading: var(--font-heading);
+  --font-display: var(--font-display);
 
   --animate-accordion-down: accordion-down 0.2s ease-out;
   --animate-accordion-up: accordion-up 0.2s ease-out;

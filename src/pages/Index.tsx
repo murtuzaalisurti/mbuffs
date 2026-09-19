@@ -8,7 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { useWatchedStatus } from '@/hooks/useWatchedStatus';
 import { useNotInterestedStatus } from '@/hooks/useNotInterestedStatus';
-import { Sparkles, Settings, ChevronRight } from 'lucide-react';
+import { Settings, ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { UserPreferences } from '@/lib/types';
@@ -142,28 +142,22 @@ const Index = () => {
         )}
         {/* Base darkening over entire collage */}
         <div className="absolute inset-0 pointer-events-none bg-background/40" />
-        {/* Dark radial over title area for text readability */}
-        <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse 55% 65% at 8% 70%, oklch(0.141 0.005 285.823) 0%, oklch(0.141 0.005 285.823 / 0.95) 35%, oklch(0.141 0.005 285.823 / 0.5) 55%, transparent 75%)' }} />
         {/* Smooth edge vignette on all sides */}
         <div className="absolute inset-0 pointer-events-none" style={{ boxShadow: 'inset 0 0 120px 60px oklch(0.141 0.005 285.823)' }} />
-        {/* Bottom fade so sections below are not affected */}
-        <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-background to-transparent pointer-events-none" />
+        {/* Bottom fade — taller so the tagline can sit inside it and blend into the page */}
+        <div className="absolute inset-x-0 bottom-0 h-48 md:h-56 bg-gradient-to-t from-background via-background/85 to-transparent pointer-events-none" />
 
         {/* Navbar sits inside the hero so collage extends behind it */}
         <Navbar />
 
-        {/* Text content — constrained to container */}
-        <div className="relative z-10 container flex items-end min-h-[240px] md:min-h-[300px] lg:min-h-[360px] pb-8 md:pb-12">
-          <div>
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.1] mb-3">
-              Track. Collect.
-              <br />
-              Discover.
-            </h1>
-            <p className="text-lg md:text-xl text-muted-foreground max-w-md">
-              Track what you love. Find what you'll love next.
-            </p>
-          </div>
+        {/* Title sits at the bottom, nestled in the fade */}
+        <div className="relative z-10 container flex flex-col items-center justify-end min-h-[320px] md:min-h-[400px] lg:min-h-[460px] pb-6 md:pb-8">
+          <h1 className="font-display font-extrabold tracking-tight leading-none text-6xl md:text-7xl lg:text-8xl text-foreground">
+            mbuffs
+          </h1>
+          <p className="mt-1 text-base md:text-lg text-muted-foreground text-center text-balance max-w-md">
+            every story you love and share<span className="hidden md:inline">, or are yet to</span>
+          </p>
         </div>
       </div>
 
@@ -176,8 +170,7 @@ const Index = () => {
               {(isRecommendationsLoading || isLoadingWatched || isLoadingNotInterested) ? (
                 <div className="space-y-4">
                   <div className="flex items-center gap-3">
-                    <Skeleton className="h-7 w-32 rounded-lg" />
-                    <Sparkles className="h-5 w-5 text-primary" />
+                    <Skeleton className="h-8 w-32 rounded-lg" />
                   </div>
                   <div className="relative -mx-4 px-4">
                     <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide scroll-smooth">
@@ -195,8 +188,7 @@ const Index = () => {
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <h2 className="text-xl md:text-2xl font-semibold tracking-tight">For You</h2>
-                      <Sparkles className="h-5 w-5 text-primary" />
+                      <h2 className="font-display text-2xl md:text-3xl font-bold tracking-tight lowercase">For You</h2>
                       <span className="text-xs font-medium bg-primary/10 text-primary px-2 py-0.5 rounded-full">
                         Beta
                       </span>
@@ -242,9 +234,6 @@ const Index = () => {
               ) : (
                 <div className="rounded-2xl bg-linear-to-br from-primary/5 via-muted/40 to-transparent border border-primary/10 p-6 md:p-8">
                   <div className="flex flex-col md:flex-row items-start md:items-center gap-4 md:gap-6">
-                    <div className="p-3 rounded-xl bg-primary/10">
-                      <Sparkles className="h-6 w-6 text-primary" />
-                    </div>
                     <div className="flex-1">
                       <h3 className="text-lg font-semibold mb-1">Get Personalized Recommendations</h3>
                       <p className="text-sm text-muted-foreground">
