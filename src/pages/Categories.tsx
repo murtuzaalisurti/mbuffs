@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Clapperboard, Sparkles, Tv } from "lucide-react";
+import { Clapperboard, Tv } from "lucide-react";
 import { useCategoryItems, NOW_PLAYING_GENRE_ID } from "@/hooks/useCategoryItems";
 
 type MediaType = "movie" | "tv";
@@ -155,13 +155,12 @@ const Categories = () => {
               <Skeleton className="h-7 w-44 rounded-lg" />
             ) : (
               <>
-                <h2 className="text-2xl md:text-3xl font-bold tracking-tight">{genreName}</h2>
+                <h2 className="font-display text-2xl md:text-3xl font-bold tracking-tight lowercase">{genreName}</h2>
                 {totalResults > 0 && (
                   <span className="text-sm text-muted-foreground">{totalResults.toLocaleString()}</span>
                 )}
                 {showPersonalized && (
                   <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20 gap-1">
-                    <Sparkles className="h-3 w-3" />
                     Personalized
                   </Badge>
                 )}

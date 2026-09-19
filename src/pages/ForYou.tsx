@@ -6,7 +6,7 @@ import { MovieCard } from "@/components/MovieCard";
 import { fetchUserPreferencesApi } from "@/lib/api";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, Sparkles, Settings } from "lucide-react";
+import { ChevronLeft, Settings } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useWatchedStatus } from "@/hooks/useWatchedStatus";
 import { useNotInterestedStatus } from "@/hooks/useNotInterestedStatus";
@@ -161,9 +161,6 @@ const ForYou = () => {
           </section>
 
           <div className="rounded-2xl bg-gradient-to-br from-primary/5 via-muted/40 to-transparent border border-primary/10 p-8 md:p-12 text-center">
-            <div className="p-4 rounded-xl bg-primary/10 w-fit mx-auto mb-4">
-              <Sparkles className="h-8 w-8 text-primary" />
-            </div>
             <h2 className="text-2xl font-semibold mb-2">Enable Recommendations</h2>
             <p className="text-muted-foreground mb-6 max-w-md mx-auto">
               Turn on personalized recommendations in your profile settings to discover content tailored to your taste.
@@ -196,10 +193,9 @@ const ForYou = () => {
           
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-3">
-              <h1 className="text-3xl md:text-4xl font-bold tracking-tight">
+              <h1 className="font-display text-3xl md:text-4xl font-bold tracking-tight lowercase">
                 For You
               </h1>
-              <Sparkles className="h-6 w-6 text-primary" />
               <span className="text-xs font-medium bg-primary/10 text-primary px-2 py-0.5 rounded-full">
                 Beta
               </span>
@@ -259,9 +255,6 @@ const ForYou = () => {
           </>
         ) : (
           <div className="text-center py-16">
-            <div className="p-4 rounded-xl bg-primary/10 w-fit mx-auto mb-4">
-              <Sparkles className="h-8 w-8 text-primary" />
-            </div>
             <h3 className="text-lg font-semibold mb-2">No recommendations yet</h3>
             <p className="text-muted-foreground mb-6 max-w-md mx-auto">
               Select source collections in your profile settings to start getting personalized recommendations.
