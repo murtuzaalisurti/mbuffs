@@ -571,6 +571,44 @@ export const fetchNowPlayingMoviesApi = async (page = 1, region?: string): Promi
     }
 };
 
+// Discover-based now playing: the docs note /movie/now_playing is a discover
+// call under the hood (with_release_type=2|3 + release_date.gte/lte), so use
+// discover directly to control sorting. Newest releases first. A vote-count
+// floor filters out the zero-vote obscurities that date sorting otherwise surfaces.
+export const fetchNowPlayingSortedApi = async (page = 1, region?: string): Promise<SearchResults> => {
+    try {
+        const params: Record<string, string> = {
+            page: String(page),
+            sort_by: 'primary_release_date.desc',
+            // Theatrical release types: 2 = limited, 3 = wide — excludes
+            // streaming/digital-only titles
+            with_release_type: '2|3',
+            // Region-aware theatrical release dates (the docs' now_playing
+            // equivalent uses release_date.* + with_release_type + region):
+            // recently released, nothing dated in the future
+            'release_date.lte': dayjs().format('YYYY-MM-DD'),
+            'release_date.gte': dayjs().subtract(6, 'week').format('YYYY-MM-DD'),
+            // Keep zero-vote obscurities out of a "newest first" sort
+            'vote_count.gte': '10',
+        };
+        if (region) {
+            params.region = region;
+            params.watch_region = region;
+        }
+
+        return await fetchBackend(`/content`, {
+            method: 'POST',
+            body: JSON.stringify({
+                endpoint: `/discover/movie`,
+                params
+            }),
+        });
+    } catch (error) {
+        console.error("Failed to fetch now playing (sorted) movies:", error);
+        return { page: 0, results: [], total_pages: 0, total_results: 0 };
+    }
+};
+
 export const fetchOnTheAirTvShowsApi = async (page = 1, timezone?: string): Promise<SearchResults> => {
     try {
         const params: Record<string, string> = { page: String(page) };

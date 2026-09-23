@@ -2,7 +2,7 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useRef, useMemo } from 'react';
 import { MovieGrid } from "@/components/MovieGrid";
 import { MovieCard } from "@/components/MovieCard";
-import { fetchTrendingContentApi, fetchUserRegion, fetchUserPreferencesApi, fetchCollageItemsPublicApi, getImageUrl } from "@/lib/api";
+import { fetchTrendingContentApi, fetchNowPlayingSortedApi, fetchUserRegion, fetchUserPreferencesApi, fetchCollageItemsPublicApi, getImageUrl } from "@/lib/api";
 import { Navbar } from "@/components/Navbar";
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/useAuth';
@@ -22,6 +22,7 @@ import {
 } from '@/lib/recommendationQueries';
 
 const TRENDING_CONTENT_QUERY_KEY = ['content', 'trending'];
+const NOW_PLAYING_QUERY_KEY = ['content', 'now-playing'];
 const COLLAGE_QUERY_KEY = ['content', 'collage'];
 const Index = () => {
   const { user } = useAuth();
@@ -52,6 +53,17 @@ const Index = () => {
     staleTime: 1000 * 60 * 10, // Cache for 10 minutes to reduce API calls
   });
 
+  // Fetch now playing movies for the user's region (falls back to US until region resolves)
+  const {
+    data: nowPlayingData,
+    isLoading: isNowPlayingLoading,
+  } = useQuery({
+    queryKey: [NOW_PLAYING_QUERY_KEY, userRegion],
+    queryFn: () => fetchNowPlayingSortedApi(1, userRegion),
+    enabled: !!userRegion, // wait until region resolves so we fetch once with the right region
+    staleTime: 1000 * 60 * 10, // Cache for 10 minutes to reduce API calls
+  });
+
   // Fetch admin-curated collage items for the hero section
   const { data: collageData } = useQuery({
     queryKey: COLLAGE_QUERY_KEY,
@@ -69,6 +81,7 @@ const Index = () => {
   });
 
   const trendingContent = trendingContentData?.results?.slice(0, 50) || [];
+  const nowPlayingContent = nowPlayingData?.results || [];
   const collageItems = collageData?.items ?? [];
   const collageMinItems = collageData?.minItems ?? 12;
   const hasEnoughCollageItems = collageItems.length >= collageMinItems;
@@ -270,6 +283,29 @@ const Index = () => {
             <MovieGrid
               movies={trendingContent}
               title="Trending This Week"
+              collapsible
+            />
+          )}
+
+          {/* Now Playing Movies — region specific */}
+          {isNowPlayingLoading ? (
+            <div className="space-y-6">
+              <Skeleton className="h-7 w-40 rounded-lg" />
+              <div className="grid grid-cols-3 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 md:gap-5">
+                {Array.from({ length: 5 }).map((_, index) => (
+                  <div key={index} className="space-y-3">
+                    <Skeleton className="aspect-2/3 w-full rounded-xl" />
+                    <Skeleton className="h-4 w-[75%] rounded-md" />
+                    <Skeleton className="h-3 w-[45%] rounded-md" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : nowPlayingContent.length > 0 && (
+            <MovieGrid
+              movies={nowPlayingContent}
+              title="Now Playing"
+              collapsible
             />
           )}
         </div>
