@@ -24,6 +24,7 @@ import {
 } from '../services/recommendationService.js';
 import { createNotification } from '../services/notificationService.js';
 import { scheduleBackground } from '../lib/waitUntilHelper.js';
+import { checkCollectionOwnership } from '../middleware/collectionAuthMiddleware.js';
 
 interface CollectionDetailsResponse {
     collection: CollectionSummary;
@@ -616,6 +617,17 @@ export const addCollaborator = async (req: Request, res: Response, next: NextFun
         }
         const { email, permission } = validation.data;
 
+        // Defense in depth: only the collection owner may add collaborators.
+        const ownership = await checkCollectionOwnership(inviterId, collectionId);
+        if (!ownership.exists) {
+            res.status(404).json({ message: 'Collection not found' });
+            return;
+        }
+        if (!ownership.isOwner) {
+            res.status(403).json({ message: 'Forbidden: Only the collection owner can manage collaborators' });
+            return;
+        }
+
         const userToInvite = await sql`SELECT id FROM "user" WHERE email = ${email}`;
         if (userToInvite.length === 0) {
             res.status(404).json({ message: `User with email ${email} not found` });
@@ -673,6 +685,17 @@ export const updateCollaboratorPermission = async (req: Request, res: Response, 
         }
         const { permission } = validation.data;
 
+        // Defense in depth: only the collection owner may change collaborator roles.
+        const ownership = await checkCollectionOwnership(requesterId, collectionId);
+        if (!ownership.exists) {
+            res.status(404).json({ message: 'Collection not found' });
+            return;
+        }
+        if (!ownership.isOwner) {
+            res.status(403).json({ message: 'Forbidden: Only the collection owner can manage collaborators' });
+            return;
+        }
+
         const result = await sql`
             UPDATE collection_collaborators
             SET permission = ${permission}
@@ -699,6 +722,19 @@ export const removeCollaborator = async (req: Request, res: Response, next: Next
         return;
     }
     try {
+        // Defense in depth: the owner may remove anyone; a collaborator may remove
+        // themselves (leave). Everyone else is forbidden.
+        const isSelfLeave = requesterId === collaboratorUserId;
+        const ownership = await checkCollectionOwnership(requesterId, collectionId);
+        if (!ownership.exists) {
+            res.status(404).json({ message: 'Collection not found' });
+            return;
+        }
+        if (!ownership.isOwner && !isSelfLeave) {
+            res.status(403).json({ message: 'Forbidden: Only the collection owner can manage collaborators' });
+            return;
+        }
+
         const deleteResult = await sql`
             DELETE FROM collection_collaborators
             WHERE collection_id = ${collectionId} AND user_id = ${collaboratorUserId}

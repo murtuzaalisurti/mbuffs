@@ -21,7 +21,11 @@ import {
     toggleNotInterestedStatus
 } from '../controllers/collectionController.js';
 import { requireAuth } from '../middleware/authMiddleware.js';
-import { requireCollectionPermission } from '../middleware/collectionAuthMiddleware.js';
+import {
+    requireCollectionPermission,
+    requireCollectionOwner,
+    requireCollectionOwnerOrSelf,
+} from '../middleware/collectionAuthMiddleware.js';
 // Removed asyncHandler import
 
 const router = express.Router();
@@ -72,18 +76,21 @@ router.post(
 router.post(
     '/:collectionId/collaborators',
     requireAuth as RequestHandler,
+    requireCollectionOwner() as RequestHandler,
     addCollaborator as RequestHandler
 );
 
 router.put(
     '/:collectionId/collaborators/:userId',
     requireAuth as RequestHandler,
+    requireCollectionOwner() as RequestHandler,
     updateCollaboratorPermission as RequestHandler
 );
 
 router.delete(
     '/:collectionId/collaborators/:userId',
     requireAuth as RequestHandler,
+    requireCollectionOwnerOrSelf() as RequestHandler,
     removeCollaborator as RequestHandler
 );
 
