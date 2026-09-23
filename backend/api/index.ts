@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
 import { z } from 'zod';
 import { deserializeUser } from '../middleware/authMiddleware.js';
+import { requireTrustedOrigin } from '../middleware/originProtectionMiddleware.js';
 import oauthRoutes from '../routes/oauthRoutes.js';
 import collectionRoutes from '../routes/collectionRoutes.js';
 import contentRoutes from '../routes/contentRoutes.js';
@@ -37,6 +38,29 @@ if (process.env.NODE_ENV !== 'production') {
     console.debug('[api] CORS configured', { origin: corsOptions.origin });
 }
 
+// --- CSRF origin enforcement ---
+// Session cookies are issued with SameSite=None (cross-site), so every
+// state-changing request must come from the trusted frontend origin. This is
+// deny-by-default: any new mutating route is protected automatically, and it
+// runs before body parsing so rejected requests aren't parsed.
+const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+
+// Public, cookie-less read endpoints that use a mutating HTTP method. These are
+// also called server-to-server (e.g. the Vercel OG image functions) without an
+// Origin header, so they must be exempt from origin enforcement.
+const CSRF_EXEMPT_PATHS = new Set(['/api/content']);
+
+const csrfOriginGuard = (req: Request, res: Response, next: NextFunction): void => {
+    const path = req.path.length > 1 ? req.path.replace(/\/+$/, '') : req.path;
+
+    if (!MUTATING_METHODS.has(req.method) || CSRF_EXEMPT_PATHS.has(path)) {
+        next();
+        return;
+    }
+
+    requireTrustedOrigin(req, res, next);
+};
+
 export const createApp = (): Express => {
     const app: Express = express();
 
@@ -48,6 +72,11 @@ export const createApp = (): Express => {
     // IMPORTANT: Better Auth routes must be mounted BEFORE express.json()
     // Better Auth handles its own body parsing
     app.use('/api/auth', oauthRoutes);
+
+    // Enforce a trusted Origin on all state-changing requests (CSRF protection).
+    // Mounted after the auth routes (Better Auth has its own CSRF handling) and
+    // before express.json so rejected requests skip body parsing.
+    app.use(csrfOriginGuard);
 
     // Apply JSON middleware for other routes (2mb limit for avatar uploads)
     app.use(express.json({ limit: '2mb' }));
