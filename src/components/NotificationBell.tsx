@@ -36,7 +36,7 @@ export const NotificationBell = () => {
         <Button
           variant="ghost"
           size="icon"
-          className="relative h-9 w-9 rounded-full bg-foreground/6 backdrop-blur-md hover:bg-foreground/12"
+          className="relative h-9 w-9 rounded-full bg-background/45 backdrop-blur-md ring-1 ring-foreground/10 hover:bg-background/70"
           aria-label="Notifications"
         >
           <Bell className="h-4 w-4 text-muted-foreground" />

@@ -619,7 +619,6 @@ const MovieDetail = () => {
                 className="relative w-full h-[50vh] md:h-[60vh] overflow-hidden"
                 style={{ marginTop: 'calc(-4rem - env(safe-area-inset-top))' }}
             >
-                <div className="absolute inset-0 bg-linear-to-t from-background via-background/60 to-transparent" />
             </div>
 
             <main className="container relative z-10 -mt-40 md:-mt-48 pb-12">
@@ -715,7 +714,7 @@ const MovieDetail = () => {
 
             {/* Backdrop Hero — extends behind navbar and status bar */}
             <div 
-                className="relative w-full h-[50vh] md:h-[60vh] overflow-hidden"
+                className="relative w-full h-[50vh] md:h-[60vh] overflow-hidden fade-out-bottom"
                 style={{ marginTop: 'calc(-4rem - env(safe-area-inset-top))' }}
             >
                 {backdropPath ? (
@@ -731,7 +730,7 @@ const MovieDetail = () => {
                     <div className="absolute inset-0" />
                 )}
                 {/* Multi-layer gradient overlay for smooth blending */}
-                <div className="absolute inset-0 bg-linear-to-t from-background via-background/55 to-background/10" />
+                <div className="absolute inset-0 bg-linear-to-t from-background/60 via-background/30 to-background/10" />
                 <div className="absolute inset-0 bg-linear-to-r from-background/60 via-transparent to-transparent" />
             </div>
 
@@ -1519,7 +1518,8 @@ const MovieDetail = () => {
                                             className="flex-1 flex items-center justify-center h-11 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-[background-color,scale] duration-(--dur-fast) cursor-pointer active:scale-95"
                                             title="Save"
                                         >
-                                            <Bookmark className={`h-5 w-5 ${isInAnyCollection ? 'fill-current' : ''}`} />
+                                            <Bookmark className={`h-4.5 w-4.5 ${isInAnyCollection ? 'fill-current' : ''}`} />
+                                            <span className="ml-2 text-sm font-medium">{isInAnyCollection ? 'Saved' : 'Save'}</span>
                                         </button>
                                     </PopoverTrigger>
                                 <PopoverContent className="w-72 p-0 border-border bg-popover shadow-xl shadow-black/40" align="end">

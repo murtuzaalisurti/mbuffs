@@ -63,12 +63,14 @@ export const BottomNav = () => {
 
   return (
     <nav
-      className="fixed inset-x-4 z-40 md:hidden"
+      // The glass lives on the nav itself: a view-transition-name makes this
+      // element a backdrop root, so a blurred child would have nothing to blur.
+      className="glass fixed inset-x-4 z-40 mx-auto max-w-md rounded-full ring-1 ring-border shadow-[0_12px_40px_-12px_rgb(0_0_0/0.7)] md:hidden"
       // Its own transition group keeps the bar still while pages cross-fade beneath it
       style={{ bottom: 'calc(0.75rem + env(safe-area-inset-bottom))', viewTransitionName: 'bottom-nav' }}
       aria-label="Primary"
     >
-      <ul className="glass relative mx-auto flex h-14 max-w-md items-stretch rounded-full p-1 ring-1 ring-border shadow-[0_12px_40px_-12px_rgb(0_0_0/0.7)]">
+      <ul className="relative flex h-14 items-stretch p-1">
         {/* Sliding indicator: tabs are equal width, so it moves in whole-tab steps */}
         <li
           aria-hidden

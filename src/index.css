@@ -204,6 +204,11 @@
   text-transform: uppercase;
 }
 
+@utility fade-out-bottom {
+  /* Artwork dissolves into whatever is behind it (the ambient glow), not into a flat colour */
+  mask-image: linear-gradient(to bottom, #000 45%, transparent 100%);
+}
+
 @utility display-title {
   /* Large Fraunces set like opening credits */
   font-family: var(--font-display);
@@ -410,6 +415,26 @@
 
   to {
     opacity: 1;
+    scale: 1;
+  }
+}
+
+@keyframes hero-progress {
+  from {
+    transform: scaleX(0);
+  }
+
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes hero-drift {
+  from {
+    scale: 1.08;
+  }
+
+  to {
     scale: 1;
   }
 }

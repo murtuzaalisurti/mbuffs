@@ -16,8 +16,8 @@ export const AmbientGlow = () => {
         ...(color ? { '--ambient': color } : {}),
         opacity: lit ? 1 : 0,
         background:
-          'radial-gradient(120% 65% at 50% -5%, color-mix(in oklch, var(--ambient) 40%, transparent), transparent 72%), ' +
-          'radial-gradient(60% 45% at 100% 30%, color-mix(in oklch, var(--ambient) 14%, transparent), transparent 70%)',
+          'radial-gradient(130% 80% at 50% 30%, color-mix(in oklch, var(--ambient) 32%, transparent), transparent 75%), ' +
+          'radial-gradient(70% 50% at 100% 75%, color-mix(in oklch, var(--ambient) 12%, transparent), transparent 70%)',
       } as React.CSSProperties}
     />
   );

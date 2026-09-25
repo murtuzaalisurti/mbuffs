@@ -154,7 +154,7 @@ export const Navbar = () => {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-9 w-9 rounded-full bg-foreground/6 backdrop-blur-md hover:bg-foreground/12"
+                    className="h-9 w-9 rounded-full bg-background/45 backdrop-blur-md ring-1 ring-foreground/10 hover:bg-background/70"
                     aria-label="Share options"
                   >
                     <Forward className="h-4 w-4 text-muted-foreground" />
@@ -185,7 +185,7 @@ export const Navbar = () => {
             <Button
               variant="ghost"
               size="icon"
-              className="hidden md:inline-flex h-9 w-9 rounded-full bg-foreground/6 backdrop-blur-md hover:bg-foreground/12"
+              className="hidden md:inline-flex h-9 w-9 rounded-full bg-background/45 backdrop-blur-md ring-1 ring-foreground/10 hover:bg-background/70"
               onClick={openSearch}
               aria-label="Open search"
             >
