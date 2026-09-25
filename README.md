@@ -63,7 +63,7 @@ cd ..
 
 - Root `.env` (frontend):
   - `VITE_BACKEND_URL` (example: `http://localhost:5001`)
-  - `VITE_TMDB_API_KEY`
+  - `VITE_TURNSTILE_SITE_KEY`
 - `backend/.env`:
   - `DATABASE_URL`
   - `FRONTEND_URL` (example: `http://localhost:8080`)
