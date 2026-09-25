@@ -201,14 +201,14 @@ const Index = () => {
           {isTrendingContentLoading ? (
             <RailSkeleton />
           ) : trendingContent.length > 0 && (
-            <MediaRail title="Trending This Week" movies={trendingContent} />
+            <MediaRail title="Trending This Week" movies={trendingContent} collapsible />
           )}
 
           {/* Now Playing — region specific */}
           {isNowPlayingLoading ? (
             <RailSkeleton />
           ) : nowPlayingContent.length > 0 && (
-            <MediaRail title="Now Playing" movies={nowPlayingContent} />
+            <MediaRail title="Now Playing" movies={nowPlayingContent} collapsible />
           )}
         </div>
       </main>
