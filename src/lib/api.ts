@@ -49,12 +49,17 @@ export const fetchBackend = async (endpoint: string, options: RequestInit = {}) 
     const url = `${BACKEND_BASE_URL}/api${endpoint}`;
 
     const headers = new Headers(options.headers || {});
-    headers.set('Content-Type', 'application/json');
+    // Only declare a JSON body when there is one: a Content-Type header makes a
+    // cross-origin request "non-simple" and forces a CORS preflight, so bodiless
+    // GETs would otherwise pay an extra round trip.
+    if (options.body !== undefined && options.body !== null) {
+        headers.set('Content-Type', 'application/json');
+    }
 
     const requestOptions: RequestInit = {
         credentials: 'include', // Required for Better Auth cookies
-        headers: headers,
         ...options,
+        headers,
     };
 
     try {

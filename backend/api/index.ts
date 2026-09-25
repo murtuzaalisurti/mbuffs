@@ -31,6 +31,9 @@ const corsOptions = {
     origin: process.env.FRONTEND_URL || 'http://localhost:8080',
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     allowedHeaders: ['Content-Type', 'Authorization', 'x-captcha-response'],
+    // Let browsers cache preflight results (Chrome caps this at 2 hours) so
+    // cross-origin JSON requests don't pay an OPTIONS round trip every time.
+    maxAge: 7200,
     credentials: true, // Required for Better Auth cookies
 };
 
