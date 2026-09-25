@@ -40,16 +40,19 @@ router.get(
     getCollectionById as RequestHandler         
 );
 
+// Collection settings (name, description, visibility) are owner-only, matching
+// the UI, which only offers Edit/Delete to the owner.
 router.put(
     '/:collectionId',
     requireAuth as RequestHandler,
-    requireCollectionPermission('edit') as RequestHandler,
+    requireCollectionOwner('Forbidden: Only the collection owner can edit this collection') as RequestHandler,
     updateCollection as RequestHandler
 );
 
 router.delete(
     '/:collectionId',
     requireAuth as RequestHandler,
+    requireCollectionOwner('Forbidden: Only the owner can delete this collection') as RequestHandler,
     deleteCollection as RequestHandler
 );
 

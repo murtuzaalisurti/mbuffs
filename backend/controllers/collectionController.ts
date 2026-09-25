@@ -210,6 +210,8 @@ export const updateCollection = async (req: Request, res: Response, next: NextFu
                 description = CASE WHEN ${hasDescription} THEN ${description} ELSE description END,
                 is_public = CASE WHEN ${hasIsPublic} THEN ${is_public} ELSE is_public END
             WHERE id = ${collectionId}
+              AND owner_id = ${userId}
+              AND is_system = false
             RETURNING *
         `;
 
@@ -242,7 +244,7 @@ export const deleteCollection = async (req: Request, res: Response, next: NextFu
 
         const deleteResult = await sql`
             DELETE FROM collections
-            WHERE id = ${collectionId} AND owner_id = ${userId}
+            WHERE id = ${collectionId} AND owner_id = ${userId} AND is_system = false
             RETURNING id
         `;
 
@@ -468,7 +470,7 @@ export const bulkItemAction = async (req: Request, res: Response, next: NextFunc
 
         // --- Check source collection permissions ---
         const sourceCheck = await sql`
-            SELECT c.owner_id, c.is_public, c.name,
+            SELECT c.owner_id, c.is_public, c.name, c.is_system,
                 CASE
                     WHEN c.owner_id = ${userId} THEN 'owner'
                     WHEN cc.permission = 'edit' THEN 'edit'
@@ -487,6 +489,12 @@ export const bulkItemAction = async (req: Request, res: Response, next: NextFunc
 
         const sourceRole = sourceCheck[0].role as 'owner' | 'edit' | 'view' | null;
         const sourceIsPublic = Boolean(sourceCheck[0].is_public);
+
+        // System collections are managed only via their toggle endpoints.
+        if (sourceCheck[0].is_system) {
+            res.status(403).json({ message: 'Forbidden: System collections cannot be modified directly' });
+            return;
+        }
 
         if (action === 'move' || action === 'remove') {
             if (!sourceRole || sourceRole === 'view') {
@@ -517,6 +525,11 @@ export const bulkItemAction = async (req: Request, res: Response, next: NextFunc
 
             if (targetCheck.length === 0) {
                 res.status(404).json({ message: 'Target collection not found' });
+                return;
+            }
+
+            if (targetCheck[0].is_system) {
+                res.status(403).json({ message: 'Forbidden: System collections cannot be modified directly' });
                 return;
             }
 
