@@ -6,6 +6,8 @@ import '@fontsource-variable/plus-jakarta-sans';
 import '@fontsource-variable/fraunces';
 import './index.css';
 import { installImageFadeIn } from './lib/imageFade';
+import { installRevealOnScroll } from './lib/revealOnScroll';
+import { installScrollHoverGuard } from './lib/scrollHoverGuard';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { toast } from 'sonner';
 // Optional: If you want to use React Query DevTools
@@ -22,6 +24,8 @@ const queryClient = new QueryClient({
 });
 
 installImageFadeIn();
+installRevealOnScroll();
+installScrollHoverGuard();
 
 createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
