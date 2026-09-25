@@ -1,11 +1,10 @@
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { MovieCard } from "@/components/MovieCard";
 import { MediaRail } from "@/components/MediaRail";
 import { Rail, RailSkeleton } from "@/components/Rail";
-import { FeaturedHero } from "@/components/FeaturedHero";
-import { fetchTrendingContentApi, fetchNowPlayingSortedApi, fetchUserPreferencesApi } from "@/lib/api";
-import { Navbar } from "@/components/Navbar";
+import { CollageHero } from "@/components/CollageHero";
+import { fetchTrendingContentApi, fetchNowPlayingSortedApi, fetchUserPreferencesApi, fetchCollageItemsPublicApi } from "@/lib/api";
 import { useAuth } from '@/hooks/useAuth';
 import { useWatchedStatus } from '@/hooks/useWatchedStatus';
 import { useNotInterestedStatus } from '@/hooks/useNotInterestedStatus';
@@ -25,7 +24,15 @@ import {
 
 const TRENDING_CONTENT_QUERY_KEY = ['content', 'trending'];
 const NOW_PLAYING_QUERY_KEY = ['content', 'now-playing'];
-const FEATURED_COUNT = 5;
+const COLLAGE_QUERY_KEY = ['content', 'collage'];
+
+/** Small deterministic PRNG (mulberry32), so a shuffle can be repeated from its seed. */
+const seededRandom = (seed: number) => () => {
+  seed = (seed + 0x6d2b79f5) | 0;
+  let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+};
 const Index = () => {
   const { user } = useAuth();
 
@@ -62,6 +69,13 @@ const Index = () => {
     staleTime: 1000 * 60 * 10, // Cache for 10 minutes to reduce API calls
   });
 
+  // Fetch admin-curated collage items for the hero section
+  const { data: collageData } = useQuery({
+    queryKey: COLLAGE_QUERY_KEY,
+    queryFn: fetchCollageItemsPublicApi,
+    staleTime: 1000 * 60 * 30,
+  });
+
   // Fetch personalized recommendations for logged in users with recommendations enabled
   const {
     data: recommendationsData,
@@ -73,10 +87,24 @@ const Index = () => {
 
   const trendingContent = useMemo(() => trendingContentData?.results?.slice(0, 50) || [], [trendingContentData]);
   const nowPlayingContent = nowPlayingData?.results || [];
-  const featuredItems = useMemo(
-    () => trendingContent.filter((item) => item.backdrop_path && item.poster_path).slice(0, FEATURED_COUNT),
-    [trendingContent]
-  );
+  const collageItems = useMemo(() => collageData?.items ?? [], [collageData]);
+  const collageMinItems = collageData?.minItems ?? 12;
+  // One random seed per visit keeps the shuffle stable across re-renders
+  const [shuffleSeed] = useState(() => Math.floor(Math.random() * 2 ** 32));
+  const heroPosters = useMemo(() => {
+    const random = seededRandom(shuffleSeed);
+    const collagePosters = collageItems.map((item) => ({ id: item.tmdb_id, poster_path: item.poster_path }));
+    for (let i = collagePosters.length - 1; i > 0; i--) {
+      const j = Math.floor(random() * (i + 1));
+      [collagePosters[i], collagePosters[j]] = [collagePosters[j], collagePosters[i]];
+    }
+    if (collagePosters.length >= collageMinItems) return collagePosters;
+    const existingIds = new Set(collagePosters.map((p) => p.id));
+    const trendingFill = trendingContent
+      .filter((m) => !existingIds.has(String(m.id)))
+      .map((m) => ({ id: String(m.id), poster_path: m.poster_path }));
+    return [...collagePosters, ...trendingFill];
+  }, [collageItems, collageMinItems, trendingContent, shuffleSeed]);
   const firstRecommendationsPage = recommendationsData?.pages?.[0];
   const recommendationCandidates = useMemo(
     () => dedupeForYouRecommendations(firstRecommendationsPage?.results ?? []),
@@ -109,18 +137,8 @@ const Index = () => {
 
   return (
     <>
-      <Navbar />
-
-      {featuredItems.length > 0 ? (
-        <FeaturedHero items={featuredItems} />
-      ) : (
-        // Holds the hero's space while trending loads, so the page doesn't jump
-        <div
-          aria-hidden
-          className="h-[72svh] min-h-[460px] max-h-[780px] bg-linear-to-t from-background to-muted/40"
-          style={{ marginTop: 'calc(-4rem - env(safe-area-inset-top))' }}
-        />
-      )}
+      {/* Hero Section — full viewport width, extends behind navbar */}
+      <CollageHero posters={heroPosters} />
 
       <main className="container py-6 md:py-10">
         <div className="space-y-12 md:space-y-16">
