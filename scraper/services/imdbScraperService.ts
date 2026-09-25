@@ -1,6 +1,6 @@
 import * as cheerio from 'cheerio';
 import type { Element } from 'domhandler';
-import { fetchParentalGuideHtmlWithBrowser, isWafChallengeHtml } from './browserScraper.js';
+import { fetchParentalGuideHtmlWithBrowser, hasParentsGuideContent, isWafChallengeHtml } from './browserScraper.js';
 
 // Types
 export interface ScrapedParentalGuidance {
@@ -253,8 +253,12 @@ async function scrapeParentalGuidanceFromImdbUncached(imdbId: string): Promise<S
         return null;
     }
 
-    if (isWafChallengeHtml(html)) {
-        console.warn(`Could not scrape parental guidance for ${imdbId}: IMDB returned anti-bot challenge page even in headless browser`);
+    // A page without parents-guide content means we never got past the WAF
+    // challenge. Do not gate on WAF marker strings: the fully rendered page
+    // still references the WAF integration scripts.
+    if (!hasParentsGuideContent(html)) {
+        const reason = isWafChallengeHtml(html) ? 'anti-bot challenge page' : 'no parents-guide content';
+        console.warn(`Could not scrape parental guidance for ${imdbId}: IMDB returned ${reason} even in headless browser`);
         return null;
     }
 

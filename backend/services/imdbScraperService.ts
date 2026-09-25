@@ -1,5 +1,6 @@
 import { sql } from '../lib/db.js';
 import { generateId } from '../lib/utils.js';
+import { scheduleBackground } from '../lib/waitUntilHelper.js';
 
 // Types
 export interface ParentalGuidanceData {
@@ -35,6 +36,17 @@ interface ScraperResponse {
     data?: ScrapedParentalGuidance | null;
     error?: string;
 }
+
+// The scraper service renders IMDB in headless Chromium and solves its AWS WAF
+// challenge, which can legitimately take close to its 60s function budget
+// (see scraper/vercel.json and scraper/services/browserScraper.ts). This call
+// runs off the request path, so wait slightly longer than the scraper's own
+// ceiling and let it either return data or time out on its side.
+const SCRAPER_REQUEST_TIMEOUT_MS = Number(process.env.SCRAPER_REQUEST_TIMEOUT_MS) || 65_000;
+
+// Deduplicate concurrent background refreshes for the same title so a burst of
+// requests only triggers a single scrape.
+const parentalGuidanceRefreshInFlight = new Map<string, Promise<ParentalGuidanceData | null>>();
 
 /**
  * Fetch release date from TMDB API for a given movie/tv show
@@ -137,7 +149,7 @@ async function scrapeParentalGuidanceViaScraper(imdbId: string): Promise<Scraped
         }
 
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 20000);
+        const timeout = setTimeout(() => controller.abort(), SCRAPER_REQUEST_TIMEOUT_MS);
 
         try {
             const response = await fetch(url, { headers, signal: controller.signal });
@@ -483,4 +495,43 @@ export async function scrapeAndSaveParentalGuidance(
     }
     
     return fullData;
+}
+
+/**
+ * Return cached parental guidance immediately and schedule a refresh in the
+ * background when the cache is missing or needs updating.
+ *
+ * The live scrape runs a headless browser that can take up to ~60s to solve
+ * IMDB's WAF challenge. Keeping it off the response path means page loads never
+ * wait on (or abort) a scrape; the result lands in the DB for the next request.
+ */
+export async function getParentalGuidanceWithBackgroundRefresh(
+    tmdbId: string,
+    mediaType: 'movie' | 'tv'
+): Promise<ParentalGuidanceData | null> {
+    const existing = await getParentalGuidanceFromDb(tmdbId, mediaType);
+
+    scheduleParentalGuidanceRefresh(tmdbId, mediaType);
+
+    return existing;
+}
+
+function scheduleParentalGuidanceRefresh(tmdbId: string, mediaType: 'movie' | 'tv'): void {
+    const key = `${mediaType}:${tmdbId}`;
+
+    if (parentalGuidanceRefreshInFlight.has(key)) {
+        return;
+    }
+
+    const refresh = scrapeAndSaveParentalGuidance(tmdbId, mediaType)
+        .catch((error) => {
+            console.error(`[background] failed to refresh parental guidance for ${mediaType} ${tmdbId}:`, error);
+            return null;
+        })
+        .finally(() => {
+            parentalGuidanceRefreshInFlight.delete(key);
+        });
+
+    parentalGuidanceRefreshInFlight.set(key, refresh);
+    scheduleBackground(refresh);
 }

@@ -33,6 +33,12 @@ const TMDB_LOGO_BASE = 'https://image.tmdb.org/t/p/w92';
 const PROVIDER_PREVIEW_COUNT = 3;
 const RECOMMENDATION_COLLECTIONS_QUERY_KEY = ['recommendations', 'collections'];
 
+// The backend returns parental guidance from cache immediately and scrapes
+// uncached titles in the background. Poll a few times so freshly-scraped data
+// appears without a manual refresh, then give up.
+const RATINGS_BACKGROUND_REFETCH_ATTEMPTS = 4;
+const RATINGS_BACKGROUND_REFETCH_INTERVAL_MS = 15_000;
+
 function ProviderStack({ title, logos }: { title: string, logos: { id: number | string; src: string; alt: string; isStudio?: boolean }[] }) {
     if (logos.length === 0) return null;
     const preview = logos.slice(0, PROVIDER_PREVIEW_COUNT);
@@ -289,12 +295,33 @@ const MovieDetail = () => {
     });
 
     // Fetch combined ratings (certification + parental guidance)
-    const { data: ratingsData, isLoading: isLoadingRatings } = useQuery<CombinedRatingsResponse | null>({
+    const { data: ratingsData, isLoading: isLoadingRatings, refetch: refetchRatings } = useQuery<CombinedRatingsResponse | null>({
         queryKey: [mediaType, 'ratings', mediaId, userRegion],
         queryFn: () => fetchCombinedRatingsApi(mediaType as 'movie' | 'tv', Number(mediaId), userRegion || 'US'),
         enabled: !!mediaId && !!mediaType && isLoggedIn,
         // staleTime: 1000 * 60 * 60 * 24, // Cache for 24 hours
     });
+
+    // Reset the background-refetch budget whenever the title changes.
+    const ratingsRefetchCountRef = useRef(0);
+    useEffect(() => {
+        ratingsRefetchCountRef.current = 0;
+    }, [mediaId, mediaType]);
+
+    // The backend serves cached parental guidance and scrapes the rest in the
+    // background, so poll a few times until it lands (or we exhaust attempts).
+    useEffect(() => {
+        if (!isLoggedIn || isLoadingRatings) return;
+        if (ratingsData?.parentalGuidance) return;
+        if (ratingsRefetchCountRef.current >= RATINGS_BACKGROUND_REFETCH_ATTEMPTS) return;
+
+        const timer = setTimeout(() => {
+            ratingsRefetchCountRef.current += 1;
+            refetchRatings();
+        }, RATINGS_BACKGROUND_REFETCH_INTERVAL_MS);
+
+        return () => clearTimeout(timer);
+    }, [isLoggedIn, isLoadingRatings, ratingsData, refetchRatings]);
 
     // Fetch OMDB ratings (IMDB + Rotten Tomatoes)
     const { data: omdbData } = useQuery<OmdbRatingsResponse | null>({

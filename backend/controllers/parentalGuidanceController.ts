@@ -1,7 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { 
-    getParentalGuidanceFromDb, 
-    scrapeAndSaveParentalGuidance,
+    getParentalGuidanceWithBackgroundRefresh,
     getLastScrapeMetadata,
     isScrapeNeeded
 } from '../services/imdbScraperService.js';
@@ -27,32 +26,22 @@ export const getParentalGuidance = async (req: Request, res: Response, next: Nex
     }
 
     try {
-        // First, check database for existing data
-        let data = await getParentalGuidanceFromDb(tmdbId, mediaType as 'movie' | 'tv');
-
-        // If we have data, return it
-        if (data) {
-            res.json({
-                source: 'cache',
-                data
-            });
-            return;
-        }
-
-        // If no data, scrape from IMDB
-        data = await scrapeAndSaveParentalGuidance(tmdbId, mediaType as 'movie' | 'tv');
+        // Serve whatever is cached immediately; a missing/stale cache triggers
+        // a background refresh instead of blocking (and aborting) on a scrape.
+        const data = await getParentalGuidanceWithBackgroundRefresh(tmdbId, mediaType as 'movie' | 'tv');
 
         if (!data) {
-            console.warn(`Could not scrape parental guidance for ${mediaType} ${tmdbId}`);
-            res.status(404).json({ 
-                error: 'Parental guidance data not available for this title',
-                message: 'Could not find IMDB data for this title'
+            console.warn(`No cached parental guidance for ${mediaType} ${tmdbId}; background scrape scheduled`);
+            res.status(202).json({
+                source: 'pending',
+                data: null,
+                message: 'Parental guidance is being fetched; try again shortly'
             });
             return;
         }
 
         res.json({
-            source: 'scraped',
+            source: 'cache',
             data
         });
     } catch (error) {
@@ -327,35 +316,22 @@ async function fetchParentalGuidanceInternal(
     frightening: string | null;
 } | null> {
     try {
-        // First check database
-        let data = await getParentalGuidanceFromDb(tmdbId, mediaType);
-        
-        if (data) {
-            return {
-                nudity: data.nudity,
-                violence: data.violence,
-                profanity: data.profanity,
-                alcohol: data.alcohol,
-                frightening: data.frightening
-            };
+        // Serve cached data immediately; a missing/stale cache is refreshed in
+        // the background rather than blocking the request on a slow scrape.
+        const data = await getParentalGuidanceWithBackgroundRefresh(tmdbId, mediaType);
+
+        if (!data) {
+            console.warn(`No cached parental guidance for ${mediaType} ${tmdbId}; background scrape scheduled`);
+            return null;
         }
 
-        // If not in database, scrape
-        data = await scrapeAndSaveParentalGuidance(tmdbId, mediaType);
-        
-        if (data) {
-            return {
-                nudity: data.nudity,
-                violence: data.violence,
-                profanity: data.profanity,
-                alcohol: data.alcohol,
-                frightening: data.frightening
-            };
-        }
-
-        console.warn(`Could not scrape parental guidance for ${mediaType} ${tmdbId} in combined ratings flow`);
-
-        return null;
+        return {
+            nudity: data.nudity,
+            violence: data.violence,
+            profanity: data.profanity,
+            alcohol: data.alcohol,
+            frightening: data.frightening
+        };
     } catch (error) {
         console.error('Error fetching parental guidance:', error);
         return null;
