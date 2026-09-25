@@ -3,10 +3,9 @@ import { Toaster } from "@/components/ui/toaster"; // Keep this Toaster
 import { Toaster as Sonner } from "@/components/ui/sonner"; // Keep Sonner
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { BottomNav } from "@/components/BottomNav";
-import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigationType } from "react-router-dom";
+import { createBrowserRouter, createRoutesFromElements, RouterProvider, Outlet, Route, Navigate, useLocation, useNavigationType } from "react-router-dom";
 import { useAuth } from './hooks/useAuth';
 import { useRecommendationPrefetch } from './hooks/useRecommendationPrefetch';
-import { Loader2 } from 'lucide-react';
 import { useToast } from "@/components/ui/use-toast"; // Import the correct useToast
 
 const Index = lazy(() => import("./pages/Index"));
@@ -40,9 +39,13 @@ const ScrollToTop = () => {
   return null;
 };
 
+// A thin tungsten bar at the top edge: quieter than a spinner, and it keeps
+// the page underneath calm while a route or the session loads.
 const RouteLoadingFallback = () => (
-  <div className="flex justify-center items-center min-h-screen">
-    <Loader2 className="h-16 w-16 animate-spin text-primary" />
+  <div className="min-h-screen" role="progressbar" aria-label="Loading" aria-busy="true">
+    <div className="fixed inset-x-0 top-0 z-60 h-0.5 overflow-hidden">
+      <div className="h-full w-1/3 bg-primary animate-[loading-bar_1.1s_var(--ease-emph)_infinite]" />
+    </div>
   </div>
 );
 
@@ -69,86 +72,6 @@ const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   );
 };
 
-const App = () => (
-  <TooltipProvider>
-    <Toaster />
-    <Sonner />
-    <BrowserRouter>
-      <ScrollToTop />
-      <AuthProvider>
-        <Suspense fallback={<RouteLoadingFallback />}>
-          <Routes>
-            {/* Public Routes */}
-            <Route path="/" element={<Index />} />
-            <Route path="/search" element={<Search />} />
-            <Route path="/categories" element={<Categories />} />
-            <Route path="/categories/:mediaType/:genreId" element={<CategoryDetail />} />
-            <Route path="/media/:mediaType/:mediaId" element={<MovieDetail />} />
-            <Route path="/tv/:mediaId/season/:seasonNumber" element={<SeasonDetail />} />
-            <Route path="/person/:personId" element={<PersonDetail />} />
-            <Route path="/collection/:collectionId" element={<CollectionDetail />} />
-            <Route path="/login" element={<Auth />} />
-
-            {/* Protected Routes */}
-            <Route
-              path="/for-you"
-              element={
-                <ProtectedRoute>
-                  <ForYou />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/profile"
-              element={
-                <ProtectedRoute>
-                  <Profile />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/collections"
-              element={
-                <ProtectedRoute>
-                  <Collections />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/admin"
-              element={
-                <AdminRoute>
-                  <Admin />
-                </AdminRoute>
-              }
-            />
-            <Route
-              path="/watched"
-              element={
-                <ProtectedRoute>
-                  <WatchedItems />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/not-interested"
-              element={
-                <ProtectedRoute>
-                  <NotInterestedItems />
-                </ProtectedRoute>
-              }
-            />
-
-            {/* Catch-all Route */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </Suspense>
-        <BottomNav />
-      </AuthProvider>
-    </BrowserRouter>
-  </TooltipProvider>
-);
-
 // Helper component for protected routes
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { isLoggedIn, isLoadingUser } = useAuth();
@@ -173,11 +96,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   }, [isLoadingUser, isLoggedIn, toast]);
 
   if (isLoadingUser) {
-    return (
-      <div className="flex justify-center items-center min-h-screen">
-        <Loader2 className="h-16 w-16 animate-spin text-primary" />
-      </div>
-    );
+    return <RouteLoadingFallback />;
   }
 
   if (!isLoggedIn) {
@@ -193,11 +112,7 @@ const AdminRoute = ({ children }: { children: React.ReactNode }) => {
   const location = useLocation();
 
   if (isLoadingUser) {
-    return (
-      <div className="flex justify-center items-center min-h-screen">
-        <Loader2 className="h-16 w-16 animate-spin text-primary" />
-      </div>
-    );
+    return <RouteLoadingFallback />;
   }
 
   if (!isLoggedIn) {
@@ -210,5 +125,99 @@ const AdminRoute = ({ children }: { children: React.ReactNode }) => {
 
   return children;
 };
+
+// Shell shared by every route: scroll handling, auth, the lazy-route boundary
+// and the mobile tab bar.
+const RootLayout = () => (
+  <>
+    <ScrollToTop />
+    <AuthProvider>
+      <Suspense fallback={<RouteLoadingFallback />}>
+        <Outlet />
+      </Suspense>
+      <BottomNav />
+    </AuthProvider>
+  </>
+);
+
+// A data router (rather than <BrowserRouter>) is what lets links opt into
+// View Transitions with the `viewTransition` prop.
+const router = createBrowserRouter(
+  createRoutesFromElements(
+    <Route element={<RootLayout />}>
+      {/* Public Routes */}
+      <Route path="/" element={<Index />} />
+      <Route path="/search" element={<Search />} />
+      <Route path="/categories" element={<Categories />} />
+      <Route path="/categories/:mediaType/:genreId" element={<CategoryDetail />} />
+      <Route path="/media/:mediaType/:mediaId" element={<MovieDetail />} />
+      <Route path="/tv/:mediaId/season/:seasonNumber" element={<SeasonDetail />} />
+      <Route path="/person/:personId" element={<PersonDetail />} />
+      <Route path="/collection/:collectionId" element={<CollectionDetail />} />
+      <Route path="/login" element={<Auth />} />
+
+      {/* Protected Routes */}
+      <Route
+        path="/for-you"
+        element={
+          <ProtectedRoute>
+            <ForYou />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/profile"
+        element={
+          <ProtectedRoute>
+            <Profile />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/collections"
+        element={
+          <ProtectedRoute>
+            <Collections />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin"
+        element={
+          <AdminRoute>
+            <Admin />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/watched"
+        element={
+          <ProtectedRoute>
+            <WatchedItems />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/not-interested"
+        element={
+          <ProtectedRoute>
+            <NotInterestedItems />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Catch-all Route */}
+      <Route path="*" element={<NotFound />} />
+    </Route>
+  )
+);
+
+const App = () => (
+  <TooltipProvider>
+    <Toaster />
+    <Sonner />
+    <RouterProvider router={router} />
+  </TooltipProvider>
+);
 
 export default App;

@@ -37,6 +37,7 @@ export const BottomNav = () => {
   });
   const avatarUrl = meData?.user?.avatarUrl || meData?.user?.image || user?.avatarUrl || user?.image || undefined;
   const isOnProfilePage = location.pathname === '/profile';
+  const activeIndex = getActiveTabIndex(location.pathname);
 
   if (HIDDEN_PATHS.some((path) => location.pathname.startsWith(path))) {
     return null;
@@ -62,24 +63,37 @@ export const BottomNav = () => {
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-40 md:hidden glass border-t border-border/60"
-      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      className="fixed inset-x-4 z-40 md:hidden"
+      // Its own transition group keeps the bar still while pages cross-fade beneath it
+      style={{ bottom: 'calc(0.75rem + env(safe-area-inset-bottom))', viewTransitionName: 'bottom-nav' }}
       aria-label="Primary"
     >
-      <ul className="flex items-stretch justify-around h-16">
-        {tabs.map((tab) => {
+      <ul className="glass relative mx-auto flex h-14 max-w-md items-stretch rounded-full p-1 ring-1 ring-border shadow-[0_12px_40px_-12px_rgb(0_0_0/0.7)]">
+        {/* Sliding indicator: tabs are equal width, so it moves in whole-tab steps */}
+        <li
+          aria-hidden
+          role="presentation"
+          className="pointer-events-none absolute inset-y-1 left-1 rounded-full bg-primary/12 transition-[translate,opacity] duration-(--dur-scene) ease-(--ease-emph)"
+          style={{
+            width: `calc((100% - 0.5rem) / ${tabs.length})`,
+            translate: `${Math.max(activeIndex, 0) * 100}% 0`,
+            opacity: activeIndex === -1 ? 0 : 1,
+          }}
+        />
+        {tabs.map((tab, index) => {
           const Icon = tab.icon;
+          const isActive = index === activeIndex;
 
           if (tab.action === 'search') {
             return (
-              <li key={tab.label} className="flex-1">
+              <li key={tab.label} className="relative flex-1">
                 <button
                   type="button"
                   onClick={handleSearchClick}
-                  className="flex h-full w-full flex-col items-center justify-center gap-1 text-muted-foreground hover:text-foreground transition-colors active:scale-95"
+                  className={tabClass(false)}
+                  aria-label={tab.label}
                 >
-                  <Icon className="h-5 w-5" />
-                  <span className="text-[10px] font-medium">{tab.label}</span>
+                  <TabContent icon={<Icon className="h-5 w-5" />} label={tab.label} isActive={false} />
                 </button>
               </li>
             );
@@ -87,7 +101,7 @@ export const BottomNav = () => {
 
           if (tab.action === 'profile-menu') {
             return (
-              <li key={tab.label} className="flex-1">
+              <li key={tab.label} className="relative flex-1">
                 <Popover open={profileMenuOpen} onOpenChange={setProfileMenuOpen}>
                   <PopoverTrigger asChild>
                     <button
@@ -95,24 +109,26 @@ export const BottomNav = () => {
                       onClick={() => {
                         haptics.trigger('medium');
                       }}
-                      className={`flex h-full w-full flex-col items-center justify-center gap-1 transition-colors active:scale-95 ${
-                        isOnProfilePage ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'
-                      }`}
+                      className={tabClass(isOnProfilePage)}
+                      aria-label={tab.label}
                     >
-                      {avatarUrl ? (
-                        <img
-                          src={avatarUrl}
-                          alt=""
-                          referrerPolicy="no-referrer"
-                          className={`h-5 w-5 rounded-full object-cover ${isOnProfilePage ? 'ring-2 ring-foreground' : ''}`}
-                        />
-                      ) : (
-                        <Icon className="h-5 w-5" strokeWidth={isOnProfilePage ? 2.25 : 2} />
-                      )}
-                      <span className="text-[10px] font-medium">{tab.label}</span>
+                      <TabContent
+                        icon={avatarUrl ? (
+                          <img
+                            src={avatarUrl}
+                            alt=""
+                            referrerPolicy="no-referrer"
+                            className={`h-5 w-5 rounded-full object-cover ${isOnProfilePage ? 'ring-2 ring-primary' : ''}`}
+                          />
+                        ) : (
+                          <Icon className="h-5 w-5" strokeWidth={isOnProfilePage ? 2.25 : 2} />
+                        )}
+                        label={tab.label}
+                        isActive={isOnProfilePage}
+                      />
                     </button>
                   </PopoverTrigger>
-                  <PopoverContent side="top" align="end" sideOffset={12} className="w-48 p-1.5">
+                  <PopoverContent side="top" align="end" sideOffset={14} className="w-48 p-1.5">
                     <button
                       type="button"
                       onClick={() => handleMenuNavigate('/profile')}
@@ -151,23 +167,20 @@ export const BottomNav = () => {
           }
 
           return (
-            <li key={tab.label} className="flex-1">
+            <li key={tab.label} className="relative flex-1">
               <NavLink
                 to={tab.to}
                 end={tab.end}
                 onClick={handleTabClick(tab.to)}
-                className={({ isActive }) =>
-                  `flex h-full w-full flex-col items-center justify-center gap-1 transition-colors active:scale-95 ${
-                    isActive ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'
-                  }`
-                }
+                className={tabClass(isActive)}
+                aria-label={tab.label}
+                viewTransition
               >
-                {({ isActive }) => (
-                  <>
-                    <Icon className="h-5 w-5" strokeWidth={isActive ? 2.25 : 2} />
-                    <span className="text-[10px] font-medium">{tab.label}</span>
-                  </>
-                )}
+                <TabContent
+                  icon={<Icon className="h-5 w-5" strokeWidth={isActive ? 2.25 : 2} />}
+                  label={tab.label}
+                  isActive={isActive}
+                />
               </NavLink>
             </li>
           );
@@ -176,3 +189,36 @@ export const BottomNav = () => {
     </nav>
   );
 };
+
+function getActiveTabIndex(pathname: string) {
+  if (pathname === '/') return 0;
+  if (pathname.startsWith('/categories')) return 1;
+  if (pathname.startsWith('/collection')) return 3;
+  if (pathname === '/profile') return 4;
+  return -1;
+}
+
+function tabClass(isActive: boolean) {
+  return `flex h-full w-full items-center justify-center rounded-full transition-[color,scale] duration-(--dur-fast) active:scale-90 ${
+    isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+  }`;
+}
+
+/** Icon sits centred; when the tab is active it lifts and its label rises in beneath it. */
+function TabContent({ icon, label, isActive }: { icon: React.ReactNode; label: string; isActive: boolean }) {
+  return (
+    <span className="relative flex flex-col items-center">
+      <span className={`transition-[translate] duration-(--dur-ui) ease-(--ease-emph) ${isActive ? '-translate-y-1.5' : 'translate-y-0'}`}>
+        {icon}
+      </span>
+      <span
+        aria-hidden
+        className={`absolute top-full -mt-1 whitespace-nowrap text-[10px] font-medium transition-[opacity,translate] duration-(--dur-ui) ease-(--ease-emph) ${
+          isActive ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-1'
+        }`}
+      >
+        {label}
+      </span>
+    </span>
+  );
+}

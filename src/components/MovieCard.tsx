@@ -1,6 +1,6 @@
 import { Movie, UserPreferences } from "@/lib/types";
 import { fetchUserPreferencesApi, getImageUrl, getPosterSrcSet, toggleNotInterestedStatusApi, toggleWatchedStatusApi } from "@/lib/api";
-import { Star, Eye, EyeOff, MoreVertical, ThumbsDown, ThumbsUp, Check } from "lucide-react";
+import { Star, Eye, EyeOff, MoreHorizontal, ThumbsDown, ThumbsUp, Check } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -15,6 +15,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Button } from "@/components/ui/button";
 import { useState, useRef, ReactNode } from "react";
 import { haptics } from "@/lib/haptics";
+import { posterTransitionName, preloadMediaDetail, type PosterLinkState } from "@/lib/posterTransition";
 
 interface MovieCardProps {
   movie: Movie;
@@ -93,6 +94,7 @@ export function MovieCard({
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressFiredRef = useRef(false);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const posterRef = useRef<HTMLImageElement>(null);
   const menuItemClass = "cursor-pointer rounded-lg px-3 py-2.5 text-sm font-medium text-foreground/90 focus:bg-accent focus:text-accent-foreground data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground";
 
   // Local optimistic overlays. We only use them while they differ from server props.
@@ -267,10 +269,16 @@ export function MovieCard({
     return null;
   }
 
+  const handlePosterIntent = () => {
+    if (!selectionMode) preloadMediaDetail();
+  };
+
   return (
     <Link
       to={navLink}
-      className={`group block card-glow rounded-xl transition-transform duration-300 group-hover:scale-[1.03] ${onLongPress ? 'select-none [-webkit-touch-callout:none]' : ''}`}
+      state={{ posterPath: movie.poster_path } satisfies PosterLinkState}
+      viewTransition
+      className={`group block rounded-poster outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background ${onLongPress ? 'select-none [-webkit-touch-callout:none]' : ''}`}
       onClick={(e) => {
         // Swallow the click that follows a long-press so it doesn't navigate/toggle
         if (longPressFiredRef.current) {
@@ -283,19 +291,26 @@ export function MovieCard({
         if (selectionMode && onToggleSelect) {
           e.preventDefault();
           onToggleSelect(mediaId);
+          return;
+        }
+        // Name this poster only now, so the detail page's poster can grow out of it
+        if (posterRef.current) {
+          posterRef.current.style.viewTransitionName = posterTransitionName(mediaType, movie.id);
         }
       }}
-      onTouchStart={handleTouchStart}
+      onPointerEnter={handlePosterIntent}
+      onTouchStart={(e) => {
+        handlePosterIntent();
+        handleTouchStart(e);
+      }}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
       onTouchCancel={handleTouchEnd}
       onContextMenu={(e) => { if (onLongPress) e.preventDefault(); }}
     >
       <div
-        className={`relative overflow-hidden rounded-xl bg-card border transition-all ${
-          isSelected
-            ? "border-primary ring-2 ring-primary/40"
-            : "border-border/60"
+        className={`relative transition-[translate,scale] duration-(--dur-ui) ease-(--ease-out) pointer-fine:group-hover:-translate-y-1 active:scale-[0.98] ${
+          isSelected ? "scale-[0.94]" : ""
         }`}
         onClick={(e) => {
           if (selectionMode && onToggleSelect) {
@@ -308,48 +323,57 @@ export function MovieCard({
         }}
       >
         {/* Poster Image */}
-        <div className="aspect-2/3 relative overflow-hidden bg-muted">
+        <div
+          className={`aspect-2/3 relative overflow-hidden rounded-poster bg-muted shadow-[0_2px_8px_-2px_rgb(0_0_0/0.5)] transition-shadow duration-(--dur-ui) ease-(--ease-out) pointer-fine:group-hover:shadow-[0_22px_40px_-18px_rgb(0_0_0/0.9)] ${
+            isSelected ? "ring-2 ring-primary ring-offset-2 ring-offset-background" : ""
+          }`}
+        >
           <img
+            ref={posterRef}
             src={getImageUrl(movie.poster_path, 'w342')}
             srcSet={getPosterSrcSet(movie.poster_path)}
             sizes={imageSizes}
             alt={movie.name || movie.title}
-            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+            className={`h-full w-full object-cover transition-[opacity,filter] duration-(--dur-ui) ${
+              selectionMode && !isSelected ? "opacity-60" : ""
+            }`}
             loading="lazy"
             decoding="async"
           />
-          
-          {/* Gradient overlay */}
-          {showMovieCardInfo ? (
-            <div className="absolute inset-0 bg-linear-to-t from-black/90 via-black/40 to-transparent opacity-100 transition-opacity duration-300" />
-          ) : (
-            <div className="absolute inset-0 bg-linear-to-t from-black/35 via-black/5 to-transparent" />
-          )}
 
-          {/* Selection checkbox badge */}
-          {selectionMode && (
-            <div className={`absolute top-2 left-2 z-20 flex h-6 w-6 items-center justify-center rounded-full border-2 transition-all ${
-              isSelected
-                ? "bg-primary border-primary text-primary-foreground"
-                : "bg-background/70 border-white/80"
-            }`}>
-              {isSelected && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
-            </div>
-          )}
+          {/* Always-on info (a user preference) gets a stronger scrim; otherwise the title rises in on hover */}
+          <div
+            className={`absolute inset-0 bg-linear-to-t from-black/85 via-black/25 to-transparent transition-opacity duration-(--dur-ui) ease-(--ease-out) ${
+              showMovieCardInfo ? "opacity-100" : "opacity-0 pointer-fine:group-hover:opacity-100 group-focus-visible:opacity-100"
+            }`}
+          />
 
-          {/* Reddit Badge (admin-toggleable) */}
-          {isRedditRecommended && user?.role === 'admin' && (preferencesData?.preferences?.show_reddit_label ?? true) && (
-            <div className="absolute top-2 left-2 z-20">
+          {/* Top-left badges */}
+          <div className="absolute top-2 left-2 z-20 flex items-center gap-1">
+            {selectionMode ? (
+              <span className={`flex h-6 w-6 items-center justify-center rounded-full border-2 transition-colors duration-(--dur-fast) ${
+                isSelected
+                  ? "bg-primary border-primary text-primary-foreground"
+                  : "bg-black/40 border-white/80"
+              }`}>
+                {isSelected && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
+              </span>
+            ) : displayedWatched && showWatched ? (
+              <WatchedMark />
+            ) : null}
+
+            {/* Reddit Badge (admin-toggleable) */}
+            {isRedditRecommended && user?.role === 'admin' && (preferencesData?.preferences?.show_reddit_label ?? true) && (
               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-orange-500/90 text-[10px] font-semibold text-white shadow-sm">
                 <svg className="h-2.5 w-2.5" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M12 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0zm5.01 4.744c.688 0 1.25.561 1.25 1.249a1.25 1.25 0 0 1-2.498.056l-2.597-.547-.8 3.747c1.824.07 3.48.632 4.674 1.488.308-.309.73-.491 1.207-.491.968 0 1.754.786 1.754 1.754 0 .716-.435 1.333-1.01 1.614a3.111 3.111 0 0 1 .042.52c0 2.694-3.13 4.87-7.004 4.87-3.874 0-7.004-2.176-7.004-4.87 0-.183.015-.366.043-.534A1.748 1.748 0 0 1 4.028 12c0-.968.786-1.754 1.754-1.754.463 0 .898.196 1.207.49 1.207-.883 2.878-1.43 4.744-1.487l.885-4.182a.342.342 0 0 1 .14-.197.35.35 0 0 1 .238-.042l2.906.617a1.214 1.214 0 0 1 1.108-.701zM9.25 12C8.561 12 8 12.562 8 13.25c0 .687.561 1.248 1.25 1.248.687 0 1.248-.561 1.248-1.249 0-.688-.561-1.249-1.249-1.249zm5.5 0c-.687 0-1.248.561-1.248 1.25 0 .687.561 1.248 1.249 1.248.688 0 1.249-.561 1.249-1.249 0-.687-.562-1.249-1.25-1.249zm-5.466 3.99a.327.327 0 0 0-.231.094.33.33 0 0 0 0 .463c.842.842 2.484.913 2.961.913.477 0 2.105-.056 2.961-.913a.361.361 0 0 0 .029-.463.33.33 0 0 0-.464 0c-.547.533-1.684.73-2.512.73-.828 0-1.979-.196-2.512-.73a.326.326 0 0 0-.232-.095z"/>
                 </svg>
                 Reddit
               </span>
-            </div>
-          )}
+            )}
+          </div>
 
-          {/* Three-dot Menu */}
+          {/* Quick actions menu */}
           {isLoggedIn && !selectionMode && (
             <div className="absolute top-2 right-2 z-20">
               <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
@@ -357,8 +381,9 @@ export function MovieCard({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className={`h-7 w-7 rounded-full bg-background/70 border border-border/70 hover:bg-background/90 transition-opacity ${
-                      menuOpen ? 'opacity-100' : 'opacity-100 md:opacity-0 md:group-hover:opacity-100'
+                    aria-label="Quick actions"
+                    className={`h-7 w-7 rounded-full bg-black/45 text-white backdrop-blur-md hover:bg-black/65 hover:text-white transition-opacity duration-(--dur-fast) ${
+                      menuOpen ? 'opacity-100' : 'opacity-100 pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 focus-visible:opacity-100'
                     }`}
                     onClick={(e) => {
                       // Only keep the click from reaching the surrounding <Link>.
@@ -367,12 +392,12 @@ export function MovieCard({
                       e.stopPropagation();
                     }}
                   >
-                    <MoreVertical className="h-4 w-4 text-foreground" />
+                    <MoreHorizontal className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
                   align="end"
-                  className="w-44 rounded-lg border-border bg-popover/95 p-1.5 shadow-2xl shadow-black/40 backdrop-blur-xl"
+                  className="w-44 rounded-xl border-border bg-popover/90 p-1.5 shadow-2xl shadow-black/50 backdrop-blur-xl"
                 >
                   {showWatched && (
                     <DropdownMenuItem
@@ -414,43 +439,59 @@ export function MovieCard({
             </div>
           )}
 
-          {showMovieCardInfo && (
-            <div className="absolute bottom-0 left-0 right-0 p-3 flex flex-col justify-end z-10">
-              <h3 className="font-semibold text-xs sm:text-sm leading-tight text-foreground line-clamp-2 drop-shadow-md shadow-black">
-                {movie.name || movie.title}
-              </h3>
-              <div className="flex items-center gap-1.5 mt-1">
-                <p className="text-[10px] text-foreground/70 font-medium">{releaseYear}</p>
-                <span className="text-[10px] text-foreground/40">•</span>
-                <div className="flex items-center gap-1">
+          <div
+            className={`absolute bottom-0 left-0 right-0 z-10 p-2.5 sm:p-3 transition-[opacity,translate] duration-(--dur-ui) ease-(--ease-out) ${
+              showMovieCardInfo
+                ? "opacity-100"
+                : "opacity-0 translate-y-2 pointer-fine:group-hover:opacity-100 pointer-fine:group-hover:translate-y-0 group-focus-visible:opacity-100 group-focus-visible:translate-y-0"
+            }`}
+          >
+            <h3 className="font-medium text-xs sm:text-sm leading-tight text-white line-clamp-2">
+              {movie.name || movie.title}
+            </h3>
+            <div className="mt-1 flex items-center gap-1.5 text-[10px] text-white/70 slate">
+              <span>{releaseYear}</span>
+              {(movie.imdb_rating || movie.vote_average > 0) && (
+                <>
+                  <span className="text-white/30">·</span>
                   {movie.imdb_rating ? (
-                    <>
-                      <span className="inline-flex items-center justify-center rounded bg-[#f5c518] px-0.5 text-[7px] font-extrabold leading-none text-black tracking-tight">IMDb</span>
-                      <span className="text-[10px] font-medium text-foreground/90">
-                        {movie.imdb_rating.toFixed(1)}
-                      </span>
-                    </>
+                    <span className="inline-flex items-center gap-1">
+                      <span className="rounded-[3px] bg-[#f5c518] px-0.5 text-[7px] font-extrabold leading-tight tracking-tight text-black normal-case">IMDb</span>
+                      <span className="text-white/90">{movie.imdb_rating.toFixed(1)}</span>
+                    </span>
                   ) : (
-                    <>
-                      <Star className="h-3 w-3 text-yellow-400" fill="currentColor" />
-                      <span className="text-[10px] font-medium text-foreground/90">
-                        {movie.vote_average.toFixed(1)}
-                      </span>
-                    </>
+                    <span className="inline-flex items-center gap-0.5 text-white/90">
+                      <Star className="h-2.5 w-2.5 text-primary" fill="currentColor" />
+                      {movie.vote_average.toFixed(1)}
+                    </span>
                   )}
-                </div>
-              </div>
-              {shouldShowBecauseYouLiked && (
-                <p className="mt-1 text-[10px] text-foreground/80 line-clamp-1">
-                  Because you liked {becauseYouLiked}
-                </p>
+                </>
               )}
             </div>
-          )}
-
+            {shouldShowBecauseYouLiked && (
+              <p className="mt-1 text-[10px] text-white/80 line-clamp-1">
+                Because you liked <em className="font-display">{becauseYouLiked}</em>
+              </p>
+            )}
+          </div>
         </div>
       </div>
     </Link>
+  );
+}
+
+/** Watched badge: a tungsten disc whose check draws itself in when it appears. */
+function WatchedMark() {
+  return (
+    <span
+      className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md shadow-black/40 animate-in zoom-in-50 fade-in duration-(--dur-ui)"
+      title="Watched"
+    >
+      <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <path d="M5 12.5l4.5 4.5L19 7.5" pathLength={1} className="[stroke-dasharray:1] animate-[draw-check_var(--dur-scene)_var(--ease-emph)_both_80ms]" />
+      </svg>
+      <span className="sr-only">Watched</span>
+    </span>
   );
 }
 
