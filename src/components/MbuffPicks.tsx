@@ -4,6 +4,7 @@ import { fetchMbuffPicksApi, getImageUrl } from '@/lib/api';
 import type { MbuffPickItem } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { posterLinkProps } from '@/lib/posterTransition';
+import { ScrollRow } from '@/components/ScrollRow';
 
 function PickPoster({ item, className }: { item: MbuffPickItem; className?: string }) {
     return (
@@ -73,15 +74,15 @@ export function MbuffPicks({
         return (
             <section className={cn('space-y-3', className)}>
                 <PicksHeading />
-                <div className="flex overflow-x-auto gap-2.5 pb-1 snap-x scrollbar-hide">
+                <ScrollRow className="gap-2.5">
                     {items.map((item) => (
                         <PickPoster
                             key={`${item.media_type}-${item.tmdb_id}`}
                             item={item}
-                            className="shrink-0 w-24 snap-start"
+                            className="shrink-0 w-24"
                         />
                     ))}
-                </div>
+                </ScrollRow>
             </section>
         );
     }

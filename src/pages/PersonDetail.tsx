@@ -4,6 +4,7 @@ import { fetchPersonDetailsApi, fetchPersonCreditsApi, fetchPersonExternalIdsApi
 import { PersonDetails, PersonCreditsResponse, PersonCredit, PersonExternalIds } from '@/lib/types';
 import { Navbar } from "@/components/Navbar";
 import { Skeleton } from '@/components/ui/skeleton';
+import { ScrollRow } from '@/components/ScrollRow';
 import { SocialMediaLinks } from '@/components/SocialMediaLinks';
 import { User, Star, ImageOff, ChevronRight, ChevronLeft, ChevronDown, ChevronUp } from 'lucide-react';
 import { useState, useRef, useMemo } from 'react';
@@ -20,20 +21,6 @@ export default function PersonDetail() {
     const [bioExpanded, setBioExpanded] = useState(false);
     const [isCastExpanded, setIsCastExpanded] = useState(false);
     const [isCrewExpanded, setIsCrewExpanded] = useState(false);
-    const castScrollRef = useRef<HTMLDivElement>(null);
-    const crewScrollRef = useRef<HTMLDivElement>(null);
-
-    const scrollRight = (ref: React.RefObject<HTMLDivElement | null>) => {
-        if (ref.current) {
-            ref.current.scrollBy({ left: 200, behavior: 'smooth' });
-        }
-    };
-
-    const scrollLeft = (ref: React.RefObject<HTMLDivElement | null>) => {
-        if (ref.current) {
-            ref.current.scrollBy({ left: -200, behavior: 'smooth' });
-        }
-    };
 
     const { data: personDetails, isLoading: isLoadingDetails, error } = useQuery<PersonDetails | null>({
         queryKey: ['person', personId],
@@ -427,79 +414,48 @@ export default function PersonDetail() {
                             <div className="relative group/section">
                                 {!isCastExpanded ? (
                                     // Scrollable View (Collapsed)
-                                    <div className="relative -mx-4 md:mx-0">
-                                        <div
-                                            ref={castScrollRef}
-                                            className="flex overflow-x-auto gap-4 pb-4 snap-x scrollbar-hide px-4 md:px-0 animate-stagger"
-                                        >
-                                            {visibleCastCredits.map((credit: PersonCredit) => (
-                                                <Link
-                                                    key={`${credit.id}-${credit.character}`}
-                                                    to={`/media/${credit.media_type}/${credit.id}`} {...posterLinkProps(credit.media_type, credit.id, credit.poster_path)}
-                                                    className="shrink-0 w-32 md:w-40 snap-center group"
-                                                >
-                                                    <div data-shared-element className="rounded-lg overflow-hidden border border-border/60 bg-muted/30 mb-2 aspect-2/3 relative">
-                                                        {credit.poster_path ? (
-                                                            <img
-                                                                src={getImageUrl(credit.poster_path, 'w342')}
-                                                                alt={credit.title || credit.name}
-                                                                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                                                            />
-                                                        ) : (
-                                                            <div className="w-full h-full flex items-center justify-center">
-                                                                <ImageOff className="w-8 h-8 text-muted-foreground/30" />
-                                                            </div>
-                                                        )}
-                                                        {(credit.imdb_rating || credit.vote_average > 0) && (
-                                                            <div className="absolute top-2 right-2 flex items-center gap-1 bg-background/85 backdrop-blur-sm px-1.5 py-0.5 rounded text-xs">
-                                                                {credit.imdb_rating ? (
-                                                                    <>
-                                                                        <span className="inline-flex items-center justify-center rounded bg-[#f5c518] px-0.5 text-[7px] font-extrabold leading-none text-black tracking-tight">IMDb</span>
-                                                                        <span>{credit.imdb_rating.toFixed(1)}</span>
-                                                                    </>
-                                                                ) : (
-                                                                    <>
-                                                                        <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />
-                                                                        <span>{credit.vote_average.toFixed(1)}</span>
-                                                                    </>
-                                                                )}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    <p className="text-sm font-medium text-foreground/90 line-clamp-1">{credit.title || credit.name}</p>
-                                                    {credit.character && (
-                                                        <p className="text-xs text-muted-foreground line-clamp-1">as {credit.character}</p>
+                                    <ScrollRow className="gap-4 animate-stagger">
+                                        {visibleCastCredits.map((credit: PersonCredit) => (
+                                            <Link
+                                                key={`${credit.id}-${credit.character}`}
+                                                to={`/media/${credit.media_type}/${credit.id}`} {...posterLinkProps(credit.media_type, credit.id, credit.poster_path)}
+                                                className="shrink-0 w-32 md:w-40 group"
+                                            >
+                                                <div data-shared-element className="rounded-lg overflow-hidden border border-border/60 bg-muted/30 mb-2 aspect-2/3 relative">
+                                                    {credit.poster_path ? (
+                                                        <img
+                                                            src={getImageUrl(credit.poster_path, 'w342')}
+                                                            alt={credit.title || credit.name}
+                                                            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                                        />
+                                                    ) : (
+                                                        <div className="w-full h-full flex items-center justify-center">
+                                                            <ImageOff className="w-8 h-8 text-muted-foreground/30" />
+                                                        </div>
                                                     )}
-                                                </Link>
-                                            ))}
-                                        </div>
-                                        {/* Scroll Left Button (Desktop Only) */}
-                                        <button
-                                            onClick={() => scrollLeft(castScrollRef)}
-                                            className="hidden md:flex absolute left-0 top-0 bottom-4 w-12 items-center justify-center bg-linear-to-r from-background via-background/80 to-transparent opacity-0 group-hover/section:opacity-100 transition-opacity pointer-events-none hover:pointer-events-auto"
-                                            aria-label="Scroll left"
-                                        >
-                                            <ChevronLeft className="w-6 h-6 text-foreground/80 pointer-events-auto cursor-pointer" />
-                                        </button>
-
-                                        {/* Scroll Right Button (Desktop Only) */}
-                                        <button
-                                            onClick={() => scrollRight(castScrollRef)}
-                                            className="hidden md:flex absolute right-0 top-0 bottom-4 w-12 items-center justify-center bg-linear-to-l from-background via-background/80 to-transparent opacity-0 group-hover/section:opacity-100 transition-opacity pointer-events-none hover:pointer-events-auto"
-                                            aria-label="Scroll right"
-                                        >
-                                            <ChevronRight className="w-6 h-6 text-foreground/80 pointer-events-auto cursor-pointer" />
-                                        </button>
-
-                                        {/* Mobile Right Hint Button */}
-                                        <button
-                                            onClick={() => scrollRight(castScrollRef)}
-                                            className="md:hidden absolute right-0 top-0 bottom-4 w-16 flex items-center justify-center bg-linear-to-l from-background via-background/80 to-transparent"
-                                            aria-label="Scroll right"
-                                        >
-                                            <ChevronRight className="w-5 h-5 text-foreground/60" />
-                                        </button>
-                                    </div>
+                                                    {(credit.imdb_rating || credit.vote_average > 0) && (
+                                                        <div className="absolute top-2 right-2 flex items-center gap-1 bg-background/85 backdrop-blur-sm px-1.5 py-0.5 rounded text-xs">
+                                                            {credit.imdb_rating ? (
+                                                                <>
+                                                                    <span className="inline-flex items-center justify-center rounded bg-[#f5c518] px-0.5 text-[7px] font-extrabold leading-none text-black tracking-tight">IMDb</span>
+                                                                    <span>{credit.imdb_rating.toFixed(1)}</span>
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />
+                                                                    <span>{credit.vote_average.toFixed(1)}</span>
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <p className="text-sm font-medium text-foreground/90 line-clamp-1">{credit.title || credit.name}</p>
+                                                {credit.character && (
+                                                    <p className="text-xs text-muted-foreground line-clamp-1">as {credit.character}</p>
+                                                )}
+                                            </Link>
+                                        ))}
+                                    </ScrollRow>
                                 ) : (
                                     // Grid View (Expanded - Mobile & Desktop)
                                     // Using auto-fill with min 128px (w-32) to match collapsed card widths
@@ -562,77 +518,46 @@ export default function PersonDetail() {
                             <div className="relative group/section">
                                 {!isCrewExpanded ? (
                                     // Scrollable View (Collapsed)
-                                    <div className="relative -mx-4 md:mx-0">
-                                        <div
-                                            ref={crewScrollRef}
-                                            className="flex overflow-x-auto gap-4 pb-4 snap-x scrollbar-hide px-4 md:px-0 animate-stagger"
-                                        >
-                                            {visibleCrewCredits.map((credit) => (
-                                                <Link
-                                                    key={`${credit.id}-${credit.jobs.join('-')}`}
-                                                    to={`/media/${credit.media_type}/${credit.id}`} {...posterLinkProps(credit.media_type, credit.id, credit.poster_path)}
-                                                    className="shrink-0 w-32 md:w-40 snap-center group"
-                                                >
-                                                    <div data-shared-element className="rounded-lg overflow-hidden border border-border/60 bg-muted/30 mb-2 aspect-2/3 relative">
-                                                        {credit.poster_path ? (
-                                                            <img
-                                                                src={getImageUrl(credit.poster_path, 'w342')}
-                                                                alt={credit.title || credit.name}
-                                                                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                                                            />
-                                                        ) : (
-                                                            <div className="w-full h-full flex items-center justify-center">
-                                                                <ImageOff className="w-8 h-8 text-muted-foreground/30" />
-                                                            </div>
-                                                        )}
-                                                        {(credit.imdb_rating || credit.vote_average > 0) && (
-                                                            <div className="absolute top-2 right-2 flex items-center gap-1 bg-background/85 backdrop-blur-sm px-1.5 py-0.5 rounded text-xs">
-                                                                {credit.imdb_rating ? (
-                                                                    <>
-                                                                        <span className="inline-flex items-center justify-center rounded bg-[#f5c518] px-0.5 text-[7px] font-extrabold leading-none text-black tracking-tight">IMDb</span>
-                                                                        <span>{credit.imdb_rating.toFixed(1)}</span>
-                                                                    </>
-                                                                ) : (
-                                                                    <>
-                                                                        <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />
-                                                                        <span>{credit.vote_average.toFixed(1)}</span>
-                                                                    </>
-                                                                )}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    <p className="text-sm font-medium text-foreground/90 line-clamp-1">{credit.title || credit.name}</p>
-                                                    <p className="text-xs text-muted-foreground line-clamp-1">{credit.jobs.join(', ')}</p>
-                                                </Link>
-                                            ))}
-                                        </div>
-                                        {/* Scroll Left Button (Desktop Only) */}
-                                        <button
-                                            onClick={() => scrollLeft(crewScrollRef)}
-                                            className="hidden md:flex absolute left-0 top-0 bottom-4 w-12 items-center justify-center bg-linear-to-r from-background via-background/80 to-transparent opacity-0 group-hover/section:opacity-100 transition-opacity pointer-events-none hover:pointer-events-auto"
-                                            aria-label="Scroll left"
-                                        >
-                                            <ChevronLeft className="w-6 h-6 text-foreground/80 pointer-events-auto cursor-pointer" />
-                                        </button>
-
-                                        {/* Scroll Right Button (Desktop Only) */}
-                                        <button
-                                            onClick={() => scrollRight(crewScrollRef)}
-                                            className="hidden md:flex absolute right-0 top-0 bottom-4 w-12 items-center justify-center bg-linear-to-l from-background via-background/80 to-transparent opacity-0 group-hover/section:opacity-100 transition-opacity pointer-events-none hover:pointer-events-auto"
-                                            aria-label="Scroll right"
-                                        >
-                                            <ChevronRight className="w-6 h-6 text-foreground/80 pointer-events-auto cursor-pointer" />
-                                        </button>
-
-                                        {/* Mobile Right Hint Button */}
-                                        <button
-                                            onClick={() => scrollRight(crewScrollRef)}
-                                            className="md:hidden absolute right-0 top-0 bottom-4 w-16 flex items-center justify-center bg-linear-to-l from-background via-background/80 to-transparent"
-                                            aria-label="Scroll right"
-                                        >
-                                            <ChevronRight className="w-5 h-5 text-foreground/60" />
-                                        </button>
-                                    </div>
+                                    <ScrollRow className="gap-4 animate-stagger">
+                                        {visibleCrewCredits.map((credit) => (
+                                            <Link
+                                                key={`${credit.id}-${credit.jobs.join('-')}`}
+                                                to={`/media/${credit.media_type}/${credit.id}`} {...posterLinkProps(credit.media_type, credit.id, credit.poster_path)}
+                                                className="shrink-0 w-32 md:w-40 group"
+                                            >
+                                                <div data-shared-element className="rounded-lg overflow-hidden border border-border/60 bg-muted/30 mb-2 aspect-2/3 relative">
+                                                    {credit.poster_path ? (
+                                                        <img
+                                                            src={getImageUrl(credit.poster_path, 'w342')}
+                                                            alt={credit.title || credit.name}
+                                                            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                                        />
+                                                    ) : (
+                                                        <div className="w-full h-full flex items-center justify-center">
+                                                            <ImageOff className="w-8 h-8 text-muted-foreground/30" />
+                                                        </div>
+                                                    )}
+                                                    {(credit.imdb_rating || credit.vote_average > 0) && (
+                                                        <div className="absolute top-2 right-2 flex items-center gap-1 bg-background/85 backdrop-blur-sm px-1.5 py-0.5 rounded text-xs">
+                                                            {credit.imdb_rating ? (
+                                                                <>
+                                                                    <span className="inline-flex items-center justify-center rounded bg-[#f5c518] px-0.5 text-[7px] font-extrabold leading-none text-black tracking-tight">IMDb</span>
+                                                                    <span>{credit.imdb_rating.toFixed(1)}</span>
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />
+                                                                    <span>{credit.vote_average.toFixed(1)}</span>
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <p className="text-sm font-medium text-foreground/90 line-clamp-1">{credit.title || credit.name}</p>
+                                                <p className="text-xs text-muted-foreground line-clamp-1">{credit.jobs.join(', ')}</p>
+                                            </Link>
+                                        ))}
+                                    </ScrollRow>
                                 ) : (
                                     // Grid View (Expanded - Mobile & Desktop)
                                     // Using auto-fill with min 128px (w-32) to match collapsed card widths

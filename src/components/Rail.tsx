@@ -1,6 +1,7 @@
 import { Children, ReactNode, useEffect, useId, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
-import { ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
+import { ScrollRow } from '@/components/ScrollRow';
 import { Skeleton } from '@/components/ui/skeleton';
 import { isHistoryNavigation } from '@/lib/navigationMotion';
 
@@ -21,9 +22,8 @@ const STAGGER_MS = 40;
 const MAX_STAGGERED_ITEMS = 10;
 
 /**
- * A titled, horizontally scrolling set of posters. Items snap into place, fade
- * up in a short stagger the first time the rail scrolls into view, and (on
- * pointer devices) get quiet edge arrows once there is somewhere to scroll to.
+ * A titled, horizontally scrolling set of posters (a ScrollRow) whose items
+ * fade up in a short stagger the first time the rail scrolls into view.
  *
  * When expandable, the title toggles between that single row and a regular
  * wrapping grid of every item. The grid starts with the same leading titles,
@@ -42,18 +42,9 @@ export function Rail({
   // Coming back to a page shows its rails as they were, without replaying the reveal
   const [revealed, setRevealed] = useState(isHistoryNavigation);
   const [expanded, setExpanded] = useState(false);
-  const [edges, setEdges] = useState({ atStart: true, atEnd: false });
   const transitionPrefix = `rail${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
 
   const isGrid = expandable && expanded;
-
-  const updateEdges = () => {
-    const scroller = scrollerRef.current;
-    if (!scroller) return;
-    const atStart = scroller.scrollLeft <= 4;
-    const atEnd = scroller.scrollLeft + scroller.clientWidth >= scroller.scrollWidth - 4;
-    setEdges((prev) => (prev.atStart === atStart && prev.atEnd === atEnd ? prev : { atStart, atEnd }));
-  };
 
   useEffect(() => {
     const scroller = scrollerRef.current;
@@ -62,19 +53,13 @@ export function Rail({
       ([entry]) => {
         if (entry.isIntersecting) {
           setRevealed(true);
-          updateEdges();
           revealObserver.disconnect();
         }
       },
       { rootMargin: '0px 0px -10% 0px' }
     );
     revealObserver.observe(scroller);
-    const resizeObserver = new ResizeObserver(updateEdges);
-    resizeObserver.observe(scroller);
-    return () => {
-      revealObserver.disconnect();
-      resizeObserver.disconnect();
-    };
+    return () => revealObserver.disconnect();
   }, []);
 
   const toggleExpanded = () => {
@@ -103,18 +88,8 @@ export function Rail({
       named.forEach((el) => {
         el.style.viewTransitionName = '';
       });
-      updateEdges();
     });
   };
-
-  const scrollByPage = (direction: 1 | -1) => {
-    const scroller = scrollerRef.current;
-    if (!scroller) return;
-    scroller.scrollBy({ left: direction * scroller.clientWidth * 0.8, behavior: 'smooth' });
-  };
-
-  const arrowClass =
-    'absolute top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full glass text-foreground ring-1 ring-border shadow-lg shadow-black/40 transition-[opacity,scale] duration-(--dur-ui) ease-(--ease-out) hover:scale-105 pointer-fine:flex';
 
   const heading = (
     <h2 className="font-display text-2xl md:text-3xl font-bold tracking-tight lowercase">{title}</h2>
@@ -144,48 +119,19 @@ export function Rail({
         {action && <div className="shrink-0">{action}</div>}
       </header>
 
-      {/* Spans the page gutters so edge posters and arrows aren't clipped */}
-      <div className="relative -mx-8">
-        <div
-          ref={scrollerRef}
-          onScroll={updateEdges}
-          className={
-            isGrid
-              ? 'grid grid-cols-3 gap-2 sm:gap-4 md:grid-cols-4 md:gap-5 lg:grid-cols-5 px-8 pt-1 pb-3'
-              : 'rail gap-4 px-8 pt-1 pb-3'
-          }
-        >
-          {Children.map(children, (child, index) => (
-            <div
-              className={`${isGrid ? '' : `shrink-0 ${itemClassName}`} ${revealed ? 'animate-fade-in-up' : 'opacity-0'}`}
-              style={revealed ? { animationDelay: `${Math.min(index, MAX_STAGGERED_ITEMS) * STAGGER_MS}ms` } : undefined}
-            >
-              {child}
-            </div>
-          ))}
-        </div>
-
-        {!isGrid && (
-          <>
-            <button
-              type="button"
-              aria-label="Scroll back"
-              onClick={() => scrollByPage(-1)}
-              className={`${arrowClass} left-3 ${edges.atStart ? 'pointer-events-none opacity-0 scale-90' : 'opacity-0 group-hover/rail:opacity-100'}`}
-            >
-              <ChevronLeft className="h-5 w-5" />
-            </button>
-            <button
-              type="button"
-              aria-label="Scroll forward"
-              onClick={() => scrollByPage(1)}
-              className={`${arrowClass} right-3 ${edges.atEnd ? 'pointer-events-none opacity-0 scale-90' : 'opacity-0 group-hover/rail:opacity-100'}`}
-            >
-              <ChevronRight className="h-5 w-5" />
-            </button>
-          </>
-        )}
-      </div>
+      <ScrollRow
+        scrollerRef={scrollerRef}
+        gridClassName={isGrid ? 'grid-cols-3 gap-2 sm:gap-4 md:grid-cols-4 md:gap-5 lg:grid-cols-5' : undefined}
+      >
+        {Children.map(children, (child, index) => (
+          <div
+            className={`${isGrid ? '' : `shrink-0 ${itemClassName}`} ${revealed ? 'animate-fade-in-up' : 'opacity-0'}`}
+            style={revealed ? { animationDelay: `${Math.min(index, MAX_STAGGERED_ITEMS) * STAGGER_MS}ms` } : undefined}
+          >
+            {child}
+          </div>
+        ))}
+      </ScrollRow>
     </section>
   );
 }
