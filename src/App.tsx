@@ -3,6 +3,7 @@ import { Toaster } from "@/components/ui/toaster"; // Keep this Toaster
 import { Toaster as Sonner } from "@/components/ui/sonner"; // Keep Sonner
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { BottomNav } from "@/components/BottomNav";
+import { AmbientGlow } from "@/components/AmbientGlow";
 import { createBrowserRouter, createRoutesFromElements, RouterProvider, Outlet, Route, Navigate, useLocation, useNavigationType } from "react-router-dom";
 import { useAuth } from './hooks/useAuth';
 import { useRecommendationPrefetch } from './hooks/useRecommendationPrefetch';
@@ -130,6 +131,7 @@ const AdminRoute = ({ children }: { children: React.ReactNode }) => {
 // and the mobile tab bar.
 const RootLayout = () => (
   <>
+    <AmbientGlow />
     <ScrollToTop />
     <AuthProvider>
       <Suspense fallback={<RouteLoadingFallback />}>
