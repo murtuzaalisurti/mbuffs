@@ -423,7 +423,7 @@ const Profile = () => {
     return (
         <>
             <Navbar />
-            <main className="container py-8 max-w-2xl mx-auto">
+            <main className="container py-8 max-w-2xl mx-auto animate-stagger">
                 <h1 className="text-3xl font-bold mb-8">Profile</h1>
 
                 {/* User Info Card */}

@@ -223,8 +223,30 @@
 }
 
 @utility animate-fade-in-up {
-  /* Fade-in animation */
-  animation: fadeInUp var(--dur-scene) var(--ease-out) both;
+  /* Entrance: fade up. "backwards" fill hides it during any delay and leaves nothing applied afterwards. */
+  animation: fadeInUp var(--dur-scene) var(--ease-out) backwards;
+}
+
+@utility page-enter {
+  /* Wraps the routed page: its blocks ease in when they mount; the header stays put. */
+  & > :not(header) {
+    animation: page-enter 320ms var(--ease-out);
+  }
+}
+
+@utility reveal {
+  /*
+    Sections further down a page fade up as they scroll into view
+    (scroll-driven where supported; elsewhere they are simply shown).
+    Ends on `translate: none`, so no transform lingers on the section.
+  */
+  @media (prefers-reduced-motion: no-preference) {
+    @supports (animation-timeline: view()) {
+      animation: reveal-up linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 35%;
+    }
+  }
 }
 
 @utility animate-stagger {
@@ -384,6 +406,25 @@
       opacity: 1;
       transform: translateY(0);
     }
+  }
+}
+
+@keyframes reveal-up {
+  from {
+    opacity: 0;
+    translate: 0 24px;
+  }
+
+  to {
+    opacity: 1;
+    translate: none;
+  }
+}
+
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    translate: 0 8px;
   }
 }
 

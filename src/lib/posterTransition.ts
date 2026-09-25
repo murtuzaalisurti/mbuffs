@@ -22,3 +22,32 @@ export const preloadMediaDetail = () => {
   });
   return detailPagePreload;
 };
+
+export type PersonLinkState = {
+  /** Profile photo already shown on the link, so the person page can paint it instantly. */
+  profilePath?: string | null;
+};
+
+export const personTransitionName = (personId: string | number) => `person-${personId}`;
+
+/**
+ * Click handler for a link whose `[data-shared-element]` child should morph
+ * into the next page. Like cards, it is named only when clicked.
+ */
+export const nameSharedElementOnClick = (name: string) => (event: React.MouseEvent<HTMLElement>) => {
+  const element = event.currentTarget.querySelector<HTMLElement>('[data-shared-element]');
+  if (element) element.style.viewTransitionName = name;
+};
+
+/** Link props for a plain poster link, so its `[data-shared-element]` poster grows into the detail page. */
+export const posterLinkProps = (mediaType: string, mediaId: string | number, posterPath?: string | null) => ({
+  viewTransition: true,
+  state: { posterPath } satisfies PosterLinkState,
+  onClick: nameSharedElementOnClick(posterTransitionName(mediaType, mediaId)),
+  onPointerEnter: () => {
+    preloadMediaDetail();
+  },
+});
+
+export const seasonTransitionName = (showId: string | number, seasonNumber: string | number) =>
+  `season-${showId}-${seasonNumber}`;

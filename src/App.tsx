@@ -134,9 +134,11 @@ const RootLayout = () => (
     <AmbientGlow />
     <ScrollToTop />
     <AuthProvider>
-      <Suspense fallback={<RouteLoadingFallback />}>
-        <Outlet />
-      </Suspense>
+      <div className="contents page-enter">
+        <Suspense fallback={<RouteLoadingFallback />}>
+          <Outlet />
+        </Suspense>
+      </div>
       <BottomNav />
     </AuthProvider>
   </>

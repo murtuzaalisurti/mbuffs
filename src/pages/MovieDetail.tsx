@@ -29,7 +29,7 @@ import { MbuffPicks } from '@/components/MbuffPicks';
 import { fetchReviewSummaryApi } from '@/lib/api';
 import type { ReviewSummaryResponse } from '@/lib/types';
 import { useOmdbRatings, enrichMoviesWithImdbRatings } from '@/hooks/useOmdbRatings';
-import { posterTransitionName, type PosterLinkState } from '@/lib/posterTransition';
+import { posterTransitionName, personTransitionName, seasonTransitionName, nameSharedElementOnClick, posterLinkProps, type PosterLinkState, type PersonLinkState } from '@/lib/posterTransition';
 import { useAmbientFromImage } from '@/lib/ambient';
 
 const TMDB_LOGO_BASE = 'https://image.tmdb.org/t/p/w92';
@@ -127,7 +127,7 @@ const CollectionSection = ({ collectionId, currentMediaId }: { collectionId: num
     if (parts.length === 0) return null;
 
     return (
-        <section className="space-y-6">
+        <section className="space-y-6 reveal">
             <div className="flex items-baseline justify-between">
                 <h2 className="text-xl md:text-2xl font-semibold text-foreground/90">
                     The Collection
@@ -138,10 +138,10 @@ const CollectionSection = ({ collectionId, currentMediaId }: { collectionId: num
                 {parts.map((part) => (
                     <Link
                         key={part.id}
-                        to={`/media/movie/${part.id}`}
+                        to={`/media/movie/${part.id}`} {...posterLinkProps('movie', part.id, part.poster_path)}
                         className="shrink-0 w-36 md:w-44 snap-center group/card block"
                     >
-                        <div className="aspect-2/3 rounded-lg overflow-hidden border border-border/60 bg-muted shadow-md mb-2 relative">
+                        <div data-shared-element className="aspect-2/3 rounded-lg overflow-hidden border border-border/60 bg-muted shadow-md mb-2 relative">
                             {part.poster_path ? (
                                 <img
                                     src={getImageUrl(part.poster_path, 'w342')}
@@ -1050,7 +1050,7 @@ const MovieDetail = () => {
 
                     {/* Trailers Section */}
                     {videos.length > 0 && (
-                        <section className="space-y-6">
+                        <section className="space-y-6 reveal">
                             <h2 className="text-xl md:text-2xl font-semibold text-foreground/90">Trailers & Clips</h2>
                             <div className="flex overflow-x-auto gap-4 pb-4 snap-x scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
                                 {videos.map((video: Video) => (
@@ -1116,7 +1116,9 @@ const MovieDetail = () => {
 
                     {mediaType && mediaId && (
                         <>
-                            <ReviewSection mediaType={mediaType} tmdbId={Number(mediaId)} />
+                            <div className="reveal">
+                                <ReviewSection mediaType={mediaType} tmdbId={Number(mediaId)} />
+                            </div>
 
                             {/* mbuff picks on mobile: horizontal row below reviews */}
                             <MbuffPicks
@@ -1130,7 +1132,7 @@ const MovieDetail = () => {
 
                     {/* Seasons Section (TV Shows) */}
                     {!isMovie && mediaDetails.seasons && mediaDetails.seasons.length > 0 && (
-                        <section className="space-y-6">
+                        <section className="space-y-6 reveal">
                             <h2 className="text-xl md:text-2xl font-semibold text-foreground/90">
                                 {mediaDetails.seasons.some(s => s.name.includes('Part')) ? 'Parts' : 'Seasons'}
                             </h2>
@@ -1141,9 +1143,12 @@ const MovieDetail = () => {
                                     <Link
                                         key={season.id}
                                         to={`/tv/${mediaId}/season/${season.season_number}`}
+                                        viewTransition
+                                        state={{ posterPath: season.poster_path } satisfies PosterLinkState}
+                                        onClick={nameSharedElementOnClick(seasonTransitionName(mediaId ?? '', season.season_number))}
                                         className="shrink-0 w-36 md:w-44 snap-center group/card block"
                                     >
-                                        <div className="aspect-2/3 rounded-lg overflow-hidden border border-border/60 bg-muted shadow-md mb-2 relative">
+                                        <div data-shared-element className="aspect-2/3 rounded-lg overflow-hidden border border-border/60 bg-muted shadow-md mb-2 relative">
                                             {season.poster_path ? (
                                                 <img
                                                     src={getImageUrl(season.poster_path, 'w342')}
@@ -1192,7 +1197,7 @@ const MovieDetail = () => {
 
                     {/* Cast Section */}
                     {cast.length > 0 && (
-                        <section className="space-y-6">
+                        <section className="space-y-6 reveal">
                             <h2 className="text-xl md:text-2xl font-semibold text-foreground/90">Top Cast</h2>
                             {/* Mobile: horizontal scroll with gradient fade */}
                             <div className="md:hidden relative -mx-4">
@@ -1201,8 +1206,8 @@ const MovieDetail = () => {
                                     className="flex overflow-x-auto gap-4 pb-4 snap-x scrollbar-hide px-4 pr-16"
                                 >
                                     {cast.map((member: CastMember) => (
-                                        <Link key={member.id} to={`/person/${member.id}`} className="shrink-0 w-24 flex flex-col items-center text-center snap-center group">
-                                            <div className="w-20 h-20 rounded-full overflow-hidden bg-muted/30 border border-border/60 mb-2 transition-transform duration-300 group-hover:scale-105">
+                                        <Link key={member.id} to={`/person/${member.id}`} viewTransition state={{ profilePath: member.profile_path } satisfies PersonLinkState} onClick={nameSharedElementOnClick(personTransitionName(member.id))} className="shrink-0 w-24 flex flex-col items-center text-center snap-center group">
+                                            <div data-shared-element className="w-20 h-20 rounded-full overflow-hidden bg-muted/30 border border-border/60 mb-2 transition-transform duration-300 group-hover:scale-105">
                                                 {member.profile_path ? (
                                                     <img
                                                         src={getImageUrl(member.profile_path, 'w185')}
@@ -1231,8 +1236,8 @@ const MovieDetail = () => {
                             {/* Desktop: left-aligned grid */}
                             <div className="hidden md:grid grid-cols-4 lg:grid-cols-6 gap-x-6 gap-y-6">
                                 {cast.map((member: CastMember) => (
-                                    <Link key={member.id} to={`/person/${member.id}`} className="flex flex-col items-center text-center group">
-                                        <div className="w-24 h-24 rounded-full overflow-hidden bg-muted/30 border border-border/60 mb-2 transition-transform duration-300 group-hover:scale-105">
+                                    <Link key={member.id} to={`/person/${member.id}`} viewTransition state={{ profilePath: member.profile_path } satisfies PersonLinkState} onClick={nameSharedElementOnClick(personTransitionName(member.id))} className="flex flex-col items-center text-center group">
+                                        <div data-shared-element className="w-24 h-24 rounded-full overflow-hidden bg-muted/30 border border-border/60 mb-2 transition-transform duration-300 group-hover:scale-105">
                                             {member.profile_path ? (
                                                 <img
                                                     src={getImageUrl(member.profile_path, 'w185')}
@@ -1288,7 +1293,7 @@ const MovieDetail = () => {
                         if (uniqueCrew.length === 0) return null;
 
                         return (
-                            <section className="space-y-6">
+                            <section className="space-y-6 reveal">
                                 <h2 className="text-xl md:text-2xl font-semibold text-foreground/90">Crew</h2>
                                 {/* Mobile: horizontal scroll with gradient fade */}
                                 <div className="md:hidden relative -mx-4">
@@ -1297,8 +1302,8 @@ const MovieDetail = () => {
                                         className="flex overflow-x-auto gap-4 pb-4 snap-x scrollbar-hide px-4 pr-16"
                                     >
                                         {uniqueCrew.map((member) => (
-                                            <Link key={member.id} to={`/person/${member.id}`} className="shrink-0 w-24 flex flex-col items-center text-center snap-center group">
-                                                <div className="w-20 h-20 rounded-full overflow-hidden bg-muted/30 border border-border/60 mb-2 transition-transform duration-300 group-hover:scale-105">
+                                            <Link key={member.id} to={`/person/${member.id}`} viewTransition state={{ profilePath: member.profile_path } satisfies PersonLinkState} onClick={nameSharedElementOnClick(personTransitionName(member.id))} className="shrink-0 w-24 flex flex-col items-center text-center snap-center group">
+                                                <div data-shared-element className="w-20 h-20 rounded-full overflow-hidden bg-muted/30 border border-border/60 mb-2 transition-transform duration-300 group-hover:scale-105">
                                                     {member.profile_path ? (
                                                         <img
                                                             src={getImageUrl(member.profile_path, 'w185')}
@@ -1327,8 +1332,8 @@ const MovieDetail = () => {
                                 {/* Desktop: left-aligned grid */}
                                 <div className="hidden md:grid grid-cols-4 lg:grid-cols-6 gap-x-6 gap-y-6">
                                     {uniqueCrew.map((member) => (
-                                        <Link key={member.id} to={`/person/${member.id}`} className="flex flex-col items-center text-center group">
-                                            <div className="w-24 h-24 rounded-full overflow-hidden bg-muted/30 border border-border/60 mb-2 transition-transform duration-300 group-hover:scale-105">
+                                        <Link key={member.id} to={`/person/${member.id}`} viewTransition state={{ profilePath: member.profile_path } satisfies PersonLinkState} onClick={nameSharedElementOnClick(personTransitionName(member.id))} className="flex flex-col items-center text-center group">
+                                            <div data-shared-element className="w-24 h-24 rounded-full overflow-hidden bg-muted/30 border border-border/60 mb-2 transition-transform duration-300 group-hover:scale-105">
                                                 {member.profile_path ? (
                                                     <img
                                                         src={getImageUrl(member.profile_path, 'w185')}
@@ -1395,7 +1400,7 @@ const MovieDetail = () => {
                             if (topWorks.length === 0) return null;
 
                             return (
-                                <section className="space-y-6">
+                                <section className="space-y-6 reveal">
                                     <h2 className="text-xl md:text-2xl font-semibold text-foreground/90">
                                         More from {targetPerson.name}
                                     </h2>
@@ -1403,10 +1408,10 @@ const MovieDetail = () => {
                                         {topWorks.map((work: PersonCredit) => (
                                             <Link
                                                 key={`${work.media_type}-${work.id}`}
-                                                to={`/media/${work.media_type}/${work.id}`}
+                                                to={`/media/${work.media_type}/${work.id}`} {...posterLinkProps(work.media_type, work.id, work.poster_path)}
                                                 className="shrink-0 w-32 md:w-40 snap-center group/card block"
                                             >
-                                                <div className="aspect-2/3 rounded-lg overflow-hidden border border-border/60 bg-muted shadow-md mb-2">
+                                                <div data-shared-element className="aspect-2/3 rounded-lg overflow-hidden border border-border/60 bg-muted shadow-md mb-2">
                                                     <img
                                                         src={getImageUrl(work.poster_path, 'w342')}
                                                         alt={work.title || work.name}
@@ -1449,7 +1454,7 @@ const MovieDetail = () => {
                         const topStudioWorks = enrichMoviesWithImdbRatings(studioMovies, studioRatingsMap);
 
                         return (
-                            <section className="space-y-6">
+                            <section className="space-y-6 reveal">
                                 <h2 className="text-xl md:text-2xl font-semibold text-foreground/90">
                                     Popular from Producers
                                 </h2>
@@ -1457,10 +1462,10 @@ const MovieDetail = () => {
                                     {topStudioWorks.map((work) => (
                                         <Link
                                             key={`studio-${work.id}`}
-                                            to={`/media/movie/${work.id}`}
+                                            to={`/media/movie/${work.id}`} {...posterLinkProps('movie', work.id, work.poster_path)}
                                             className="shrink-0 w-32 md:w-40 snap-center group/card block"
                                         >
-                                            <div className="aspect-2/3 rounded-lg overflow-hidden border border-border/60 bg-muted shadow-md mb-2">
+                                            <div data-shared-element className="aspect-2/3 rounded-lg overflow-hidden border border-border/60 bg-muted shadow-md mb-2">
                                                 <img
                                                     src={getImageUrl(work.poster_path, 'w342')}
                                                     alt={work.title || work.name}
