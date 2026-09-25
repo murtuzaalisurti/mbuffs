@@ -296,7 +296,14 @@ export default function PersonDetail() {
 
                     {/* Desktop: Profile Image */}
                     <div className="hidden md:block w-64 shrink-0">
-                        <div className="rounded-xl overflow-hidden shadow-2xl shadow-black/50 border border-border/60" style={{ viewTransitionName: photoViewTransitionName }}>
+                        <div
+                            className="rounded-xl overflow-hidden shadow-2xl shadow-black/50 border border-border/60 bg-muted bg-cover bg-center"
+                            style={{
+                                viewTransitionName: photoViewTransitionName,
+                                // The cast-sized photo (usually cached) holds the spot while the sharp one loads over it
+                                backgroundImage: personDetails.profile_path ? `url(${getImageUrl(personDetails.profile_path, 'w185')})` : undefined,
+                            }}
+                        >
                             {personDetails.profile_path ? (
                                 <img
                                     src={getImageUrl(personDetails.profile_path, 'w500')}

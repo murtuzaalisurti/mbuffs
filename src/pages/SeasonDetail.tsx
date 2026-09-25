@@ -241,7 +241,7 @@ const SeasonDetail = () => {
                             >
                                 {seasonDetails.poster_path ? (
                                     <img
-                                        src={getImageUrl(seasonDetails.poster_path, 'w185')}
+                                        src={getImageUrl(seasonDetails.poster_path, 'w342')}
                                         alt={seasonDetails.name}
                                         className="w-full h-full object-cover"
                                         onError={(e) => { (e.target as HTMLImageElement).src = '/placeholder.svg'; }}
