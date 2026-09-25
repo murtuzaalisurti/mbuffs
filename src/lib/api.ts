@@ -1,4 +1,5 @@
 import dayjs from 'dayjs';
+import { getSession } from './auth-client';
 import {
     Movie, MovieDetails, SearchResults, User, AdminUsersResponse, AdminCuratedItem, AdminCuratedItemsResponse,
     HomepageCollageItem, HomepageCollageItemsResponse, HomepageCollageItemsPublicResponse,
@@ -180,10 +181,21 @@ export const fetchUserPreferencesApi = async (): Promise<{ preferences: UserPref
 };
 
 export const updateUserPreferencesApi = async (data: UpdateUserPreferencesInput): Promise<{ preferences: UserPreferences }> => {
-    return fetchBackend('/user/preferences', {
+    const result = await fetchBackend('/user/preferences', {
         method: 'PUT',
         body: JSON.stringify(data),
     });
+
+    // The backend reads show_adult_items from the session cookie cache, so
+    // re-read the session from the database to apply the change immediately
+    // instead of after the cache expires.
+    if (data.show_adult_items !== undefined) {
+        await getSession({ query: { disableCookieCache: true } }).catch((error) => {
+            console.warn('Failed to refresh session after preference update', error);
+        });
+    }
+
+    return result;
 };
 
 // --- Avatar API Functions ---

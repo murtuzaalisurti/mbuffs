@@ -53,3 +53,28 @@ test('update-user rejects a client-supplied role (privilege escalation regressio
 
     expect(await getRole()).toBe('user');
 });
+
+test('update-user rejects server-managed preference fields', async () => {
+    await expect(
+        auth.api.updateUser({
+            body: { showAdultItems: true } as NonNullable<Parameters<typeof auth.api.updateUser>[0]>['body'],
+            headers: sessionHeaders(),
+        }),
+    ).rejects.toThrow();
+
+    const rows = await sql`SELECT show_adult_items FROM "user" WHERE id = ${userId}`;
+    expect(rows[0].show_adult_items).toBe(false);
+});
+
+test('session exposes showAdultItems and reflects DB changes once the cookie cache is bypassed', async () => {
+    const before = await auth.api.getSession({ headers: sessionHeaders() });
+    expect(before?.user.showAdultItems).toBe(false);
+
+    await sql`UPDATE "user" SET show_adult_items = true WHERE id = ${userId}`;
+
+    const after = await auth.api.getSession({
+        headers: sessionHeaders(),
+        query: { disableCookieCache: true },
+    });
+    expect(after?.user.showAdultItems).toBe(true);
+});

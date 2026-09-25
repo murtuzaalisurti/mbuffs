@@ -124,6 +124,16 @@ export const auth = betterAuth({
                 fieldName: "showRedditLabel",
                 input: false,
             },
+            // Exposed on the session so per-request checks (e.g. the TMDB proxy's
+            // adult filter) read it from the session cookie cache instead of
+            // querying the database on every request.
+            showAdultItems: {
+                type: "boolean",
+                required: false,
+                defaultValue: false,
+                fieldName: "showAdultItems",
+                input: false,
+            },
         },
     },
     account: {

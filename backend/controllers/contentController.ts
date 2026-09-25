@@ -5,19 +5,9 @@ import '../middleware/authMiddleware.js';
 const TMDB_API_KEY = process.env.TMDB_API_KEY;
 const TMDB_BASE_URL = process.env.TMDB_BASE_URL;
 
-// Resolve whether adult items should be included for this request.
-// Authenticated: user's show_adult_items preference (default false). Unauthenticated: false.
-const resolveShowAdultItems = async (userId: string | null | undefined): Promise<boolean> => {
-    if (!userId) return false;
-    try {
-        const result = await sql`SELECT show_adult_items FROM "user" WHERE id = ${userId}`;
-        if (result.length === 0) return false;
-        return result[0].show_adult_items ?? false;
-    } catch (error) {
-        console.error('Error resolving show_adult_items preference:', error);
-        return false;
-    }
-};
+// Whether adult items should be included for this request: the signed-in user's
+// show_adult_items preference, read from the session (no DB query). Anonymous: false.
+const resolveShowAdultItems = (req: Request): boolean => req.user?.showAdultItems === true;
 
 // Strip include_adult from querystring-style endpoints like "/discover/movie?include_adult=true&..."
 const stripIncludeAdultFromEndpoint = (endpoint: string): string => {
@@ -38,7 +28,7 @@ const fetchDetailsFromMoviesAPI = async (req: Request, res: Response, next: Next
         throw new Error("TMDB API key (VITE_TMDB_API_KEY) is missing.");
     }
 
-    const includeAdult = await resolveShowAdultItems(req.userId);
+    const includeAdult = resolveShowAdultItems(req);
 
     const normalizedEndpoint = stripIncludeAdultFromEndpoint(endpoint);
     const url = new URL(`${TMDB_BASE_URL}${normalizedEndpoint}`);
