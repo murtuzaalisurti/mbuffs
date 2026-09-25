@@ -1,6 +1,7 @@
 import express, { RequestHandler } from 'express'; // Import RequestHandler
 import {
     getUserCollections,
+    getMediaCollectionMembership,
     getCollectionById,
     createCollection,
     updateCollection,
@@ -33,6 +34,9 @@ const router = express.Router();
 // Cast middleware and controller functions to RequestHandler
 router.get('/', requireAuth as RequestHandler, getUserCollections as RequestHandler);
 router.post('/', requireAuth as RequestHandler, createCollection as RequestHandler);
+
+// Which of the user's collections contain a media item (movie id, or "<id>tv")
+router.get('/membership/:mediaId', requireAuth as RequestHandler, getMediaCollectionMembership as RequestHandler);
 
 router.get(
     '/:collectionId',

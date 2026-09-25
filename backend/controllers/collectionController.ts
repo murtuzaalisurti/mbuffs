@@ -150,6 +150,48 @@ export const getCollectionById = async (req: Request, res: Response, next: NextF
     }
 };
 
+// Which of the user's collections contain a given media item, in one query.
+// Covers the same collections as getUserCollections (owned or shared, excluding
+// system collections), so the detail page doesn't need every collection's items.
+export const getMediaCollectionMembership = async (req: Request, res: Response, next: NextFunction) => {
+    const userId = req.userId;
+    const { mediaId } = req.params;
+    if (!userId) {
+        res.sendStatus(401);
+        return;
+    }
+    try {
+        const rows = await sql`
+            SELECT c.id AS collection_id,
+                   cm.id IS NOT NULL AS has_media,
+                   cm.added_by_user_id
+            FROM collections c
+            LEFT JOIN collection_movies cm
+                ON cm.collection_id = c.id AND cm.movie_id = ${mediaId}
+            WHERE (
+                    c.owner_id = ${userId}
+                    OR EXISTS (
+                        SELECT 1 FROM collection_collaborators cc
+                        WHERE cc.collection_id = c.id AND cc.user_id = ${userId}
+                    )
+                )
+              AND (c.is_system = false OR c.is_system IS NULL)
+        ` as Array<{ collection_id: string; has_media: boolean; added_by_user_id: string | null }>;
+
+        const membership: Record<string, { hasMedia: boolean; addedByUserId: string | null }> = {};
+        for (const row of rows) {
+            membership[row.collection_id] = {
+                hasMedia: row.has_media,
+                addedByUserId: row.added_by_user_id ?? null,
+            };
+        }
+
+        res.status(200).json({ membership });
+    } catch (error) {
+        next(error);
+    }
+};
+
 export const createCollection = async (req: Request, res: Response, next: NextFunction) => {
     const userId = req.userId;
     if (!userId) { 

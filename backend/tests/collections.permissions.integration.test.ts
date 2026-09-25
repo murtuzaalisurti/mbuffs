@@ -238,3 +238,35 @@ test('owner cannot add collaborators to a system collection', async () => {
 
     expect(res.status).toBe(403);
 });
+
+// ---------------------------------------------------------------------------
+// MEDIA MEMBERSHIP (which of my collections contain a title)
+// ---------------------------------------------------------------------------
+
+test('membership lists owned collections containing the item, excluding system collections', async () => {
+    const res = await authed(request(app).get(`/api/collections/membership/${SEED_MOVIE_ID}`), owner);
+
+    expect(res.status).toBe(200);
+    expect(res.body.membership[collectionId]).toEqual({ hasMedia: true, addedByUserId: owner.id });
+    expect(res.body.membership[systemCollectionId]).toBeUndefined();
+});
+
+test('membership includes shared collections and reports absent items', async () => {
+    const res = await authed(request(app).get('/api/collections/membership/999999999'), viewer);
+
+    expect(res.status).toBe(200);
+    expect(res.body.membership[collectionId]).toEqual({ hasMedia: false, addedByUserId: null });
+});
+
+test('membership does not include collections the user cannot access', async () => {
+    const res = await authed(request(app).get(`/api/collections/membership/${SEED_MOVIE_ID}`), invitee);
+
+    expect(res.status).toBe(200);
+    expect(res.body.membership).toEqual({});
+});
+
+test('membership requires authentication', async () => {
+    const res = await request(app).get(`/api/collections/membership/${SEED_MOVIE_ID}`);
+
+    expect(res.status).toBe(401);
+});

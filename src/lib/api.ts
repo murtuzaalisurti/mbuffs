@@ -306,6 +306,13 @@ export const fetchUserCollectionsApi = async (): Promise<UserCollectionsResponse
     return fetchBackend('/collections');
 };
 
+export type CollectionMembershipMap = Record<string, { hasMedia: boolean; addedByUserId: string | null }>;
+
+// Which of the user's collections contain the media item (movie id, or "<id>tv").
+export const fetchCollectionMembershipApi = async (mediaId: string): Promise<{ membership: CollectionMembershipMap }> => {
+    return fetchBackend(`/collections/membership/${encodeURIComponent(mediaId)}`);
+};
+
 export const fetchCollectionDetailsApi = async (collectionId: string): Promise<CollectionDetails> => {
     return fetchBackend(`/collections/${collectionId}`);
 };
