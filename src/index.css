@@ -227,13 +227,6 @@
   animation: fadeInUp var(--dur-scene) var(--ease-out) backwards;
 }
 
-@utility page-enter {
-  /* Wraps the routed page: its blocks ease in when they mount; the header stays put. */
-  & > :not(header) {
-    animation: page-enter 320ms var(--ease-out);
-  }
-}
-
 @utility reveal {
   /*
     Sections further down a page fade up as they scroll into view
@@ -418,13 +411,6 @@
   to {
     opacity: 1;
     translate: none;
-  }
-}
-
-@keyframes page-enter {
-  from {
-    opacity: 0;
-    translate: 0 8px;
   }
 }
 

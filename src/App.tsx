@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useEffect, useRef, createContext, useContext } from 'react';
+import React, { Suspense, lazy, useEffect, useLayoutEffect, useRef, createContext, useContext } from 'react';
 import { Toaster } from "@/components/ui/toaster"; // Keep this Toaster
 import { Toaster as Sonner } from "@/components/ui/sonner"; // Keep Sonner
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -26,12 +26,13 @@ const NotInterestedItems = lazy(() => import('./pages/NotInterestedItems'));
 const Auth = lazy(() => import('./pages/Auth'));
 const Admin = lazy(() => import('./pages/Admin'));
 
-// Scrolls to top on every navigation (except browser back/forward)
+// Scrolls to top on every navigation (except browser back/forward). A layout
+// effect, so the new page never paints a frame at the old scroll position.
 const ScrollToTop = () => {
   const location = useLocation();
   const navType = useNavigationType();
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (navType !== 'POP') {
       window.scrollTo(0, 0);
     }
@@ -40,10 +41,10 @@ const ScrollToTop = () => {
   return null;
 };
 
-// A thin tungsten bar at the top edge: quieter than a spinner, and it keeps
-// the page underneath calm while a route or the session loads.
+// A thin bar at the top edge: quieter than a spinner, and it keeps the page
+// underneath calm while a route or the session loads.
 const RouteLoadingFallback = () => (
-  <div className="min-h-screen" role="progressbar" aria-label="Loading" aria-busy="true">
+  <div className="min-h-screen" role="progressbar" aria-label="Loading" aria-busy="true" data-route-fallback>
     <div className="fixed inset-x-0 top-0 z-60 h-0.5 overflow-hidden">
       <div className="h-full w-1/3 bg-primary animate-[loading-bar_1.1s_var(--ease-emph)_infinite]" />
     </div>
@@ -127,6 +128,65 @@ const AdminRoute = ({ children }: { children: React.ReactNode }) => {
   return children;
 };
 
+const isViewTransitionActive = () => {
+  try {
+    return document.documentElement.matches(':active-view-transition');
+  } catch {
+    // Selector unsupported: no way to tell, so let the page fade in
+    return false;
+  }
+};
+
+// Eases each page in once per navigation. Opacity only, so it never moves an
+// element a view transition is landing on, and it is skipped entirely when a
+// view transition is already animating the navigation. Running it per
+// navigation (not per mount) means a loading skeleton being swapped for the
+// real content doesn't replay it.
+const PageEnter = ({ children }: { children: React.ReactNode }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const { key } = useLocation();
+
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || isViewTransitionActive()) return;
+
+    const animations: Animation[] = [];
+    const fadeIn = () => {
+      for (const child of container.children) {
+        if (child.tagName === 'HEADER') continue; // the header stays put between pages
+        animations.push(
+          child.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 280, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' })
+        );
+      }
+    };
+    const hasFallback = () => container.querySelector(':scope > [data-route-fallback]') !== null;
+
+    // A lazily loaded (or auth-gated) page shows the route fallback first; ease the page in once it arrives
+    const observer = new MutationObserver(() => {
+      if (hasFallback()) return;
+      observer.disconnect();
+      fadeIn();
+    });
+    if (hasFallback()) {
+      observer.observe(container, { childList: true });
+    } else {
+      fadeIn();
+    }
+
+    return () => {
+      observer.disconnect();
+      animations.forEach((animation) => animation.cancel());
+    };
+  }, [key]);
+
+  return (
+    <div ref={containerRef} className="contents">
+      {children}
+    </div>
+  );
+};
+
 // Shell shared by every route: scroll handling, auth, the lazy-route boundary
 // and the mobile tab bar.
 const RootLayout = () => (
@@ -134,11 +194,11 @@ const RootLayout = () => (
     <AmbientGlow />
     <ScrollToTop />
     <AuthProvider>
-      <div className="contents page-enter">
+      <PageEnter>
         <Suspense fallback={<RouteLoadingFallback />}>
           <Outlet />
         </Suspense>
-      </div>
+      </PageEnter>
       <BottomNav />
     </AuthProvider>
   </>
