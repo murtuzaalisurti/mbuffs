@@ -32,8 +32,8 @@ self.addEventListener("message", (event) => {
   }
 });
 
-// Fetch: network-first strategy
-// Try the network first; if it fails, fall back to the cache.
+// Fetch: cache-first for hashed build assets, network-first for everything
+// else (try the network; if it fails, fall back to the cache).
 self.addEventListener("fetch", (event) => {
   const { request } = event;
 
@@ -52,6 +52,28 @@ self.addEventListener("fetch", (event) => {
 
   // Skip any auth-related same-origin paths just in case
   if (request.url.includes("/api/auth/")) return;
+
+  // Hashed build assets (/assets/*) never change for a given URL, so serve them
+  // cache-first: repeat visits skip the network entirely and work offline. Old
+  // builds' assets are dropped with their cache when a new worker activates.
+  if (new URL(request.url).pathname.startsWith("/assets/")) {
+    event.respondWith(
+      caches.match(request).then(
+        (cachedResponse) =>
+          cachedResponse ||
+          fetch(request).then((response) => {
+            if (response && response.status === 200) {
+              const responseToCache = response.clone();
+              caches.open(CACHE_NAME).then((cache) => {
+                cache.put(request, responseToCache);
+              });
+            }
+            return response;
+          })
+      )
+    );
+    return;
+  }
 
   event.respondWith(
     fetch(request)
