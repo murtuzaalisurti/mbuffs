@@ -341,11 +341,7 @@ export function MovieCard({
           {showMovieCardInfo ? (
             <div className="absolute inset-0 bg-linear-to-t from-black/90 via-black/40 to-transparent opacity-100 transition-opacity duration-300" />
           ) : (
-            <>
-              <div className="absolute inset-0 bg-linear-to-t from-black/35 via-black/5 to-transparent" />
-              {/* With card info off, the title rises in on hover instead */}
-              <div className="absolute inset-0 bg-linear-to-t from-black/90 via-black/40 to-transparent opacity-0 transition-opacity duration-(--dur-ui) ease-(--ease-out) pointer-fine:group-hover:opacity-100 group-focus-visible:opacity-100" />
-            </>
+            <div className="absolute inset-0 bg-linear-to-t from-black/35 via-black/5 to-transparent" />
           )}
 
           {/* Selection checkbox badge */}
@@ -442,13 +438,8 @@ export function MovieCard({
             </div>
           )}
 
-          <div
-            className={`absolute bottom-0 left-0 right-0 p-3 flex flex-col justify-end z-10 transition-[opacity,translate] duration-(--dur-ui) ease-(--ease-out) ${
-              showMovieCardInfo
-                ? ""
-                : "opacity-0 translate-y-2 pointer-fine:group-hover:opacity-100 pointer-fine:group-hover:translate-y-0 group-focus-visible:opacity-100 group-focus-visible:translate-y-0"
-            }`}
-          >
+          {showMovieCardInfo && (
+            <div className="absolute bottom-0 left-0 right-0 p-3 flex flex-col justify-end z-10">
               <h3 className="font-semibold text-xs sm:text-sm leading-tight text-foreground line-clamp-2 drop-shadow-md shadow-black">
                 {movie.name || movie.title}
               </h3>
@@ -478,7 +469,8 @@ export function MovieCard({
                   Because you liked {becauseYouLiked}
                 </p>
               )}
-          </div>
+            </div>
+          )}
 
         </div>
       </div>

@@ -11,14 +11,14 @@ interface MediaRailProps {
   subtitle?: ReactNode;
   movies: Movie[];
   showNotInterested?: boolean;
-  /** Title becomes a toggle that folds the row away */
-  collapsible?: boolean;
+  /** Title toggles between one row and a multi-row grid (both scroll sideways) */
+  expandable?: boolean;
 }
 
 const RAIL_POSTER_SIZES = "(min-width: 768px) 180px, (min-width: 640px) 160px, 140px";
 
 /** A scrollable row of media cards with watched / not-interested state and IMDb ratings. */
-export function MediaRail({ title, subtitle, movies, showNotInterested = false, collapsible = false }: MediaRailProps) {
+export function MediaRail({ title, subtitle, movies, showNotInterested = false, expandable = false }: MediaRailProps) {
   const visibleMovies = useMemo(() => movies.filter((movie) => movie.poster_path), [movies]);
 
   const mediaIds = useMemo(
@@ -36,7 +36,7 @@ export function MediaRail({ title, subtitle, movies, showNotInterested = false, 
   if (enrichedMovies.length === 0) return null;
 
   return (
-    <Rail title={title} subtitle={subtitle} collapsible={collapsible}>
+    <Rail title={title} subtitle={subtitle} expandable={expandable}>
       {enrichedMovies.map((movie) => {
         const mediaId = movie.first_air_date ? `${movie.id}tv` : String(movie.id);
         return (
