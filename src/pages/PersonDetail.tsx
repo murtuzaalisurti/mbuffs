@@ -297,7 +297,7 @@ export default function PersonDetail() {
                     {/* Desktop: Profile Image */}
                     <div className="hidden md:block w-64 shrink-0">
                         <div
-                            className="rounded-xl overflow-hidden shadow-2xl shadow-black/50 border border-border/60 bg-muted bg-cover bg-center"
+                            className="rounded-xl overflow-hidden shadow-2xl shadow-black/50 border border-border/60 bg-muted bg-cover bg-center bg-clip-padding"
                             style={{
                                 viewTransitionName: photoViewTransitionName,
                                 // The cast-sized photo (usually cached) holds the spot while the sharp one loads over it

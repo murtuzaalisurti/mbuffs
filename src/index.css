@@ -473,14 +473,17 @@
 
 /*
   Images stay hidden until loaded and decoded, then fade in (lib/imageFade);
-  images that are already available show at once.
+  images that are already available show at once. In the base layer so
+  utilities such as animate-backdrop-in can replace the plain fade.
 */
-img[data-img-pending] {
-  opacity: 0;
-}
+@layer base {
+  img[data-img-pending] {
+    opacity: 0;
+  }
 
-img[data-img-fade] {
-  animation: img-fade-in 420ms var(--ease-out);
+  img[data-img-fade] {
+    animation: img-fade-in 420ms var(--ease-out);
+  }
 }
 
 @keyframes img-fade-in {

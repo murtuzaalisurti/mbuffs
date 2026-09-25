@@ -740,7 +740,7 @@ const MovieDetail = () => {
                     {/* Poster */}
                     <div className="w-48 md:w-56 lg:w-64 shrink-0 mx-auto md:mx-0">
                         <div
-                            className="rounded-xl overflow-hidden shadow-2xl shadow-black/50 border border-border/60 bg-muted bg-cover bg-center"
+                            className="rounded-xl overflow-hidden shadow-2xl shadow-black/50 border border-border/60 bg-muted bg-cover bg-center bg-clip-padding"
                             style={{
                                 viewTransitionName: posterViewTransitionName,
                                 // The card-sized poster (usually cached) holds the spot while the sharp one loads over it
