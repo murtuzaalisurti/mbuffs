@@ -168,6 +168,13 @@ export interface CreditsResponse {
   crew: CrewMember[];
 }
 
+// Media details with videos and credits appended (append_to_response). Appended
+// sub-responses omit the top-level `id`.
+export interface MediaPageDetails extends MovieDetails {
+  videos?: Omit<VideosResponse, 'id'>;
+  credits?: Omit<CreditsResponse, 'id'>;
+}
+
 export interface PersonCredit extends Movie {
   media_type: 'movie' | 'tv';
   job?: string;

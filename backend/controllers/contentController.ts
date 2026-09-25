@@ -92,8 +92,8 @@ const filterAdultFromTmdbResponse = (data: Record<string, unknown>): Record<stri
         (data as { results: unknown[] }).results = kept;
         if (removed > 0) dropped.results = removed;
     }
-    // Known appended sub-responses (append_to_response=recommendations,similar,...)
-    for (const key of ['recommendations', 'similar'] as const) {
+    // Known appended sub-responses (append_to_response=recommendations,similar,credits,...)
+    for (const key of ['recommendations', 'similar', 'credits'] as const) {
         const sub = (data as Record<string, unknown>)[key];
         if (sub && typeof sub === 'object') {
             const subDropped = filterAdultFromTmdbResponse(sub as Record<string, unknown>);

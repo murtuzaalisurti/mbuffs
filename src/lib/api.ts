@@ -6,7 +6,7 @@ import {
     MbuffPicksResponse,
     CollectionSummary, CollectionDetails, CollectionCollaborator, UserCollectionsResponse,
     CreateCollectionInput, UpdateCollectionInput, AddMovieInput, AddCollaboratorInput,
-    UpdateCollaboratorInput, AddMovieResponse, BulkOperationInput, BulkOperationResponse, VideosResponse, CreditsResponse,
+    UpdateCollaboratorInput, AddMovieResponse, BulkOperationInput, BulkOperationResponse, MediaPageDetails,
     Genre, GenreListResponse, PersonCreditsResponse, SeasonDetails, TmdbCollectionDetails,
     UserPreferences, UpdateUserPreferencesInput,
     RecommendationsResponse, RecommendationCollectionsResponse, CategoryRecommendationsResponse,
@@ -811,30 +811,21 @@ export const fetchTmdbCollectionDetailsApi = async (collectionId: number): Promi
     }
 };
 
-export const fetchVideosApi = async (mediaType: 'movie' | 'tv', id: number): Promise<VideosResponse | null> => {
+// Details plus videos and credits in a single TMDB call (append_to_response),
+// for the media detail page, instead of three separate requests.
+export const fetchMediaPageDetailsApi = async (mediaType: 'movie' | 'tv', id: number): Promise<MediaPageDetails | null> => {
     try {
         return await fetchBackend(`/content`, {
             method: 'POST',
             body: JSON.stringify({
-                endpoint: `/${mediaType}/${id}/videos`,
+                endpoint: `/${mediaType}/${id}`,
+                params: {
+                    append_to_response: 'watch/providers,videos,credits'
+                }
             }),
         });
     } catch (error) {
-        console.error(`Failed to fetch videos for ${mediaType} ${id}:`, error);
-        return null;
-    }
-};
-
-export const fetchCreditsApi = async (mediaType: 'movie' | 'tv', id: number): Promise<CreditsResponse | null> => {
-    try {
-        return await fetchBackend(`/content`, {
-            method: 'POST',
-            body: JSON.stringify({
-                endpoint: `/${mediaType}/${id}/credits`,
-            }),
-        });
-    } catch (error) {
-        console.error(`Failed to fetch credits for ${mediaType} ${id}:`, error);
+        console.error(`Failed to fetch page details for ${mediaType} ${id}:`, error);
         return null;
     }
 };
