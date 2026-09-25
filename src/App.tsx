@@ -4,7 +4,9 @@ import { Toaster as Sonner } from "@/components/ui/sonner"; // Keep Sonner
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { BottomNav } from "@/components/BottomNav";
 import { AmbientGlow } from "@/components/AmbientGlow";
-import { createBrowserRouter, createRoutesFromElements, RouterProvider, Outlet, Route, Navigate, useLocation, useNavigationType } from "react-router-dom";
+import { createBrowserRouter, createRoutesFromElements, RouterProvider, Outlet, Route, Navigate, ScrollRestoration, useLocation } from "react-router-dom";
+import { isHistoryNavigation, trackNavigationMotion } from "@/lib/navigationMotion";
+import { claimReturnMorph } from "@/lib/posterTransition";
 import { useAuth } from './hooks/useAuth';
 import { useRecommendationPrefetch } from './hooks/useRecommendationPrefetch';
 import { useToast } from "@/components/ui/use-toast"; // Import the correct useToast
@@ -25,21 +27,6 @@ const WatchedItems = lazy(() => import('./pages/WatchedItems'));
 const NotInterestedItems = lazy(() => import('./pages/NotInterestedItems'));
 const Auth = lazy(() => import('./pages/Auth'));
 const Admin = lazy(() => import('./pages/Admin'));
-
-// Scrolls to top on every navigation (except browser back/forward). A layout
-// effect, so the new page never paints a frame at the old scroll position.
-const ScrollToTop = () => {
-  const location = useLocation();
-  const navType = useNavigationType();
-
-  useLayoutEffect(() => {
-    if (navType !== 'POP') {
-      window.scrollTo(0, 0);
-    }
-  }, [location.pathname, navType]);
-
-  return null;
-};
 
 // A thin bar at the top edge: quieter than a spinner, and it keeps the page
 // underneath calm while a route or the session loads.
@@ -137,7 +124,7 @@ const isViewTransitionActive = () => {
   }
 };
 
-// Eases each page in once per navigation. Opacity only, so it never moves an
+// Eases each page in once per forward navigation. Opacity only, so it never moves an
 // element a view transition is landing on, and it is skipped entirely when a
 // view transition is already animating the navigation. Running it per
 // navigation (not per mount) means a loading skeleton being swapped for the
@@ -149,6 +136,11 @@ const PageEnter = ({ children }: { children: React.ReactNode }) => {
   useLayoutEffect(() => {
     const container = containerRef.current;
     if (!container) return;
+    // Back/forward restores the page as it was; only the tapped image flies home
+    if (isHistoryNavigation()) {
+      claimReturnMorph();
+      return;
+    }
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || isViewTransitionActive()) return;
 
     const animations: Animation[] = [];
@@ -192,7 +184,9 @@ const PageEnter = ({ children }: { children: React.ReactNode }) => {
 const RootLayout = () => (
   <>
     <AmbientGlow />
-    <ScrollToTop />
+    {/* Top of the page on new navigations, the saved position on back/forward,
+        restored before paint so the old page never jumps first */}
+    <ScrollRestoration />
     <AuthProvider>
       <PageEnter>
         <Suspense fallback={<RouteLoadingFallback />}>
@@ -275,6 +269,8 @@ const router = createBrowserRouter(
     </Route>
   )
 );
+
+trackNavigationMotion(router);
 
 const App = () => (
   <TooltipProvider>

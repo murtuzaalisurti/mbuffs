@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { MovieCard } from "@/components/MovieCard";
 import { MediaRail } from "@/components/MediaRail";
 import { Rail, RailSkeleton } from "@/components/Rail";
@@ -25,6 +25,9 @@ import {
 const TRENDING_CONTENT_QUERY_KEY = ['content', 'trending'];
 const NOW_PLAYING_QUERY_KEY = ['content', 'now-playing'];
 const COLLAGE_QUERY_KEY = ['content', 'collage'];
+
+// One shuffle per visit: coming back to the home page shows the same wall
+const COLLAGE_SHUFFLE_SEED = Math.floor(Math.random() * 2 ** 32);
 
 /** Small deterministic PRNG (mulberry32), so a shuffle can be repeated from its seed. */
 const seededRandom = (seed: number) => () => {
@@ -89,10 +92,8 @@ const Index = () => {
   const nowPlayingContent = nowPlayingData?.results || [];
   const collageItems = useMemo(() => collageData?.items ?? [], [collageData]);
   const collageMinItems = collageData?.minItems ?? 12;
-  // One random seed per visit keeps the shuffle stable across re-renders
-  const [shuffleSeed] = useState(() => Math.floor(Math.random() * 2 ** 32));
   const heroPosters = useMemo(() => {
-    const random = seededRandom(shuffleSeed);
+    const random = seededRandom(COLLAGE_SHUFFLE_SEED);
     const collagePosters = collageItems.map((item) => ({ id: item.tmdb_id, poster_path: item.poster_path }));
     for (let i = collagePosters.length - 1; i > 0; i--) {
       const j = Math.floor(random() * (i + 1));
@@ -104,7 +105,7 @@ const Index = () => {
       .filter((m) => !existingIds.has(String(m.id)))
       .map((m) => ({ id: String(m.id), poster_path: m.poster_path }));
     return [...collagePosters, ...trendingFill];
-  }, [collageItems, collageMinItems, trendingContent, shuffleSeed]);
+  }, [collageItems, collageMinItems, trendingContent]);
   const firstRecommendationsPage = recommendationsData?.pages?.[0];
   const recommendationCandidates = useMemo(
     () => dedupeForYouRecommendations(firstRecommendationsPage?.results ?? []),

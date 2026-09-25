@@ -2,6 +2,7 @@ import { Children, ReactNode, useEffect, useId, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { isHistoryNavigation } from '@/lib/navigationMotion';
 
 interface RailProps {
   title: ReactNode;
@@ -38,7 +39,8 @@ export function Rail({
 }: RailProps) {
   const sectionRef = useRef<HTMLElement>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
-  const [revealed, setRevealed] = useState(false);
+  // Coming back to a page shows its rails as they were, without replaying the reveal
+  const [revealed, setRevealed] = useState(isHistoryNavigation);
   const [expanded, setExpanded] = useState(false);
   const [edges, setEdges] = useState({ atStart: true, atEnd: false });
   const transitionPrefix = `rail${useId().replace(/[^a-zA-Z0-9]/g, '')}`;

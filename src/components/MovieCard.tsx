@@ -15,7 +15,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Button } from "@/components/ui/button";
 import { useState, useRef, ReactNode } from "react";
 import { haptics } from "@/lib/haptics";
-import { posterTransitionName, preloadMediaDetail, type PosterLinkState } from "@/lib/posterTransition";
+import { nameSharedElementOnClick, posterTransitionName, preloadMediaDetail, type PosterLinkState } from "@/lib/posterTransition";
 
 interface MovieCardProps {
   movie: Movie;
@@ -94,7 +94,6 @@ export function MovieCard({
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressFiredRef = useRef(false);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
-  const posterRef = useRef<HTMLImageElement>(null);
   const menuItemClass = "cursor-pointer rounded-lg px-3 py-2.5 text-sm font-medium text-foreground/90 focus:bg-accent focus:text-accent-foreground data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground";
 
   // Local optimistic overlays. We only use them while they differ from server props.
@@ -294,9 +293,7 @@ export function MovieCard({
           return;
         }
         // Name this poster only now, so the detail page's poster can grow out of it
-        if (posterRef.current) {
-          posterRef.current.style.viewTransitionName = posterTransitionName(mediaType, movie.id);
-        }
+        nameSharedElementOnClick(posterTransitionName(mediaType, movie.id))(e);
       }}
       onPointerEnter={handlePosterIntent}
       onTouchStart={(e) => {
@@ -327,7 +324,7 @@ export function MovieCard({
         {/* Poster Image */}
         <div className="aspect-2/3 relative overflow-hidden bg-muted">
           <img
-            ref={posterRef}
+            data-shared-element
             src={getImageUrl(movie.poster_path, 'w342')}
             srcSet={getPosterSrcSet(movie.poster_path)}
             sizes={imageSizes}

@@ -725,7 +725,7 @@ const MovieDetail = () => {
                     <img
                         src={getImageUrl(backdropPath, 'original')}
                         alt={`${title} backdrop`}
-                        className="absolute inset-0 w-full h-full object-cover object-top animate-[backdrop-in_1.4s_var(--ease-out)_both]"
+                        className="absolute inset-0 w-full h-full object-cover object-top animate-backdrop-in"
                         onError={(e) => {
                             (e.target as HTMLImageElement).style.display = 'none';
                         }}

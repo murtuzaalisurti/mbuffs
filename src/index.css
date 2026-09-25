@@ -302,6 +302,11 @@
   }
 }
 
+@utility animate-backdrop-in {
+  /* Detail backdrops settle in from a slight zoom */
+  animation: backdrop-in 1.4s var(--ease-out) both;
+}
+
 @utility fade-out-bottom {
   /* Artwork dissolves into the page instead of ending at a hard edge */
   mask-image: linear-gradient(to bottom, #000 45%, transparent 100%);
@@ -462,6 +467,19 @@
       animation-range: 0 100vh;
     }
   }
+}
+
+/*
+  Back/forward restores a page as it was: entrances don't replay (see
+  lib/navigationMotion). The collage posters are already loaded, so they
+  appear at once instead of fading in again.
+*/
+[data-nav="pop"] :is(.animate-stagger > *, .animate-fade-in-up, .animate-backdrop-in) {
+  animation: none;
+}
+
+[data-nav="pop"] .collage-poster {
+  transition: none;
 }
 
 /* Page-to-page: a quick cross-fade; shared posters morph on their own. */

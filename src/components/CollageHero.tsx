@@ -26,7 +26,7 @@ export function CollageHero({ posters }: CollageHeroProps) {
                 key={item.id}
                 src={getImageUrl(item.poster_path, 'w342')}
                 alt=""
-                className="w-[18%] md:w-[15%] lg:w-[11%] xl:w-[10%] aspect-[2/3] object-cover rounded-md opacity-0 scale-95 transition-[opacity,scale] duration-700 ease-(--ease-out) data-loaded:opacity-100 data-loaded:scale-100"
+                className="collage-poster w-[18%] md:w-[15%] lg:w-[11%] xl:w-[10%] aspect-[2/3] object-cover rounded-md opacity-0 scale-95 transition-[opacity,scale] duration-700 ease-(--ease-out) data-loaded:opacity-100 data-loaded:scale-100"
                 style={{ transitionDelay: `${(index % STAGGER_GROUP) * STAGGER_MS}ms` }}
                 loading="lazy"
                 onLoad={(e) => {

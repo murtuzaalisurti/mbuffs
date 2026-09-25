@@ -30,13 +30,40 @@ export type PersonLinkState = {
 
 export const personTransitionName = (personId: string | number) => `person-${personId}`;
 
+// The link that started the last morph, so going back can morph into it again.
+// Kept as its href plus which copy it was, since a title can appear in several rails.
+let returnMorph: { name: string; href: string; index: number } | null = null;
+
+const linksTo = (href: string) => document.querySelectorAll<HTMLElement>(`a[href="${CSS.escape(href)}"]`);
+
 /**
  * Click handler for a link whose `[data-shared-element]` child should morph
- * into the next page. Like cards, it is named only when clicked.
+ * into the next page. The element is named only when clicked.
  */
 export const nameSharedElementOnClick = (name: string) => (event: React.MouseEvent<HTMLElement>) => {
-  const element = event.currentTarget.querySelector<HTMLElement>('[data-shared-element]');
-  if (element) element.style.viewTransitionName = name;
+  const link = event.currentTarget;
+  const element = link.querySelector<HTMLElement>('[data-shared-element]');
+  if (!element) return;
+  element.style.viewTransitionName = name;
+  const href = link.getAttribute('href');
+  if (href) returnMorph = { name, href, index: [...linksTo(href)].indexOf(link) };
+};
+
+/**
+ * On a back navigation, name the element that started the last morph so the
+ * image flies back to where it came from. Called once the page has rendered,
+ * before the view transition captures it; the name is cleared once it is done.
+ */
+export const claimReturnMorph = () => {
+  if (!returnMorph) return;
+  const { name, href, index } = returnMorph;
+  returnMorph = null;
+  const element = linksTo(href)[index]?.querySelector<HTMLElement>('[data-shared-element]');
+  if (!element) return;
+  element.style.viewTransitionName = name;
+  setTimeout(() => {
+    if (element.style.viewTransitionName === name) element.style.viewTransitionName = '';
+  }, 1000);
 };
 
 /** Link props for a plain poster link, so its `[data-shared-element]` poster grows into the detail page. */
