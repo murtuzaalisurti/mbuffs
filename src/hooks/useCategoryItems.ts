@@ -7,11 +7,11 @@ import {
   fetchTvByGenreApi,
   fetchNowPlayingMoviesApi,
   fetchUserPreferencesApi,
-  fetchUserRegion,
 } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { useWatchedStatus } from "@/hooks/useWatchedStatus";
 import { useNotInterestedStatus } from "@/hooks/useNotInterestedStatus";
+import { useUserRegion } from "@/hooks/useUserRegion";
 import { CategoryRecommendationsResponse, Genre, UserPreferences } from "@/lib/types";
 import {
   CATEGORY_OVERVIEW_FETCH_LIMIT,
@@ -72,11 +72,7 @@ export function useCategoryItems({ mediaType, genreId, enabled = true }: UseCate
   // default query renders first and the grid swaps once preferences resolve.
   const preferencesReady = !user || preferencesData !== undefined;
 
-  const { data: userRegion } = useQuery({
-    queryKey: ["userRegion"],
-    queryFn: fetchUserRegion,
-    staleTime: Infinity,
-  });
+  const { data: userRegion } = useUserRegion();
 
   // Genre list (names + ids) for the current media type.
   const { data: genreData, isLoading: isLoadingGenres } = useQuery({

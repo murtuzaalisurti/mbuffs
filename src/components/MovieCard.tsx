@@ -1,5 +1,5 @@
 import { Movie, UserPreferences } from "@/lib/types";
-import { fetchUserPreferencesApi, getImageUrl, toggleNotInterestedStatusApi, toggleWatchedStatusApi } from "@/lib/api";
+import { fetchUserPreferencesApi, getImageUrl, getPosterSrcSet, toggleNotInterestedStatusApi, toggleWatchedStatusApi } from "@/lib/api";
 import { Star, Eye, EyeOff, MoreVertical, ThumbsDown, ThumbsUp, Check } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -34,7 +34,13 @@ interface MovieCardProps {
   onToggleSelect?: (movieId: string) => void;
   /** Callback fired on a mobile long-press (used to enter selection mode) */
   onLongPress?: (movieId: string) => void;
+  /** Rendered poster width for responsive image selection (`sizes` attribute) */
+  imageSizes?: string;
 }
+
+// Matches the standard card grid: 2 columns on phones up to 6 on wide screens.
+const GRID_POSTER_SIZES =
+  "(min-width: 1280px) 17vw, (min-width: 1024px) 20vw, (min-width: 768px) 25vw, (min-width: 640px) 33vw, 50vw";
 
 const LONG_PRESS_MS = 450;
 const LONG_PRESS_MOVE_THRESHOLD = 10;
@@ -52,6 +58,7 @@ export function MovieCard({
   isSelected = false,
   onToggleSelect,
   onLongPress,
+  imageSizes = GRID_POSTER_SIZES,
 }: MovieCardProps) {
   const releaseYear = (movie.release_date || movie.first_air_date)
     ? new Date(movie.first_air_date || movie.release_date).getFullYear()
@@ -303,9 +310,12 @@ export function MovieCard({
         {/* Poster Image */}
         <div className="aspect-2/3 relative overflow-hidden bg-muted">
           <img
-            src={getImageUrl(movie.poster_path)}
+            src={getImageUrl(movie.poster_path, 'w342')}
+            srcSet={getPosterSrcSet(movie.poster_path)}
+            sizes={imageSizes}
             alt={movie.name || movie.title}
             className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+            loading="lazy"
             decoding="async"
           />
           

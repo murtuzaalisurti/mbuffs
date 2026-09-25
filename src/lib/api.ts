@@ -1,11 +1,12 @@
 import dayjs from 'dayjs';
+import { getSession } from './auth-client';
 import {
     Movie, MovieDetails, SearchResults, User, AdminUsersResponse, AdminCuratedItem, AdminCuratedItemsResponse,
     HomepageCollageItem, HomepageCollageItemsResponse, HomepageCollageItemsPublicResponse,
     MbuffPicksResponse,
     CollectionSummary, CollectionDetails, CollectionCollaborator, UserCollectionsResponse,
     CreateCollectionInput, UpdateCollectionInput, AddMovieInput, AddCollaboratorInput,
-    UpdateCollaboratorInput, AddMovieResponse, BulkOperationInput, BulkOperationResponse, VideosResponse, CreditsResponse,
+    UpdateCollaboratorInput, AddMovieResponse, BulkOperationInput, BulkOperationResponse, MediaPageDetails,
     Genre, GenreListResponse, PersonCreditsResponse, SeasonDetails, TmdbCollectionDetails,
     UserPreferences, UpdateUserPreferencesInput,
     RecommendationsResponse, RecommendationCollectionsResponse, CategoryRecommendationsResponse,
@@ -49,12 +50,17 @@ export const fetchBackend = async (endpoint: string, options: RequestInit = {}) 
     const url = `${BACKEND_BASE_URL}/api${endpoint}`;
 
     const headers = new Headers(options.headers || {});
-    headers.set('Content-Type', 'application/json');
+    // Only declare a JSON body when there is one: a Content-Type header makes a
+    // cross-origin request "non-simple" and forces a CORS preflight, so bodiless
+    // GETs would otherwise pay an extra round trip.
+    if (options.body !== undefined && options.body !== null) {
+        headers.set('Content-Type', 'application/json');
+    }
 
     const requestOptions: RequestInit = {
         credentials: 'include', // Required for Better Auth cookies
-        headers: headers,
         ...options,
+        headers,
     };
 
     try {
@@ -175,10 +181,21 @@ export const fetchUserPreferencesApi = async (): Promise<{ preferences: UserPref
 };
 
 export const updateUserPreferencesApi = async (data: UpdateUserPreferencesInput): Promise<{ preferences: UserPreferences }> => {
-    return fetchBackend('/user/preferences', {
+    const result = await fetchBackend('/user/preferences', {
         method: 'PUT',
         body: JSON.stringify(data),
     });
+
+    // The backend reads show_adult_items from the session cookie cache, so
+    // re-read the session from the database to apply the change immediately
+    // instead of after the cache expires.
+    if (data.show_adult_items !== undefined) {
+        await getSession({ query: { disableCookieCache: true } }).catch((error) => {
+            console.warn('Failed to refresh session after preference update', error);
+        });
+    }
+
+    return result;
 };
 
 // --- Avatar API Functions ---
@@ -287,6 +304,13 @@ export const warmRecommendationCacheApi = async (): Promise<void> => {
 // --- Collection API Functions (No changes needed, use fetchBackend) ---
 export const fetchUserCollectionsApi = async (): Promise<UserCollectionsResponse> => {
     return fetchBackend('/collections');
+};
+
+export type CollectionMembershipMap = Record<string, { hasMedia: boolean; addedByUserId: string | null }>;
+
+// Which of the user's collections contain the media item (movie id, or "<id>tv").
+export const fetchCollectionMembershipApi = async (mediaId: string): Promise<{ membership: CollectionMembershipMap }> => {
+    return fetchBackend(`/collections/membership/${encodeURIComponent(mediaId)}`);
 };
 
 export const fetchCollectionDetailsApi = async (collectionId: string): Promise<CollectionDetails> => {
@@ -427,18 +451,42 @@ export const getImageUrl = (path: string | null | undefined, size = 'w500') => {
     return `${IMAGE_BASE_URL}/${size}${path}`;
 };
 
+// Poster widths TMDB serves, for responsive `srcSet`s. A w500 poster is ~2x the
+// bytes of w342 and ~6x w185, so let the browser pick the smallest that fits.
+const POSTER_WIDTHS = [185, 342, 500] as const;
+
+export const getPosterSrcSet = (path: string | null | undefined): string | undefined => {
+    if (!path) return undefined;
+    return POSTER_WIDTHS.map((width) => `${IMAGE_BASE_URL}/w${width}${path} ${width}w`).join(', ');
+};
 
 
+
+const COUNTRY_CODE_PATTERN = /^[A-Z]{2}$/;
+
+// Best-effort region from the browser locale (e.g. "en-IN" -> "IN").
+const guessRegionFromLocale = (): string | null => {
+    try {
+        const region = new Intl.Locale(navigator.language).region;
+        return region && COUNTRY_CODE_PATTERN.test(region) ? region : null;
+    } catch {
+        return null;
+    }
+};
+
+// Resolves the visitor's country via our backend, which reads Vercel's edge
+// geolocation header. Falls back to the browser locale (e.g. in local dev, where
+// the header is absent), then to US.
 export const fetchUserRegion = async (): Promise<string> => {
     try {
-        const response = await fetch('https://get.geojs.io/v1/ip/country.json');
-        if (!response.ok) throw new Error('Geo fetch failed');
-        const data = await response.json();
-        return data.country || 'US';
+        const data: { country: string | null } = await fetchBackend('/region');
+        if (data?.country && COUNTRY_CODE_PATTERN.test(data.country)) {
+            return data.country;
+        }
     } catch (e) {
-        console.warn('Failed to fetch user region, defaulting to US', e);
-        return 'US';
+        console.warn('Failed to fetch user region, falling back to locale', e);
     }
+    return guessRegionFromLocale() ?? 'US';
 };
 
 const MOVIE_GENRES = '9648|27|53|12|28|878'; // Mystery, Horror, Thriller, Action, Comedy (Feel Good), Family (Feel Good)
@@ -450,46 +498,46 @@ export const fetchRecentContentApi = async (page = 1, region = 'US', timezone: s
         const maxDate = dayjs().format('YYYY-MM-DD');
         const minDate = dayjs().subtract(12, 'month').format('YYYY-MM-DD');
 
-        // Fetch Recent Movies
-        const movieData = await fetchBackend(`/content`, {
-            method: 'POST',
-            body: JSON.stringify({
-                endpoint: `/discover/movie`,
-                params: {
-                    page: String(page),
-                    region: region,
-                    with_release_type: '2|3', // Theatrical releases
-                    with_genres: MOVIE_GENRES,
-                    // sort_by: 'vote_average.desc',
-                    sort_by: 'revenue.desc', // Sort by revenue to surface more popular recent releases
-                    'vote_count.gte': '2000',
-                    'primary_release_date.gte': minDate,
-                    'primary_release_date.lte': maxDate,
-                    watch_region: region,
-                    with_watch_providers: '8|119|350|2336|11' // Major streaming providers
-                }
+        // Movie and TV requests are independent, so run them concurrently.
+        const [movieData, tvData] = await Promise.all([
+            fetchBackend(`/content`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    endpoint: `/discover/movie`,
+                    params: {
+                        page: String(page),
+                        region: region,
+                        with_release_type: '2|3', // Theatrical releases
+                        with_genres: MOVIE_GENRES,
+                        // sort_by: 'vote_average.desc',
+                        sort_by: 'revenue.desc', // Sort by revenue to surface more popular recent releases
+                        'vote_count.gte': '2000',
+                        'primary_release_date.gte': minDate,
+                        'primary_release_date.lte': maxDate,
+                        watch_region: region,
+                        with_watch_providers: '8|119|350|2336|11' // Major streaming providers
+                    }
+                }),
             }),
-        });
-
-        // Fetch Recent TV Shows
-        const tvData = await fetchBackend(`/content`, {
-            method: 'POST',
-            body: JSON.stringify({
-                endpoint: `/discover/tv`,
-                params: {
-                    page: String(page),
-                    timezone,
-                    with_genres: TV_GENRES,
-                    // sort_by: 'vote_average.desc',
-                    sort_by: 'revenue.desc', // Sort by revenue to surface more popular recent releases
-                    'vote_count.gte': '2000',
-                    'air_date.gte': minDate,
-                    'air_date.lte': maxDate,
-                    watch_region: region,
-                    with_watch_providers: '8|119|350|2336|11' // Major streaming providers
-                }
+            fetchBackend(`/content`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    endpoint: `/discover/tv`,
+                    params: {
+                        page: String(page),
+                        timezone,
+                        with_genres: TV_GENRES,
+                        // sort_by: 'vote_average.desc',
+                        sort_by: 'revenue.desc', // Sort by revenue to surface more popular recent releases
+                        'vote_count.gte': '2000',
+                        'air_date.gte': minDate,
+                        'air_date.lte': maxDate,
+                        watch_region: region,
+                        with_watch_providers: '8|119|350|2336|11' // Major streaming providers
+                    }
+                }),
             }),
-        });
+        ]);
 
         const movieResults = movieData?.results || [];
         const tvResults = tvData?.results || [];
@@ -511,27 +559,27 @@ export const fetchRecentContentApi = async (page = 1, region = 'US', timezone: s
 
 export const fetchTrendingContentApi = async (page = 1): Promise<SearchResults> => {
     try {
-        // Fetch Trending Movies
-        const movieData = await fetchBackend(`/content`, {
-            method: 'POST',
-            body: JSON.stringify({
-                endpoint: `/trending/movie/week`,
-                params: {
-                    page: String(page),
-                }
+        // Movie and TV requests are independent, so run them concurrently.
+        const [movieData, tvData] = await Promise.all([
+            fetchBackend(`/content`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    endpoint: `/trending/movie/week`,
+                    params: {
+                        page: String(page),
+                    }
+                }),
             }),
-        });
-
-        // Fetch Trending TV Shows
-        const tvData = await fetchBackend(`/content`, {
-            method: 'POST',
-            body: JSON.stringify({
-                endpoint: `/trending/tv/week`,
-                params: {
-                    page: String(page),
-                }
+            fetchBackend(`/content`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    endpoint: `/trending/tv/week`,
+                    params: {
+                        page: String(page),
+                    }
+                }),
             }),
-        });
+        ]);
 
         const movieResults = movieData?.results || [];
         const tvResults = tvData?.results || [];
@@ -673,19 +721,21 @@ export const fetchPopularMoviesApi = async (pageToFetch: number = 1): Promise<Se
     const watchRegion = 'US'; // Default watch region
 
     try {
-        const movieData = await fetchBackend(`/content`, {
-            method: 'POST',
-            body: JSON.stringify({
-                endpoint: `/discover/movie?include_video=${includeVideo}&page=${page}&sort_by=${sortBy}&with_watch_providers=${movieWatchProviders}&with_genres=${movieGenres}&primary_release_date.gte=${minDate}&primary_release_date.lte=${maxDate}&watch_region=${watchRegion}`,
+        // Movie and TV requests are independent, so run them concurrently.
+        const [movieData, tvData] = await Promise.all([
+            fetchBackend(`/content`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    endpoint: `/discover/movie?include_video=${includeVideo}&page=${page}&sort_by=${sortBy}&with_watch_providers=${movieWatchProviders}&with_genres=${movieGenres}&primary_release_date.gte=${minDate}&primary_release_date.lte=${maxDate}&watch_region=${watchRegion}`,
+                }),
             }),
-        });
-
-        const tvData = await fetchBackend(`/content`, {
-            method: 'POST',
-            body: JSON.stringify({
-                endpoint: `/discover/tv?include_video=${includeVideo}&page=${page}&sort_by=${sortBy}&with_watch_providers=${tvWatchProviders}&with_genres=${tvGenres}&first_air_date.gte=${minDate}&first_air_date.lte=${maxDate}&watch_region=${watchRegion}`,
+            fetchBackend(`/content`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    endpoint: `/discover/tv?include_video=${includeVideo}&page=${page}&sort_by=${sortBy}&with_watch_providers=${tvWatchProviders}&with_genres=${tvGenres}&first_air_date.gte=${minDate}&first_air_date.lte=${maxDate}&watch_region=${watchRegion}`,
+                }),
             }),
-        });
+        ]);
 
         // Get the results arrays, defaulting to empty arrays
         const movieResults = movieData?.results || [];
@@ -777,30 +827,21 @@ export const fetchTmdbCollectionDetailsApi = async (collectionId: number): Promi
     }
 };
 
-export const fetchVideosApi = async (mediaType: 'movie' | 'tv', id: number): Promise<VideosResponse | null> => {
+// Details plus videos and credits in a single TMDB call (append_to_response),
+// for the media detail page, instead of three separate requests.
+export const fetchMediaPageDetailsApi = async (mediaType: 'movie' | 'tv', id: number): Promise<MediaPageDetails | null> => {
     try {
         return await fetchBackend(`/content`, {
             method: 'POST',
             body: JSON.stringify({
-                endpoint: `/${mediaType}/${id}/videos`,
+                endpoint: `/${mediaType}/${id}`,
+                params: {
+                    append_to_response: 'watch/providers,videos,credits'
+                }
             }),
         });
     } catch (error) {
-        console.error(`Failed to fetch videos for ${mediaType} ${id}:`, error);
-        return null;
-    }
-};
-
-export const fetchCreditsApi = async (mediaType: 'movie' | 'tv', id: number): Promise<CreditsResponse | null> => {
-    try {
-        return await fetchBackend(`/content`, {
-            method: 'POST',
-            body: JSON.stringify({
-                endpoint: `/${mediaType}/${id}/credits`,
-            }),
-        });
-    } catch (error) {
-        console.error(`Failed to fetch credits for ${mediaType} ${id}:`, error);
+        console.error(`Failed to fetch page details for ${mediaType} ${id}:`, error);
         return null;
     }
 };
@@ -851,27 +892,29 @@ export const searchMoviesApi = async (query: string, page = 1): Promise<SearchRe
     const defaultResult: SearchResults = { page: 0, results: [], total_pages: 0, total_results: 0 };
     if (!query) return defaultResult;
     try {
-        const movieData = await fetchBackend(`/content`, {
-            method: 'POST',
-            body: JSON.stringify({
-                endpoint: `/search/movie`,
-                params: {
-                    query,
-                    page: String(page)
-                },
+        // Movie and TV requests are independent, so run them concurrently.
+        const [movieData, tvData] = await Promise.all([
+            fetchBackend(`/content`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    endpoint: `/search/movie`,
+                    params: {
+                        query,
+                        page: String(page)
+                    },
+                }),
             }),
-        });
-
-        const tvData = await fetchBackend(`/content`, {
-            method: 'POST',
-            body: JSON.stringify({
-                endpoint: `/search/tv`,
-                params: {
-                    query,
-                    page: String(page)
-                },
+            fetchBackend(`/content`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    endpoint: `/search/tv`,
+                    params: {
+                        query,
+                        page: String(page)
+                    },
+                }),
             }),
-        });
+        ]);
 
         // Get the results arrays, defaulting to empty arrays
         const movieResults = movieData?.results || [];

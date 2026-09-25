@@ -31,6 +31,9 @@ const corsOptions = {
     origin: process.env.FRONTEND_URL || 'http://localhost:8080',
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     allowedHeaders: ['Content-Type', 'Authorization', 'x-captcha-response'],
+    // Let browsers cache preflight results (Chrome caps this at 2 hours) so
+    // cross-origin JSON requests don't pay an OPTIONS round trip every time.
+    maxAge: 7200,
     credentials: true, // Required for Better Auth cookies
 };
 
@@ -68,6 +71,16 @@ export const createApp = (): Express => {
     app.use(cors(corsOptions));
 
     app.use(cookieParser());
+
+    // Visitor's country from Vercel's edge geolocation of the requesting client's
+    // IP (not the server's location). Mounted before session lookup since it needs
+    // no auth. The header only exists on Vercel, so the client falls back to its
+    // locale elsewhere. Private cache only: the answer differs per visitor.
+    app.get('/api/region', (req: Request, res: Response) => {
+        const country = req.get('x-vercel-ip-country')?.toUpperCase();
+        res.set('Cache-Control', 'private, max-age=3600');
+        res.json({ country: country && /^[A-Z]{2}$/.test(country) ? country : null });
+    });
 
     // IMPORTANT: Better Auth routes must be mounted BEFORE express.json()
     // Better Auth handles its own body parsing

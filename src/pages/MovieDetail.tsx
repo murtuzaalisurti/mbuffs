@@ -1,7 +1,7 @@
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchMovieDetailsApi, fetchTvDetailsApi, fetchVideosApi, fetchCreditsApi, fetchPersonCreditsApi, fetchStudioMoviesApi, fetchUserCollectionsApi, fetchRecommendationCollectionsApi, fetchCollectionDetailsApi, addMovieToCollectionApi, removeMovieFromCollectionApi, getImageUrl, fetchUserRegion, fetchTmdbCollectionDetailsApi, fetchCombinedRatingsApi, fetchOmdbRatingsApi, getWatchedStatusApi, toggleWatchedStatusApi, getNotInterestedStatusApi, toggleNotInterestedStatusApi, fetchUserPreferencesApi } from '@/lib/api';
-import { MovieDetails, Network, ProductionCompany, Video, CastMember, CrewMember, CollectionSummary, WatchProvider, PersonCreditsResponse, PersonCredit, VideosResponse, CreditsResponse, TmdbCollectionDetails, CombinedRatingsResponse, OmdbRatingsResponse, UserPreferences, SearchResults, RecommendationCollectionsResponse } from '@/lib/types';
+import { fetchMediaPageDetailsApi, fetchPersonCreditsApi, fetchStudioMoviesApi, fetchUserCollectionsApi, fetchRecommendationCollectionsApi, fetchCollectionMembershipApi, addMovieToCollectionApi, removeMovieFromCollectionApi, getImageUrl, fetchTmdbCollectionDetailsApi, fetchCombinedRatingsApi, fetchOmdbRatingsApi, getWatchedStatusApi, toggleWatchedStatusApi, getNotInterestedStatusApi, toggleNotInterestedStatusApi, fetchUserPreferencesApi } from '@/lib/api';
+import { MovieDetails, MediaPageDetails, Network, ProductionCompany, Video, CastMember, CrewMember, CollectionSummary, WatchProvider, PersonCreditsResponse, PersonCredit, VideosResponse, CreditsResponse, TmdbCollectionDetails, CombinedRatingsResponse, OmdbRatingsResponse, UserPreferences, SearchResults, RecommendationCollectionsResponse } from '@/lib/types';
 import { Navbar } from "@/components/Navbar";
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { ImageOff, Star, Play, User, Bookmark, MoreHorizontal, Loader2, Plus, Clock, Calendar, Globe, X, MessageSquare, ChevronRight, Eye, EyeOff, ThumbsDown, ThumbsUp } from 'lucide-react';
 import { useState, useRef, useMemo, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { useUserRegion } from '@/hooks/useUserRegion';
 import {
     getPreferencesQueryKey,
     setNotInterestedStatusBatchQueryData,
@@ -186,7 +187,6 @@ const MovieDetail = () => {
     const queryClient = useQueryClient();
 
     const isMovie = mediaType === 'movie';
-    const queryKey = [mediaType, 'details', mediaId];
 
     const { data: preferencesData } = useQuery<{ preferences: UserPreferences }, Error>({
         queryKey: getPreferencesQueryKey(currentUser?.id),
@@ -199,35 +199,26 @@ const MovieDetail = () => {
     const showNotInterested = isLoggedIn && recommendationsEnabled;
     const activeActionClass = 'bg-accent border-border text-foreground';
 
-    const { data: mediaDetails, isLoading, isError, error } = useQuery<MovieDetails, Error>({
-        queryKey: queryKey,
-        queryFn: () => {
+    // Details, videos/trailers and credits/cast come back in one request. This
+    // uses its own key because plain [mediaType, 'details', id] entries (e.g. from
+    // SeasonDetail) lack videos and credits; the result also seeds that plain key
+    // since it's a superset (ShareDialog reads it for the title/poster).
+    const { data: mediaDetails, isLoading, isError, error } = useQuery<MediaPageDetails, Error>({
+        queryKey: [mediaType, 'details', mediaId, 'page'],
+        queryFn: async () => {
             if (!mediaId) throw new Error("Media ID is required");
-            if (isMovie) {
-                return fetchMovieDetailsApi(Number(mediaId));
-            } else {
-                return fetchTvDetailsApi(mediaId as unknown as number);
+            const details = await fetchMediaPageDetailsApi(mediaType as 'movie' | 'tv', Number(mediaId));
+            if (details) {
+                queryClient.setQueryData([mediaType, 'details', mediaId], details);
             }
+            return details;
         },
         enabled: !!mediaId && !!mediaType,
         staleTime: 1000 * 60 * 60,
     });
 
-    // Fetch videos/trailers
-    const { data: videosData } = useQuery({
-        queryKey: [mediaType, 'videos', mediaId],
-        queryFn: () => fetchVideosApi(mediaType as 'movie' | 'tv', Number(mediaId)),
-        enabled: !!mediaId && !!mediaType,
-        staleTime: 1000 * 60 * 60,
-    });
-
-    // Fetch credits/cast
-    const { data: creditsData } = useQuery({
-        queryKey: [mediaType, 'credits', mediaId],
-        queryFn: () => fetchCreditsApi(mediaType as 'movie' | 'tv', Number(mediaId)),
-        enabled: !!mediaId && !!mediaType,
-        staleTime: 1000 * 60 * 60,
-    });
+    const videosData = mediaDetails?.videos;
+    const creditsData = mediaDetails?.credits;
 
     // Get target person (Director for movies, Creator for TV)
     const directors = creditsData?.crew?.filter((c: CrewMember) => c.job === 'Director') ?? [];
@@ -288,11 +279,7 @@ const MovieDetail = () => {
     });
 
     // Fetch user's region for watch providers
-    const { data: userRegion } = useQuery({
-        queryKey: ['userRegion'],
-        queryFn: fetchUserRegion,
-        staleTime: Infinity,
-    });
+    const { data: userRegion } = useUserRegion();
 
     // Fetch combined ratings (certification + parental guidance)
     const { data: ratingsData, isLoading: isLoadingRatings, refetch: refetchRatings } = useQuery<CombinedRatingsResponse | null>({
@@ -348,32 +335,14 @@ const MovieDetail = () => {
     // Construct the media ID as stored in collections (TV shows have 'tv' suffix)
     const collectionMediaId = isMovie ? mediaId : `${mediaId}tv`;
 
-    // Fetch details for each collection to check if current movie/show is in it
+    // Which of the user's collections contain this movie/show (one request, run
+    // in parallel with the collections list rather than after it)
     const collections = collectionsData?.collections ?? [];
     const movieStatusQueryKey = ['collections', 'movie-status', collectionMediaId];
     const { data: movieStatusMap, isLoading: isLoadingMovieStatus, refetch: refetchMovieStatus } = useQuery({
         queryKey: movieStatusQueryKey,
-        queryFn: async () => {
-            const results = await Promise.all(
-                collections.map(async (collection: CollectionSummary) => {
-                    const details = await fetchCollectionDetailsApi(collection.id);
-                    // movie_id is stored as string, with 'tv' suffix for TV shows
-                    const movieEntry = details?.movies?.find(
-                        m => String(m.movie_id) === collectionMediaId
-                    );
-                    return { 
-                        collectionId: collection.id, 
-                        hasMedia: !!movieEntry,
-                        addedByUserId: movieEntry?.added_by_user_id ?? null
-                    };
-                })
-            );
-            return results.reduce((acc, { collectionId, hasMedia, addedByUserId }) => {
-                acc[collectionId] = { hasMedia, addedByUserId };
-                return acc;
-            }, {} as Record<string, { hasMedia: boolean; addedByUserId: string | null }>);
-        },
-        enabled: isLoggedIn && collections.length > 0 && !!mediaId && !!mediaType,
+        queryFn: async () => (await fetchCollectionMembershipApi(collectionMediaId!)).membership,
+        enabled: isLoggedIn && !!mediaId && !!mediaType,
     });
 
     // Check if movie is in at least one collection

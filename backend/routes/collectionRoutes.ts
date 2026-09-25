@@ -1,6 +1,7 @@
 import express, { RequestHandler } from 'express'; // Import RequestHandler
 import {
     getUserCollections,
+    getMediaCollectionMembership,
     getCollectionById,
     createCollection,
     updateCollection,
@@ -34,22 +35,28 @@ const router = express.Router();
 router.get('/', requireAuth as RequestHandler, getUserCollections as RequestHandler);
 router.post('/', requireAuth as RequestHandler, createCollection as RequestHandler);
 
+// Which of the user's collections contain a media item (movie id, or "<id>tv")
+router.get('/membership/:mediaId', requireAuth as RequestHandler, getMediaCollectionMembership as RequestHandler);
+
 router.get(
     '/:collectionId',
     requireCollectionPermission('view') as RequestHandler, // Cast returned handler
     getCollectionById as RequestHandler         
 );
 
+// Collection settings (name, description, visibility) are owner-only, matching
+// the UI, which only offers Edit/Delete to the owner.
 router.put(
     '/:collectionId',
     requireAuth as RequestHandler,
-    requireCollectionPermission('edit') as RequestHandler,
+    requireCollectionOwner('Forbidden: Only the collection owner can edit this collection') as RequestHandler,
     updateCollection as RequestHandler
 );
 
 router.delete(
     '/:collectionId',
     requireAuth as RequestHandler,
+    requireCollectionOwner('Forbidden: Only the owner can delete this collection') as RequestHandler,
     deleteCollection as RequestHandler
 );
 
