@@ -451,6 +451,15 @@ export const getImageUrl = (path: string | null | undefined, size = 'w500') => {
     return `${IMAGE_BASE_URL}/${size}${path}`;
 };
 
+// Poster widths TMDB serves, for responsive `srcSet`s. A w500 poster is ~2x the
+// bytes of w342 and ~6x w185, so let the browser pick the smallest that fits.
+const POSTER_WIDTHS = [185, 342, 500] as const;
+
+export const getPosterSrcSet = (path: string | null | undefined): string | undefined => {
+    if (!path) return undefined;
+    return POSTER_WIDTHS.map((width) => `${IMAGE_BASE_URL}/w${width}${path} ${width}w`).join(', ');
+};
+
 
 
 const COUNTRY_CODE_PATTERN = /^[A-Z]{2}$/;

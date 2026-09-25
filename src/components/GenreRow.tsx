@@ -133,6 +133,7 @@ export function GenreRow({
                   isWatched={watchedMap[mediaId] ?? false}
                   isNotInterested={notInterestedMap[mediaId] ?? false}
                   showNotInterested={showNotInterested}
+                  imageSizes="(min-width: 768px) 180px, (min-width: 640px) 160px, 140px"
                 />
               </div>
             );
