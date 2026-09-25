@@ -479,7 +479,7 @@ export default function PersonDetail() {
                                 ) : (
                                     // Grid View (Expanded - Mobile & Desktop)
                                     // Using auto-fill with min 128px (w-32) to match collapsed card widths
-                                    <div className="grid grid-cols-[repeat(auto-fill,minmax(128px,160px))] gap-4 animate-in fade-in duration-200">
+                                    <div className="grid grid-cols-[repeat(auto-fill,minmax(128px,160px))] gap-4 animate-stagger">
                                         {visibleCastCredits.map((credit: PersonCredit) => (
                                             <Link
                                                 key={`${credit.id}-${credit.character}`}
@@ -612,7 +612,7 @@ export default function PersonDetail() {
                                 ) : (
                                     // Grid View (Expanded - Mobile & Desktop)
                                     // Using auto-fill with min 128px (w-32) to match collapsed card widths
-                                    <div className="grid grid-cols-[repeat(auto-fill,minmax(128px,160px))] gap-4 animate-in fade-in duration-200">
+                                    <div className="grid grid-cols-[repeat(auto-fill,minmax(128px,160px))] gap-4 animate-stagger">
                                         {visibleCrewCredits.map((credit) => (
                                             <Link
                                                 key={`${credit.id}-${credit.jobs.join('-')}`}

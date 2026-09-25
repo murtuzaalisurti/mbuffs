@@ -99,7 +99,7 @@ export function MovieGrid({ movies, title, showNotInterested = false, hideItemsW
             <h2 className="font-display text-2xl md:text-3xl font-bold tracking-tight lowercase">{title}</h2>
           </div>
         )}
-        <div className={GRID_CLASS}>
+        <div className={`${GRID_CLASS} animate-stagger`}>
           {enrichedMovies.map(renderCard)}
         </div>
       </div>

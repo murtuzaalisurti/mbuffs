@@ -845,7 +845,7 @@ const CollectionDetail = () => {
                     </div>
                 ) : currentVisibleMedia.length > 0 ? (
                     <Fragment>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 animate-stagger">
                             {currentVisibleMedia.map(movieEntry => {
                                 const movie = moviesDetailsMap?.[movieEntry.movie_id];
                                 if (!movie) return (

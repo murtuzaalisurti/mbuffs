@@ -210,18 +210,81 @@
 }
 
 @utility animate-shimmer {
-  /* Slow, low-contrast shimmer for loading states (keeps the element's own background colour) */
+  /*
+    A faint, slow sheen for loading states (keeps the element's own background
+    colour). It starts after a beat, so loads that finish quickly never flash.
+  */
   background-image: linear-gradient(100deg,
-      transparent 30%,
-      color-mix(in oklch, var(--foreground) 6%, transparent) 50%,
-      transparent 70%);
+      transparent 35%,
+      color-mix(in oklch, var(--foreground) 3%, transparent) 50%,
+      transparent 65%);
   background-size: 250% 100%;
-  animation: shimmer 2.2s var(--ease-out) infinite;
+  animation: shimmer 2.8s ease-in-out 400ms infinite;
 }
 
 @utility animate-fade-in-up {
   /* Fade-in animation */
   animation: fadeInUp var(--dur-scene) var(--ease-out) both;
+}
+
+@utility animate-stagger {
+  /*
+    Children fade up one after another. The first dozen are staggered; the rest
+    (including items appended by infinite scroll) share the last delay, so a
+    long list never waits long. "backwards" fill keeps nothing applied once done.
+  */
+  & > * {
+    animation: fadeInUp var(--dur-scene) var(--ease-out) backwards;
+    animation-delay: 420ms;
+  }
+
+  & > :nth-child(1) {
+    animation-delay: 0ms;
+  }
+
+  & > :nth-child(2) {
+    animation-delay: 35ms;
+  }
+
+  & > :nth-child(3) {
+    animation-delay: 70ms;
+  }
+
+  & > :nth-child(4) {
+    animation-delay: 105ms;
+  }
+
+  & > :nth-child(5) {
+    animation-delay: 140ms;
+  }
+
+  & > :nth-child(6) {
+    animation-delay: 175ms;
+  }
+
+  & > :nth-child(7) {
+    animation-delay: 210ms;
+  }
+
+  & > :nth-child(8) {
+    animation-delay: 245ms;
+  }
+
+  & > :nth-child(9) {
+    animation-delay: 280ms;
+  }
+
+  & > :nth-child(10) {
+    animation-delay: 315ms;
+  }
+
+  & > :nth-child(11) {
+    animation-delay: 350ms;
+  }
+
+  & > :nth-child(12) {
+    animation-delay: 385ms;
+  }
 }
 
 @utility fade-out-bottom {

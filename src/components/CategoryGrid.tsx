@@ -87,7 +87,7 @@ export function CategoryGrid({
 
   return (
     <>
-      <div className={GRID_CLASSES}>
+      <div className={`${GRID_CLASSES} animate-stagger`}>
         {movies.map((movie, index) => {
           const mediaId = getRecommendationMediaId(movie, mediaType);
           return (

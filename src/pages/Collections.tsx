@@ -243,7 +243,7 @@ const Collections = () => {
             <p className="text-destructive">Error loading collections: {error.message}</p>
           </div>
         ) : collectionsData?.collections && collectionsData.collections.length > 0 ? (
-          <div className="space-y-3">
+          <div className="space-y-3 animate-stagger">
             {collectionsData.collections.map((collection) => {
               const isOwner = collection.owner_id === currentUser?.id;
               return (
