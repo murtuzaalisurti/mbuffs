@@ -1,11 +1,16 @@
-import { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Bell } from 'lucide-react';
+import { Bell, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { fetchUnreadCountApi } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
-import { NotificationPanel } from './NotificationPanel';
+
+// Popover content only mounts while open, so the panel (and its notification
+// list code) loads the first time the bell is clicked, not on every page.
+const NotificationPanel = lazy(() =>
+  import('./NotificationPanel').then((m) => ({ default: m.NotificationPanel }))
+);
 
 export const NotificationBell = () => {
   const { isLoggedIn } = useAuth();
@@ -46,7 +51,15 @@ export const NotificationBell = () => {
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" sideOffset={8} className="w-80 p-0">
-        <NotificationPanel onClose={() => setOpen(false)} />
+        <Suspense
+          fallback={
+            <div className="flex justify-center py-8">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          }
+        >
+          <NotificationPanel onClose={() => setOpen(false)} />
+        </Suspense>
       </PopoverContent>
     </Popover>
   );
