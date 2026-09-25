@@ -94,27 +94,35 @@ export const auth = betterAuth({
                 type: "string",
                 required: false,
             },
+            // Server-managed fields below use `input: false` so clients can't set
+            // them through Better Auth's own sign-up / update-user endpoints
+            // (otherwise any user could POST {"role":"admin"} to
+            // /api/auth/update-user). Preferences change via /api/user/preferences.
             role: {
                 type: "string",
                 required: false,
                 defaultValue: "user",
+                input: false,
             },
             recommendationsEnabled: {
                 type: "boolean",
                 required: false,
                 defaultValue: false,
                 fieldName: "recommendationsEnabled",
+                input: false,
             },
             recommendationsCollectionId: {
                 type: "string",
                 required: false,
                 fieldName: "recommendationsCollectionId",
+                input: false,
             },
             showRedditLabel: {
                 type: "boolean",
                 required: false,
                 defaultValue: true,
                 fieldName: "showRedditLabel",
+                input: false,
             },
         },
     },
