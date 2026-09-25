@@ -72,6 +72,16 @@ export const createApp = (): Express => {
 
     app.use(cookieParser());
 
+    // Visitor's country from Vercel's edge geolocation of the requesting client's
+    // IP (not the server's location). Mounted before session lookup since it needs
+    // no auth. The header only exists on Vercel, so the client falls back to its
+    // locale elsewhere. Private cache only: the answer differs per visitor.
+    app.get('/api/region', (req: Request, res: Response) => {
+        const country = req.get('x-vercel-ip-country')?.toUpperCase();
+        res.set('Cache-Control', 'private, max-age=3600');
+        res.json({ country: country && /^[A-Z]{2}$/.test(country) ? country : null });
+    });
+
     // IMPORTANT: Better Auth routes must be mounted BEFORE express.json()
     // Better Auth handles its own body parsing
     app.use('/api/auth', oauthRoutes);

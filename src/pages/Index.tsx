@@ -2,12 +2,13 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useRef, useMemo } from 'react';
 import { MovieGrid } from "@/components/MovieGrid";
 import { MovieCard } from "@/components/MovieCard";
-import { fetchTrendingContentApi, fetchNowPlayingSortedApi, fetchUserRegion, fetchUserPreferencesApi, fetchCollageItemsPublicApi, getImageUrl } from "@/lib/api";
+import { fetchTrendingContentApi, fetchNowPlayingSortedApi, fetchUserPreferencesApi, fetchCollageItemsPublicApi, getImageUrl } from "@/lib/api";
 import { Navbar } from "@/components/Navbar";
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { useWatchedStatus } from '@/hooks/useWatchedStatus';
 import { useNotInterestedStatus } from '@/hooks/useNotInterestedStatus';
+import { useUserRegion } from '@/hooks/useUserRegion';
 import { Settings, ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -37,12 +38,8 @@ const Index = () => {
 
   const recommendationsEnabled = preferencesData?.preferences?.recommendations_enabled ?? false;
 
-  // Fetch user's region via IP for accurate location detection
-  const { data: userRegion } = useQuery({
-    queryKey: ['userRegion'],
-    queryFn: fetchUserRegion,
-    staleTime: Infinity, // Region unlikely to change in session
-  });
+  // Visitor's region (remembered from the last visit, refreshed in the background)
+  const { data: userRegion } = useUserRegion();
 
   const {
     data: trendingContentData,

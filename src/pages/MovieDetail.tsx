@@ -1,6 +1,6 @@
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchMovieDetailsApi, fetchTvDetailsApi, fetchVideosApi, fetchCreditsApi, fetchPersonCreditsApi, fetchStudioMoviesApi, fetchUserCollectionsApi, fetchRecommendationCollectionsApi, fetchCollectionDetailsApi, addMovieToCollectionApi, removeMovieFromCollectionApi, getImageUrl, fetchUserRegion, fetchTmdbCollectionDetailsApi, fetchCombinedRatingsApi, fetchOmdbRatingsApi, getWatchedStatusApi, toggleWatchedStatusApi, getNotInterestedStatusApi, toggleNotInterestedStatusApi, fetchUserPreferencesApi } from '@/lib/api';
+import { fetchMovieDetailsApi, fetchTvDetailsApi, fetchVideosApi, fetchCreditsApi, fetchPersonCreditsApi, fetchStudioMoviesApi, fetchUserCollectionsApi, fetchRecommendationCollectionsApi, fetchCollectionDetailsApi, addMovieToCollectionApi, removeMovieFromCollectionApi, getImageUrl, fetchTmdbCollectionDetailsApi, fetchCombinedRatingsApi, fetchOmdbRatingsApi, getWatchedStatusApi, toggleWatchedStatusApi, getNotInterestedStatusApi, toggleNotInterestedStatusApi, fetchUserPreferencesApi } from '@/lib/api';
 import { MovieDetails, Network, ProductionCompany, Video, CastMember, CrewMember, CollectionSummary, WatchProvider, PersonCreditsResponse, PersonCredit, VideosResponse, CreditsResponse, TmdbCollectionDetails, CombinedRatingsResponse, OmdbRatingsResponse, UserPreferences, SearchResults, RecommendationCollectionsResponse } from '@/lib/types';
 import { Navbar } from "@/components/Navbar";
 import { Skeleton } from '@/components/ui/skeleton';
@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { ImageOff, Star, Play, User, Bookmark, MoreHorizontal, Loader2, Plus, Clock, Calendar, Globe, X, MessageSquare, ChevronRight, Eye, EyeOff, ThumbsDown, ThumbsUp } from 'lucide-react';
 import { useState, useRef, useMemo, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { useUserRegion } from '@/hooks/useUserRegion';
 import {
     getPreferencesQueryKey,
     setNotInterestedStatusBatchQueryData,
@@ -288,11 +289,7 @@ const MovieDetail = () => {
     });
 
     // Fetch user's region for watch providers
-    const { data: userRegion } = useQuery({
-        queryKey: ['userRegion'],
-        queryFn: fetchUserRegion,
-        staleTime: Infinity,
-    });
+    const { data: userRegion } = useUserRegion();
 
     // Fetch combined ratings (certification + parental guidance)
     const { data: ratingsData, isLoading: isLoadingRatings, refetch: refetchRatings } = useQuery<CombinedRatingsResponse | null>({
