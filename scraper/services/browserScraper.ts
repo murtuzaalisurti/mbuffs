@@ -14,7 +14,15 @@ export function isWafChallengeHtml(html: string): boolean {
     return WAF_CHALLENGE_MARKERS.some(marker => html.includes(marker));
 }
 
-function hasParentsGuideContent(html: string): boolean {
+/**
+ * Whether the rendered page actually contains parents-guide content.
+ *
+ * This is the reliable "challenge solved" signal. WAF marker strings
+ * (AwsWafIntegration/challenge.js/gokuProps) are also present on fully
+ * rendered pages, so they must not be used to decide if we're still on the
+ * challenge screen.
+ */
+export function hasParentsGuideContent(html: string): boolean {
     return PARENTS_GUIDE_CONTENT_MARKERS.some(marker => html.includes(marker));
 }
 
@@ -69,14 +77,14 @@ export async function fetchParentalGuideHtmlWithBrowser(imdbId: string): Promise
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: NAVIGATION_TIMEOUT_MS });
 
         // The WAF challenge page auto-submits and reloads into the real page.
-        // Poll until the challenge markers are gone (or we run out of time).
+        // Poll until parents-guide content appears (or we run out of time).
         const deadline = Date.now() + CHALLENGE_SOLVE_TIMEOUT_MS;
         let html: string | null = null;
 
         while (Date.now() < deadline) {
             html = await safeGetHtml(page);
 
-            if (html && !isWafChallengeHtml(html) && hasParentsGuideContent(html)) {
+            if (html && hasParentsGuideContent(html)) {
                 return html;
             }
 
