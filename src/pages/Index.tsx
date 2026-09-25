@@ -10,7 +10,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useWatchedStatus } from '@/hooks/useWatchedStatus';
 import { useNotInterestedStatus } from '@/hooks/useNotInterestedStatus';
 import { useUserRegion } from '@/hooks/useUserRegion';
-import { Settings } from 'lucide-react';
+import { Settings, ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { UserPreferences } from '@/lib/types';
@@ -104,7 +104,7 @@ const Index = () => {
   const hasRecommendations = recommendationsEnabled && recommendations.length > 0;
 
   const forYouSubtitle = (firstRecommendationsPage?.totalSourceItems || 0) > 0
-    ? `Based on ${firstRecommendationsPage?.totalSourceItems || 0} titles from ${firstRecommendationsPage?.sourceCollections?.length || 0} collection${(firstRecommendationsPage?.sourceCollections?.length || 0) !== 1 ? 's' : ''}`
+    ? `Based on ${firstRecommendationsPage?.totalSourceItems || 0} items from ${firstRecommendationsPage?.sourceCollections?.length || 0} collection${(firstRecommendationsPage?.sourceCollections?.length || 0) !== 1 ? 's' : ''}`
     : 'Add source collections to personalize your recommendations';
 
   return (
@@ -117,12 +117,12 @@ const Index = () => {
         // Holds the hero's space while trending loads, so the page doesn't jump
         <div
           aria-hidden
-          className="h-[72svh] min-h-[460px] max-h-[780px] bg-linear-to-t from-background to-muted/40 animate-shimmer"
+          className="h-[72svh] min-h-[460px] max-h-[780px] bg-linear-to-t from-background to-muted/40"
           style={{ marginTop: 'calc(-4rem - env(safe-area-inset-top))' }}
         />
       )}
 
-      <main className="container pt-4 pb-12 md:pt-8">
+      <main className="container py-6 md:py-10">
         <div className="space-y-12 md:space-y-16">
           {/* For You - Personalized Recommendations */}
           {user && recommendationsEnabled && (
@@ -130,11 +130,19 @@ const Index = () => {
               <RailSkeleton />
             ) : hasRecommendations ? (
               <Rail
-                title="For you"
+                title={
+                  <span className="flex items-center gap-3">
+                    For You
+                    <span className="font-sans text-xs font-medium normal-case tracking-normal bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                      Beta
+                    </span>
+                  </span>
+                }
                 subtitle={forYouSubtitle}
                 action={
-                  <Link to="/for-you" viewTransition className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                    See all
+                  <Link to="/for-you" viewTransition className="group flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
+                    <span>See all</span>
+                    <ChevronRight className="h-4 w-4 transition-transform duration-(--dur-ui) ease-(--ease-out) group-hover:translate-x-0.5" />
                   </Link>
                 }
               >
@@ -147,26 +155,26 @@ const Index = () => {
                       isWatched={watchedMap[mediaId] ?? false}
                       isNotInterested={notInterestedMap[mediaId] ?? false}
                       showNotInterested={recommendationsEnabled}
-                      imageSizes="(min-width: 768px) 172px, (min-width: 640px) 152px, 132px"
+                      imageSizes="(min-width: 768px) 180px, (min-width: 640px) 160px, 140px"
                     />
                   );
                 })}
               </Rail>
             ) : (
-              <section className="rounded-2xl bg-foreground/4 p-6 md:p-8">
+              <section className="rounded-2xl bg-linear-to-br from-primary/5 via-muted/40 to-transparent border border-primary/10 p-6 md:p-8 animate-fade-in-up">
                 <div className="flex flex-col md:flex-row items-start md:items-center gap-4 md:gap-6">
                   <div className="flex-1">
-                    <h2 className="text-2xl font-semibold mb-1">Recommendations, just for you</h2>
+                    <h3 className="text-lg font-semibold mb-1">Get Personalized Recommendations</h3>
                     <p className="text-sm text-muted-foreground">
-                      Pick the collections that reflect your taste and we'll find what to watch next.
+                      Select source collections in your profile settings to see recommendations tailored to your taste.
                     </p>
                   </div>
-                  <Button asChild variant="outline" className="rounded-full whitespace-nowrap">
-                    <Link to="/profile">
-                      <Settings className="h-4 w-4" />
-                      Set up
-                    </Link>
-                  </Button>
+                  <Link to="/profile">
+                    <Button variant="outline" className="whitespace-nowrap">
+                      <Settings className="h-4 w-4 mr-2" />
+                      Set Up Now
+                    </Button>
+                  </Link>
                 </div>
               </section>
             )
@@ -175,14 +183,14 @@ const Index = () => {
           {isTrendingContentLoading ? (
             <RailSkeleton />
           ) : trendingContent.length > 0 && (
-            <MediaRail title="Trending this week" movies={trendingContent} />
+            <MediaRail title="Trending This Week" movies={trendingContent} />
           )}
 
           {/* Now Playing — region specific */}
           {isNowPlayingLoading ? (
             <RailSkeleton />
           ) : nowPlayingContent.length > 0 && (
-            <MediaRail title="Now playing" subtitle="In cinemas near you" movies={nowPlayingContent} />
+            <MediaRail title="Now Playing" movies={nowPlayingContent} />
           )}
         </div>
       </main>

@@ -1,6 +1,6 @@
 import { Movie, UserPreferences } from "@/lib/types";
 import { fetchUserPreferencesApi, getImageUrl, getPosterSrcSet, toggleNotInterestedStatusApi, toggleWatchedStatusApi } from "@/lib/api";
-import { Star, Eye, EyeOff, MoreHorizontal, ThumbsDown, ThumbsUp, Check } from "lucide-react";
+import { Star, Eye, EyeOff, MoreVertical, ThumbsDown, ThumbsUp, Check } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -278,7 +278,7 @@ export function MovieCard({
       to={navLink}
       state={{ posterPath: movie.poster_path } satisfies PosterLinkState}
       viewTransition
-      className={`group block rounded-poster outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background ${onLongPress ? 'select-none [-webkit-touch-callout:none]' : ''}`}
+      className={`group block card-glow rounded-xl pointer-fine:hover:-translate-y-1 active:scale-[0.98] ${onLongPress ? 'select-none [-webkit-touch-callout:none]' : ''}`}
       onClick={(e) => {
         // Swallow the click that follows a long-press so it doesn't navigate/toggle
         if (longPressFiredRef.current) {
@@ -309,8 +309,10 @@ export function MovieCard({
       onContextMenu={(e) => { if (onLongPress) e.preventDefault(); }}
     >
       <div
-        className={`relative transition-[translate,scale] duration-(--dur-ui) ease-(--ease-out) pointer-fine:group-hover:-translate-y-1 active:scale-[0.98] ${
-          isSelected ? "scale-[0.94]" : ""
+        className={`relative overflow-hidden rounded-xl bg-card border transition-all duration-(--dur-ui) ease-(--ease-out) ${
+          isSelected
+            ? "border-primary ring-2 ring-primary/40 scale-[0.95]"
+            : "border-border/60"
         }`}
         onClick={(e) => {
           if (selectionMode && onToggleSelect) {
@@ -323,57 +325,59 @@ export function MovieCard({
         }}
       >
         {/* Poster Image */}
-        <div
-          className={`aspect-2/3 relative overflow-hidden rounded-poster bg-muted shadow-[0_2px_8px_-2px_rgb(0_0_0/0.5)] transition-shadow duration-(--dur-ui) ease-(--ease-out) pointer-fine:group-hover:shadow-[0_22px_40px_-18px_rgb(0_0_0/0.9)] ${
-            isSelected ? "ring-2 ring-primary ring-offset-2 ring-offset-background" : ""
-          }`}
-        >
+        <div className="aspect-2/3 relative overflow-hidden bg-muted">
           <img
             ref={posterRef}
             src={getImageUrl(movie.poster_path, 'w342')}
             srcSet={getPosterSrcSet(movie.poster_path)}
             sizes={imageSizes}
             alt={movie.name || movie.title}
-            className={`h-full w-full object-cover transition-[opacity,filter] duration-(--dur-ui) ${
-              selectionMode && !isSelected ? "opacity-60" : ""
-            }`}
+            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
             loading="lazy"
             decoding="async"
           />
+          
+          {/* Gradient overlay */}
+          {showMovieCardInfo ? (
+            <div className="absolute inset-0 bg-linear-to-t from-black/90 via-black/40 to-transparent opacity-100 transition-opacity duration-300" />
+          ) : (
+            <>
+              <div className="absolute inset-0 bg-linear-to-t from-black/35 via-black/5 to-transparent" />
+              {/* With card info off, the title rises in on hover instead */}
+              <div className="absolute inset-0 bg-linear-to-t from-black/90 via-black/40 to-transparent opacity-0 transition-opacity duration-(--dur-ui) ease-(--ease-out) pointer-fine:group-hover:opacity-100 group-focus-visible:opacity-100" />
+            </>
+          )}
 
-          {/* Always-on info (a user preference) gets a stronger scrim; otherwise the title rises in on hover */}
-          <div
-            className={`absolute inset-0 bg-linear-to-t from-black/85 via-black/25 to-transparent transition-opacity duration-(--dur-ui) ease-(--ease-out) ${
-              showMovieCardInfo ? "opacity-100" : "opacity-0 pointer-fine:group-hover:opacity-100 group-focus-visible:opacity-100"
-            }`}
-          />
+          {/* Selection checkbox badge */}
+          {selectionMode && (
+            <div className={`absolute top-2 left-2 z-20 flex h-6 w-6 items-center justify-center rounded-full border-2 transition-all ${
+              isSelected
+                ? "bg-primary border-primary text-primary-foreground"
+                : "bg-background/70 border-white/80"
+            }`}>
+              {isSelected && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
+            </div>
+          )}
 
-          {/* Top-left badges */}
-          <div className="absolute top-2 left-2 z-20 flex items-center gap-1">
-            {selectionMode ? (
-              <span className={`flex h-6 w-6 items-center justify-center rounded-full border-2 transition-colors duration-(--dur-fast) ${
-                isSelected
-                  ? "bg-primary border-primary text-primary-foreground"
-                  : "bg-black/40 border-white/80"
-              }`}>
-                {isSelected && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
-              </span>
-            ) : displayedWatched && showWatched ? (
+          {/* Reddit Badge (admin-toggleable) */}
+          {!selectionMode && showWatched && displayedWatched && (
+            <div className="absolute top-2 left-2 z-20">
               <WatchedMark />
-            ) : null}
+            </div>
+          )}
 
-            {/* Reddit Badge (admin-toggleable) */}
-            {isRedditRecommended && user?.role === 'admin' && (preferencesData?.preferences?.show_reddit_label ?? true) && (
+          {isRedditRecommended && user?.role === 'admin' && (preferencesData?.preferences?.show_reddit_label ?? true) && (
+            <div className={`absolute top-2 z-20 ${!selectionMode && showWatched && displayedWatched ? 'left-10' : 'left-2'}`}>
               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-orange-500/90 text-[10px] font-semibold text-white shadow-sm">
                 <svg className="h-2.5 w-2.5" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M12 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0zm5.01 4.744c.688 0 1.25.561 1.25 1.249a1.25 1.25 0 0 1-2.498.056l-2.597-.547-.8 3.747c1.824.07 3.48.632 4.674 1.488.308-.309.73-.491 1.207-.491.968 0 1.754.786 1.754 1.754 0 .716-.435 1.333-1.01 1.614a3.111 3.111 0 0 1 .042.52c0 2.694-3.13 4.87-7.004 4.87-3.874 0-7.004-2.176-7.004-4.87 0-.183.015-.366.043-.534A1.748 1.748 0 0 1 4.028 12c0-.968.786-1.754 1.754-1.754.463 0 .898.196 1.207.49 1.207-.883 2.878-1.43 4.744-1.487l.885-4.182a.342.342 0 0 1 .14-.197.35.35 0 0 1 .238-.042l2.906.617a1.214 1.214 0 0 1 1.108-.701zM9.25 12C8.561 12 8 12.562 8 13.25c0 .687.561 1.248 1.25 1.248.687 0 1.248-.561 1.248-1.249 0-.688-.561-1.249-1.249-1.249zm5.5 0c-.687 0-1.248.561-1.248 1.25 0 .687.561 1.248 1.249 1.248.688 0 1.249-.561 1.249-1.249 0-.687-.562-1.249-1.25-1.249zm-5.466 3.99a.327.327 0 0 0-.231.094.33.33 0 0 0 0 .463c.842.842 2.484.913 2.961.913.477 0 2.105-.056 2.961-.913a.361.361 0 0 0 .029-.463.33.33 0 0 0-.464 0c-.547.533-1.684.73-2.512.73-.828 0-1.979-.196-2.512-.73a.326.326 0 0 0-.232-.095z"/>
                 </svg>
                 Reddit
               </span>
-            )}
-          </div>
+            </div>
+          )}
 
-          {/* Quick actions menu */}
+          {/* Three-dot Menu */}
           {isLoggedIn && !selectionMode && (
             <div className="absolute top-2 right-2 z-20">
               <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
@@ -381,9 +385,8 @@ export function MovieCard({
                   <Button
                     variant="ghost"
                     size="icon"
-                    aria-label="Quick actions"
-                    className={`h-7 w-7 rounded-full bg-black/45 text-white backdrop-blur-md hover:bg-black/65 hover:text-white transition-opacity duration-(--dur-fast) ${
-                      menuOpen ? 'opacity-100' : 'opacity-100 pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 focus-visible:opacity-100'
+                    className={`h-7 w-7 rounded-full bg-background/70 border border-border/70 hover:bg-background/90 transition-opacity ${
+                      menuOpen ? 'opacity-100' : 'opacity-100 md:opacity-0 md:group-hover:opacity-100'
                     }`}
                     onClick={(e) => {
                       // Only keep the click from reaching the surrounding <Link>.
@@ -392,12 +395,12 @@ export function MovieCard({
                       e.stopPropagation();
                     }}
                   >
-                    <MoreHorizontal className="h-4 w-4" />
+                    <MoreVertical className="h-4 w-4 text-foreground" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
                   align="end"
-                  className="w-44 rounded-xl border-border bg-popover/90 p-1.5 shadow-2xl shadow-black/50 backdrop-blur-xl"
+                  className="w-44 rounded-lg border-border bg-popover/95 p-1.5 shadow-2xl shadow-black/40 backdrop-blur-xl"
                 >
                   {showWatched && (
                     <DropdownMenuItem
@@ -440,51 +443,54 @@ export function MovieCard({
           )}
 
           <div
-            className={`absolute bottom-0 left-0 right-0 z-10 p-2.5 sm:p-3 transition-[opacity,translate] duration-(--dur-ui) ease-(--ease-out) ${
+            className={`absolute bottom-0 left-0 right-0 p-3 flex flex-col justify-end z-10 transition-[opacity,translate] duration-(--dur-ui) ease-(--ease-out) ${
               showMovieCardInfo
-                ? "opacity-100"
+                ? ""
                 : "opacity-0 translate-y-2 pointer-fine:group-hover:opacity-100 pointer-fine:group-hover:translate-y-0 group-focus-visible:opacity-100 group-focus-visible:translate-y-0"
             }`}
           >
-            <h3 className="font-medium text-xs sm:text-sm leading-tight text-white line-clamp-2">
-              {movie.name || movie.title}
-            </h3>
-            <div className="mt-1 flex items-center gap-1.5 text-[10px] text-white/70 slate">
-              <span>{releaseYear}</span>
-              {(movie.imdb_rating || movie.vote_average > 0) && (
-                <>
-                  <span className="text-white/30">·</span>
+              <h3 className="font-semibold text-xs sm:text-sm leading-tight text-foreground line-clamp-2 drop-shadow-md shadow-black">
+                {movie.name || movie.title}
+              </h3>
+              <div className="flex items-center gap-1.5 mt-1">
+                <p className="text-[10px] text-foreground/70 font-medium">{releaseYear}</p>
+                <span className="text-[10px] text-foreground/40">•</span>
+                <div className="flex items-center gap-1">
                   {movie.imdb_rating ? (
-                    <span className="inline-flex items-center gap-1">
-                      <span className="rounded-[3px] bg-[#f5c518] px-0.5 text-[7px] font-extrabold leading-tight tracking-tight text-black normal-case">IMDb</span>
-                      <span className="text-white/90">{movie.imdb_rating.toFixed(1)}</span>
-                    </span>
+                    <>
+                      <span className="inline-flex items-center justify-center rounded bg-[#f5c518] px-0.5 text-[7px] font-extrabold leading-none text-black tracking-tight">IMDb</span>
+                      <span className="text-[10px] font-medium text-foreground/90">
+                        {movie.imdb_rating.toFixed(1)}
+                      </span>
+                    </>
                   ) : (
-                    <span className="inline-flex items-center gap-0.5 text-white/90">
-                      <Star className="h-2.5 w-2.5 text-primary" fill="currentColor" />
-                      {movie.vote_average.toFixed(1)}
-                    </span>
+                    <>
+                      <Star className="h-3 w-3 text-yellow-400" fill="currentColor" />
+                      <span className="text-[10px] font-medium text-foreground/90">
+                        {movie.vote_average.toFixed(1)}
+                      </span>
+                    </>
                   )}
-                </>
+                </div>
+              </div>
+              {shouldShowBecauseYouLiked && (
+                <p className="mt-1 text-[10px] text-foreground/80 line-clamp-1">
+                  Because you liked {becauseYouLiked}
+                </p>
               )}
-            </div>
-            {shouldShowBecauseYouLiked && (
-              <p className="mt-1 text-[10px] text-white/80 line-clamp-1">
-                Because you liked <em className="font-display">{becauseYouLiked}</em>
-              </p>
-            )}
           </div>
+
         </div>
       </div>
     </Link>
   );
 }
 
-/** Watched badge: a tungsten disc whose check draws itself in when it appears. */
+/** Watched badge: a small disc whose check draws itself in when it appears. */
 function WatchedMark() {
   return (
     <span
-      className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md shadow-black/40 animate-in zoom-in-50 fade-in duration-(--dur-ui)"
+      className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md shadow-black/40 animate-in zoom-in-50 fade-in"
       title="Watched"
     >
       <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" aria-hidden>

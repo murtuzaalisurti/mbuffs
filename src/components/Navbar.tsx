@@ -119,7 +119,7 @@ export const Navbar = () => {
   return (
     <>
       <header 
-        className={`sticky top-0 z-50 flex items-center gap-4 px-4 sm:px-8 transition-[background-color,border-color,backdrop-filter] duration-(--dur-scene) ease-(--ease-out) ${scrolled ? 'glass border-b border-border' : 'bg-transparent border-b border-transparent'}`}
+        className={`sticky top-0 z-50 flex items-center gap-4 px-8 transition-[background-color,border-color,backdrop-filter] duration-(--dur-scene) ease-(--ease-out) ${scrolled ? 'glass border-b border-border/60' : 'bg-transparent border-b border-transparent'}`}
         style={{ 
           height: 'calc(4rem + env(safe-area-inset-top))', 
           paddingTop: 'env(safe-area-inset-top)' 
@@ -130,16 +130,17 @@ export const Navbar = () => {
           <Link
             to="/"
             viewTransition
-            className="flex items-center gap-2 group"
+            className="flex items-center gap-2.5 text-lg font-bold tracking-tight md:text-base group"
           >
-            <LogoIcon className="h-7 w-7 transition-transform duration-(--dur-ui) ease-(--ease-emph) group-hover:-rotate-6" />
-            <span className="font-display text-xl font-semibold tracking-tight text-foreground">mbuffs</span>
+            <LogoIcon className="h-7 w-7 transition-transform duration-(--dur-ui) ease-(--ease-emph) group-hover:scale-110 group-hover:-rotate-6" />
+            <span className="font-heading bg-linear-to-r from-foreground to-muted-foreground bg-clip-text text-transparent">mbuffs</span>
           </Link>
           <Link
             to="/categories"
             viewTransition
-            className="hidden md:flex items-center text-sm text-muted-foreground hover:text-foreground transition-colors"
+            className="hidden md:flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
+            <LayoutGrid className="h-4 w-4" />
             <span>Categories</span>
           </Link>
         </nav>
@@ -154,7 +155,7 @@ export const Navbar = () => {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-9 w-9 rounded-full bg-background/45 backdrop-blur-md ring-1 ring-foreground/10 hover:bg-background/70"
+                    className="h-9 w-9 rounded-full bg-muted/70 backdrop-blur-md border border-border hover:bg-muted"
                     aria-label="Share options"
                   >
                     <Forward className="h-4 w-4 text-muted-foreground" />
@@ -185,7 +186,7 @@ export const Navbar = () => {
             <Button
               variant="ghost"
               size="icon"
-              className="hidden md:inline-flex h-9 w-9 rounded-full bg-background/45 backdrop-blur-md ring-1 ring-foreground/10 hover:bg-background/70"
+              className="hidden md:inline-flex h-9 w-9 rounded-full bg-muted/70 backdrop-blur-md border border-border hover:bg-muted"
               onClick={openSearch}
               aria-label="Open search"
             >
@@ -196,7 +197,7 @@ export const Navbar = () => {
             {isLoggedIn && user ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="hidden md:inline-flex rounded-full hover:bg-transparent transition-transform duration-(--dur-fast) active:scale-95">
+                  <Button variant="ghost" size="icon" className="hidden md:inline-flex rounded-full hover:bg-transparent">
                     {navAvatarUrl ? (
                       <img src={navAvatarUrl} alt={user.username || 'User Avatar'} className="h-8 w-8 rounded-full object-cover" referrerPolicy="no-referrer" />
                     ) : (

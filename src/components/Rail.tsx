@@ -1,5 +1,6 @@
 import { Children, ReactNode, useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface RailProps {
   title: ReactNode;
@@ -24,7 +25,7 @@ export function Rail({
   title,
   subtitle,
   action,
-  itemClassName = 'w-[132px] sm:w-[152px] md:w-[172px]',
+  itemClassName = 'w-[140px] sm:w-[160px] md:w-[180px]',
   children,
 }: RailProps) {
   const scrollerRef = useRef<HTMLDivElement>(null);
@@ -72,19 +73,19 @@ export function Rail({
 
   return (
     <section className="group/rail space-y-4">
-      <header className="flex items-end justify-between gap-4">
+      <header className="flex items-center justify-between gap-4">
         <div className="min-w-0">
-          <h2 className="text-2xl md:text-3xl font-semibold leading-tight">{title}</h2>
+          <h2 className="font-display text-2xl md:text-3xl font-bold tracking-tight lowercase">{title}</h2>
           {subtitle && <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>}
         </div>
-        {action && <div className="shrink-0 pb-1">{action}</div>}
+        {action && <div className="shrink-0">{action}</div>}
       </header>
 
       <div className="relative">
         <div
           ref={scrollerRef}
           onScroll={updateEdges}
-          className="rail gap-3 md:gap-4 -mx-4 px-4 sm:-mx-8 sm:px-8 pt-1 pb-3"
+          className="rail gap-4 -mx-8 px-8 pt-1 pb-3"
         >
           {Children.map(children, (child, index) => (
             <div
@@ -118,13 +119,13 @@ export function Rail({
 }
 
 /** Placeholder rail with the real rail's proportions. */
-export function RailSkeleton({ itemClassName = 'w-[132px] sm:w-[152px] md:w-[172px]' }: { itemClassName?: string }) {
+export function RailSkeleton({ itemClassName = 'w-[140px] sm:w-[160px] md:w-[180px]' }: { itemClassName?: string }) {
   return (
     <div className="space-y-4" aria-hidden>
-      <div className="h-8 w-44 rounded-lg bg-muted/70 animate-shimmer" />
-      <div className="flex gap-3 md:gap-4 overflow-hidden -mx-4 px-4 sm:-mx-8 sm:px-8 pt-1 pb-3">
+      <Skeleton className="h-8 w-40 rounded-lg" />
+      <div className="flex gap-4 overflow-hidden -mx-8 px-8 pt-1 pb-3">
         {Array.from({ length: 8 }).map((_, index) => (
-          <div key={index} className={`shrink-0 ${itemClassName} aspect-2/3 rounded-poster bg-muted/70 animate-shimmer`} />
+          <Skeleton key={index} className={`shrink-0 ${itemClassName} aspect-2/3 rounded-xl`} />
         ))}
       </div>
     </div>

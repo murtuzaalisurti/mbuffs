@@ -1,9 +1,11 @@
 import { useAmbientState } from '@/lib/ambient';
 
 /**
- * The room's only light: a soft wash of the current title's colour from the
- * top of the viewport. `--ambient` is a registered <color>, so switching films
- * interpolates smoothly instead of snapping.
+ * A barely-there wash of the current title's colour behind the top of the
+ * page. It is anchored to the top of the document (not the viewport), so it
+ * scrolls away with the hero and never sits behind cards or reviews further
+ * down. `--ambient` is a registered <color>, so switching films interpolates
+ * smoothly instead of snapping.
  */
 export const AmbientGlow = () => {
   const { color, lit } = useAmbientState();
@@ -11,13 +13,12 @@ export const AmbientGlow = () => {
   return (
     <div
       aria-hidden
-      className="pointer-events-none fixed inset-0 -z-10 transition-[--ambient,opacity] duration-(--dur-scene) ease-(--ease-out)"
+      className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[100svh] transition-[--ambient,opacity] duration-(--dur-scene) ease-(--ease-out)"
       style={{
         ...(color ? { '--ambient': color } : {}),
         opacity: lit ? 1 : 0,
         background:
-          'radial-gradient(130% 80% at 50% 30%, color-mix(in oklch, var(--ambient) 32%, transparent), transparent 75%), ' +
-          'radial-gradient(70% 50% at 100% 75%, color-mix(in oklch, var(--ambient) 12%, transparent), transparent 70%)',
+          'radial-gradient(90% 70% at 50% 0%, color-mix(in oklch, var(--ambient) 9%, transparent), transparent 100%)',
       } as React.CSSProperties}
     />
   );

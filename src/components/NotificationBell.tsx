@@ -36,13 +36,13 @@ export const NotificationBell = () => {
         <Button
           variant="ghost"
           size="icon"
-          className="relative h-9 w-9 rounded-full bg-background/45 backdrop-blur-md ring-1 ring-foreground/10 hover:bg-background/70"
+          className="relative h-9 w-9 rounded-full bg-muted/70 backdrop-blur-md border border-border hover:bg-muted"
           aria-label="Notifications"
         >
           <Bell className="h-4 w-4 text-muted-foreground" />
           {unreadCount > 0 && (
             <span
-              className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground px-1 tabular-nums"
+              className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground px-1"
               aria-live="polite"
             >
               {unreadCount > 99 ? '99+' : unreadCount}

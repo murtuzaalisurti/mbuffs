@@ -12,7 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
-import { ImageOff, Star, Play, User, Bookmark, MoreHorizontal, Loader2, Plus, Clock, Calendar, Globe, X, MessageSquare, ChevronRight, Eye, EyeOff, ThumbsDown, ThumbsUp, Check } from 'lucide-react';
+import { ImageOff, Star, Play, User, Bookmark, MoreHorizontal, Loader2, Plus, Clock, Calendar, Globe, X, MessageSquare, ChevronRight, Eye, EyeOff, ThumbsDown, ThumbsUp } from 'lucide-react';
 import { useState, useRef, useMemo, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRegion } from '@/hooks/useUserRegion';
@@ -203,9 +203,7 @@ const MovieDetail = () => {
 
     const recommendationsEnabled = preferencesData?.preferences?.recommendations_enabled ?? false;
     const showNotInterested = isLoggedIn && recommendationsEnabled;
-    const actionPillClass = 'inline-flex h-11 items-center justify-center gap-2 rounded-full px-5 text-sm font-medium transition-[background-color,color,scale] duration-(--dur-fast) active:scale-95 disabled:opacity-60';
-    const activeActionClass = 'bg-primary/15 text-primary';
-    const inactiveActionClass = 'bg-foreground/6 text-foreground/90 hover:bg-foreground/10';
+    const activeActionClass = 'bg-accent border-border text-foreground';
 
     // Details, videos/trailers and credits/cast come back in one request. This
     // uses its own key because plain [mediaType, 'details', id] entries (e.g. from
@@ -619,6 +617,8 @@ const MovieDetail = () => {
                 className="relative w-full h-[50vh] md:h-[60vh] overflow-hidden"
                 style={{ marginTop: 'calc(-4rem - env(safe-area-inset-top))' }}
             >
+                <Skeleton className="absolute inset-0 rounded-none" />
+                <div className="absolute inset-0 bg-linear-to-t from-background via-background/60 to-background/20" />
             </div>
 
             <main className="container relative z-10 -mt-40 md:-mt-48 pb-12">
@@ -627,20 +627,24 @@ const MovieDetail = () => {
                     <div className="w-48 md:w-56 lg:w-64 shrink-0 mx-auto md:mx-0">
                         {linkedPosterPath ? (
                             // Same image the card showed (already cached), so the poster lands instantly
-                            <img
-                                src={getImageUrl(linkedPosterPath, 'w342')}
-                                alt=""
-                                className="w-full aspect-2/3 object-cover rounded-poster bg-muted shadow-2xl shadow-black/60"
+                            <div
+                                className="rounded-xl overflow-hidden shadow-2xl shadow-black/50 border border-border/60"
                                 style={{ viewTransitionName: posterViewTransitionName }}
-                            />
+                            >
+                                <img
+                                    src={getImageUrl(linkedPosterPath, 'w342')}
+                                    alt=""
+                                    className="w-full h-auto aspect-2/3 object-cover bg-muted"
+                                />
+                            </div>
                         ) : (
-                            <Skeleton className="w-full aspect-2/3 rounded-poster" />
+                            <Skeleton className="w-full aspect-2/3 rounded-xl" />
                         )}
                     </div>
 
                     {/* Details skeleton */}
                     <div className="grow flex flex-col items-center md:items-start space-y-4 pt-2 md:pt-8 w-full">
-                        <Skeleton className="h-12 w-64 md:w-96 rounded-lg" />
+                        <Skeleton className="h-10 w-64 md:w-80 rounded-lg" />
                         <Skeleton className="h-5 w-48 rounded-md" />
                         <Skeleton className="h-4 w-32 rounded-md" />
                         <div className="flex gap-2">
@@ -727,11 +731,13 @@ const MovieDetail = () => {
                         }}
                     />
                 ) : (
-                    <div className="absolute inset-0" />
+                    <div className="absolute inset-0 flex items-center justify-center bg-muted/30">
+                        <ImageOff className="w-16 h-16 text-muted-foreground/30" />
+                    </div>
                 )}
                 {/* Multi-layer gradient overlay for smooth blending */}
-                <div className="absolute inset-0 bg-linear-to-t from-background/60 via-background/30 to-background/10" />
-                <div className="absolute inset-0 bg-linear-to-r from-background/60 via-transparent to-transparent" />
+                <div className="absolute inset-0 bg-linear-to-t from-background via-background/60 to-background/20" />
+                <div className="absolute inset-0 bg-linear-to-r from-background/50 to-transparent" />
             </div>
 
             {/* Main Content — overlaps backdrop */}
@@ -739,11 +745,14 @@ const MovieDetail = () => {
                 <div className="flex flex-col md:flex-row gap-6 md:gap-8">
                     {/* Poster */}
                     <div className="w-48 md:w-56 lg:w-64 shrink-0 mx-auto md:mx-0">
-                        <div className="rounded-poster overflow-hidden shadow-2xl shadow-black/60 bg-muted" style={{ viewTransitionName: posterViewTransitionName }}>
+                        <div
+                            className="rounded-xl overflow-hidden shadow-2xl shadow-black/50 border border-border/60"
+                            style={{ viewTransitionName: posterViewTransitionName }}
+                        >
                             <img
                                 src={posterPath ? getImageUrl(posterPath, 'w500') : '/placeholder.svg'}
                                 alt={title}
-                                className="w-full h-auto aspect-2/3 object-cover"
+                                className="w-full h-auto aspect-2/3 object-cover bg-muted"
                                 onError={(e) => { (e.target as HTMLImageElement).src = '/placeholder.svg'; }}
                             />
                         </div>
@@ -751,38 +760,38 @@ const MovieDetail = () => {
 
                     {/* Details */}
                     <div className="grow space-y-5 md:space-y-4 text-center md:text-left pt-2 md:pt-8">
-                        <h1 className="display-title text-4xl sm:text-5xl lg:text-6xl animate-fade-in-up">{title}</h1>
+                        <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight leading-tight animate-fade-in-up">{title}</h1>
 
                         {tagline && (
-                            <p className="font-display italic text-base md:text-lg text-muted-foreground text-balance animate-fade-in-up [animation-delay:60ms]">{tagline}</p>
+                            <p className="text-base md:text-lg text-muted-foreground italic animate-fade-in-up [animation-delay:60ms]">"{tagline}"</p>
                         )}
 
                         {/* Meta row */}
-                        <div className="flex flex-wrap justify-center md:justify-start items-center gap-x-3 gap-y-3 text-xs text-muted-foreground slate animate-fade-in-up [animation-delay:120ms]">
+                        <div className="flex flex-wrap justify-center md:justify-start items-center gap-x-4 gap-y-3 text-sm text-muted-foreground animate-fade-in-up [animation-delay:120ms]">
                             {releaseDate && (
                                 <span className="font-medium text-foreground/80">{new Date(releaseDate).getFullYear()}</span>
                             )}
                             {/* Certification Badge */}
                             {ratingsData?.certification?.certification && (
                                 <>
-                                    <span aria-hidden className="text-muted-foreground/40">·</span>
+                                    <span className="text-muted-foreground/40">|</span>
                                     <CertificationBadge certification={ratingsData.certification.certification} />
                                 </>
                             )}
                             {/* IMDB Rating (preferred) or TMDB fallback */}
                             {omdbData?.imdbRating ? (
                                 <>
-                                    <span aria-hidden className="text-muted-foreground/40">·</span>
+                                    <span className="text-muted-foreground/40">|</span>
                                     <span className="flex items-center gap-1.5" title="IMDb rating">
-                                        <span className="inline-flex items-center justify-center rounded bg-[#f5c518] px-1 py-px text-[10px] font-extrabold leading-none text-black tracking-tight normal-case">IMDb</span>
+                                        <span className="inline-flex items-center justify-center rounded bg-[#f5c518] px-1 py-px text-[10px] font-extrabold leading-none text-black tracking-tight">IMDb</span>
                                         <span className="font-medium text-foreground/80">{omdbData.imdbRating.toFixed(1)}</span>
                                     </span>
                                 </>
                             ) : rating && rating !== '0.0' ? (
                                 <>
-                                    <span aria-hidden className="text-muted-foreground/40">·</span>
+                                    <span className="text-muted-foreground/40">|</span>
                                     <span className="flex items-center gap-1.5" title="TMDB rating">
-                                        <Star className="w-3.5 h-3.5 text-primary fill-primary" />
+                                        <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
                                         <span className="font-medium text-foreground/80">{rating}</span>
                                     </span>
                                 </>
@@ -790,7 +799,7 @@ const MovieDetail = () => {
                             {/* Rotten Tomatoes rating */}
                             {omdbData?.rottenTomatoesRating != null && (
                                 <>
-                                    <span aria-hidden className="text-muted-foreground/40">·</span>
+                                    <span className="text-muted-foreground/40">|</span>
                                     <span className="flex items-center gap-1" title="Rotten Tomatoes">
                                         <span className="text-xs leading-none">🍅</span>
                                         <span className="font-medium text-foreground/80">{omdbData.rottenTomatoesRating}%</span>
@@ -799,16 +808,16 @@ const MovieDetail = () => {
                             )}
                             {mediaDetails.runtime > 0 && (
                                 <>
-                                    <span aria-hidden className="text-muted-foreground/40">·</span>
+                                    <span className="text-muted-foreground/40">|</span>
                                     <span>{Math.floor(mediaDetails.runtime / 60)}h {mediaDetails.runtime % 60}m</span>
                                 </>
                             )}
                             {genres.length > 0 && (
                                 <>
-                                    <span aria-hidden className="hidden md:inline text-muted-foreground/40">·</span>
+                                    <span className="hidden md:inline text-muted-foreground/40">|</span>
                                     <div className="flex flex-wrap justify-center md:justify-start gap-2 w-full md:w-auto pt-1 md:pt-0">
                                         {genres.map(genre => (
-                                            <Badge key={genre.id} variant="outline" className="border-transparent bg-foreground/6 text-foreground/75 px-2.5 py-0.5 h-6 text-[11px] font-normal normal-case tracking-normal">
+                                            <Badge key={genre.id} variant="outline" className="border-border text-foreground/70 px-2.5 py-0.5 h-6 text-xs font-normal">
                                                 {genre.name}
                                             </Badge>
                                         ))}
@@ -871,12 +880,14 @@ const MovieDetail = () => {
                         )}
 
                         {/* Action Buttons - Mobile Only */}
-                        <div className="pt-2 flex justify-center gap-2 md:hidden">
+                        <div className="pt-2 flex justify-center gap-4 md:hidden">
                             <Popover open={collectionsOpen} onOpenChange={setCollectionsOpen}>
                                 <PopoverTrigger asChild>
-                                    <button className={`${actionPillClass} bg-primary text-primary-foreground hover:bg-primary/90`}>
-                                        <Bookmark className={`h-4 w-4 ${isInAnyCollection ? 'fill-current' : ''}`} />
-                                        <span>{isInAnyCollection ? 'Saved' : 'Save'}</span>
+                                    <button
+                                        className="flex flex-col items-center justify-center w-20 h-20 rounded-2xl border border-border bg-secondary/40 hover:bg-secondary/70 transition-[background-color,scale] duration-(--dur-fast) active:scale-95"
+                                    >
+                                        <Bookmark className={`h-6 w-6 text-foreground/90 ${isInAnyCollection ? 'fill-current' : ''}`} />
+                                        <span className="text-xs font-semibold text-foreground/70 mt-1.5">Save</span>
                                     </button>
                                 </PopoverTrigger>
                                 <PopoverContent className="w-72 p-0 border-border bg-popover shadow-xl shadow-black/40" align="start">
@@ -964,23 +975,25 @@ const MovieDetail = () => {
                             {isLoggedIn && (
                                 <>
                                     <button
-                                        className={`${actionPillClass} ${isWatched ? activeActionClass : inactiveActionClass}`}
+                                        className={`flex flex-col items-center justify-center w-20 h-20 rounded-2xl border border-border transition-[background-color,scale] duration-(--dur-fast) active:scale-95 ${isWatched ? activeActionClass : 'bg-secondary/40 hover:bg-secondary/70'}`}
                                         onClick={() => toggleWatchedMutation.mutate()}
                                         disabled={isLoadingWatched}
-                                        aria-pressed={isWatched}
                                     >
-                                        {isWatched ? <Check className="h-4 w-4" strokeWidth={2.5} /> : <Eye className="h-4 w-4" />}
-                                        <span>{isWatched ? 'Watched' : 'Mark watched'}</span>
+                                        {isWatched ? (
+                                            <EyeOff className="h-6 w-6 text-foreground/90" />
+                                        ) : (
+                                            <Eye className="h-6 w-6 text-foreground/90" />
+                                        )}
+                                        <span className="text-xs font-semibold text-foreground/70 mt-1.5">{isWatched ? 'Unwatch' : 'Watched'}</span>
                                     </button>
                                     {showNotInterested && (
                                         <button
-                                            className={`${actionPillClass} w-11 px-0 ${isNotInterested ? activeActionClass : inactiveActionClass}`}
+                                            className={`flex flex-col items-center justify-center w-20 h-20 rounded-2xl border border-border transition-[background-color,scale] duration-(--dur-fast) active:scale-95 ${isNotInterested ? activeActionClass : 'bg-secondary/40 hover:bg-secondary/70'}`}
                                             onClick={() => toggleNotInterestedMutation.mutate()}
                                             disabled={isLoadingNotInterested}
-                                            aria-pressed={isNotInterested}
-                                            aria-label={isNotInterested ? 'Undo skip' : 'Skip'}
                                         >
-                                            <ThumbsDown className={`h-4 w-4 ${isNotInterested ? 'fill-current' : ''}`} />
+                                            <ThumbsDown className={`h-6 w-6 ${isNotInterested ? 'text-foreground/90 fill-current' : 'text-foreground/90'}`} />
+                                            <span className="text-xs font-semibold text-foreground/70 mt-1.5 leading-tight text-center">{isNotInterested ? 'Undo' : 'Skip'}</span>
                                         </button>
                                     )}
                                 </>
@@ -1488,25 +1501,29 @@ const MovieDetail = () => {
                     {/* Right sidebar - Desktop only */}
                     <aside className="hidden md:block w-56 lg:w-64 shrink-0">
                         <div className="sticky top-20">
-                            <div className="rounded-2xl bg-foreground/4 p-1.5 flex gap-1 backdrop-blur-md">
+                            <div className="rounded-2xl border border-border bg-secondary/40 p-2 flex gap-1">
                                 {isLoggedIn && (
                                     <>
                                         <button
-                                            className={`flex-1 flex items-center justify-center h-11 rounded-xl transition-[background-color,color,scale] duration-(--dur-fast) cursor-pointer active:scale-95 ${isWatched ? activeActionClass : 'text-foreground/90 hover:bg-foreground/8'}`}
+                                            className={`flex-1 flex items-center justify-center h-12 rounded-xl transition-[background-color,scale] duration-(--dur-fast) active:scale-95 cursor-pointer ${isWatched ? 'bg-accent' : 'hover:bg-secondary/70'}`}
                                             onClick={() => toggleWatchedMutation.mutate()}
                                             disabled={isLoadingWatched}
                                             title={isWatched ? 'Unwatch' : 'Watched'}
                                         >
-                                            {isWatched ? <Check className="h-5 w-5" strokeWidth={2.5} /> : <Eye className="h-5 w-5" />}
+                                            {isWatched ? (
+                                                <EyeOff className="h-5 w-5 text-foreground/90" />
+                                            ) : (
+                                                <Eye className="h-5 w-5 text-foreground/90" />
+                                            )}
                                         </button>
                                         {showNotInterested && (
                                             <button
-                                                className={`flex-1 flex items-center justify-center h-11 rounded-xl transition-[background-color,color,scale] duration-(--dur-fast) cursor-pointer active:scale-95 ${isNotInterested ? activeActionClass : 'text-foreground/90 hover:bg-foreground/8'}`}
+                                                className={`flex-1 flex items-center justify-center h-12 rounded-xl transition-[background-color,scale] duration-(--dur-fast) active:scale-95 cursor-pointer ${isNotInterested ? 'bg-accent' : 'hover:bg-secondary/70'}`}
                                                 onClick={() => toggleNotInterestedMutation.mutate()}
                                                 disabled={isLoadingNotInterested}
                                                 title={isNotInterested ? 'Undo skip' : 'Skip'}
                                             >
-                                                <ThumbsDown className={`h-5 w-5 ${isNotInterested ? 'fill-current' : ''}`} />
+                                                <ThumbsDown className={`h-5 w-5 ${isNotInterested ? 'text-foreground/90 fill-current' : 'text-foreground/90'}`} />
                                             </button>
                                         )}
                                     </>
@@ -1515,11 +1532,10 @@ const MovieDetail = () => {
                                 <Popover>
                                     <PopoverTrigger asChild>
                                         <button
-                                            className="flex-1 flex items-center justify-center h-11 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-[background-color,scale] duration-(--dur-fast) cursor-pointer active:scale-95"
+                                            className="flex-1 flex items-center justify-center h-12 rounded-xl hover:bg-secondary/70 transition-colors cursor-pointer"
                                             title="Save"
                                         >
-                                            <Bookmark className={`h-4.5 w-4.5 ${isInAnyCollection ? 'fill-current' : ''}`} />
-                                            <span className="ml-2 text-sm font-medium">{isInAnyCollection ? 'Saved' : 'Save'}</span>
+                                            <Bookmark className={`h-5 w-5 text-foreground/90 ${isInAnyCollection ? 'fill-current' : ''}`} />
                                         </button>
                                     </PopoverTrigger>
                                 <PopoverContent className="w-72 p-0 border-border bg-popover shadow-xl shadow-black/40" align="end">

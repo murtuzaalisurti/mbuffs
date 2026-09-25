@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Star } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { Movie } from '@/lib/types';
 import { getImageUrl } from '@/lib/api';
 import { useAmbientFromImage } from '@/lib/ambient';
@@ -8,7 +9,7 @@ import { usePrefersReducedMotion } from '@/hooks/usePrefersReducedMotion';
 
 interface FeaturedHeroProps {
   items: Movie[];
-  /** Small line above the title, e.g. "Trending this week" */
+  /** Small line above the title, after the title's rank, e.g. "trending this week" */
   eyebrow?: string;
 }
 
@@ -20,7 +21,7 @@ const SLIDE_MS = 8000;
  * the bar (hover, focus) pauses the rotation with no separate timer to keep
  * in sync. The room's ambient light follows the featured title.
  */
-export function FeaturedHero({ items, eyebrow = 'Trending this week' }: FeaturedHeroProps) {
+export function FeaturedHero({ items, eyebrow = 'trending this week' }: FeaturedHeroProps) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const prefersReducedMotion = usePrefersReducedMotion();
@@ -83,21 +84,21 @@ export function FeaturedHero({ items, eyebrow = 'Trending this week' }: Featured
 
       <div className="container relative flex h-full flex-col justify-end pb-10 md:pb-16">
         <div key={active.id} className="max-w-2xl" aria-live="polite">
-          <p className="slate text-[11px] text-primary animate-fade-in-up">{eyebrow}</p>
-          <h1 className="display-title mt-3 text-5xl sm:text-6xl lg:text-7xl animate-fade-in-up [animation-delay:60ms]">
+          <p className="text-sm font-medium text-muted-foreground lowercase animate-fade-in-up">#{activeIndex + 1} {eyebrow}</p>
+          <h1 className="mt-2 font-display font-extrabold tracking-tight leading-none text-balance text-5xl sm:text-6xl lg:text-7xl text-foreground animate-fade-in-up [animation-delay:60ms]">
             {title}
           </h1>
-          <div className="slate mt-4 flex items-center gap-2.5 text-xs text-foreground/70 animate-fade-in-up [animation-delay:120ms]">
+          <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground animate-fade-in-up [animation-delay:120ms]">
             {year && <span>{year}</span>}
-            {year && rating && <span aria-hidden className="text-foreground/30">·</span>}
+            {year && rating && <span aria-hidden className="text-muted-foreground/40">•</span>}
             {rating && (
               <span className="inline-flex items-center gap-1">
-                <Star className="h-3 w-3 text-primary fill-primary" />
+                <Star className="h-3.5 w-3.5 text-yellow-400" fill="currentColor" />
                 {rating}
               </span>
             )}
-            <span aria-hidden className="text-foreground/30">·</span>
-            <span>{mediaType === 'tv' ? 'Series' : 'Film'}</span>
+            <span aria-hidden className="text-muted-foreground/40">•</span>
+            <span>{mediaType === 'tv' ? 'Series' : 'Movie'}</span>
           </div>
           {active.overview && (
             <p className="mt-4 max-w-xl text-base leading-relaxed text-foreground/75 line-clamp-2 max-sm:hidden animate-fade-in-up [animation-delay:180ms]">
@@ -105,13 +106,11 @@ export function FeaturedHero({ items, eyebrow = 'Trending this week' }: Featured
             </p>
           )}
           <div className="mt-6 flex items-center gap-3 animate-fade-in-up [animation-delay:240ms]">
-            <Link
-              to={`/media/${mediaType}/${active.id}`}
-              viewTransition
-              className="inline-flex h-11 items-center rounded-full bg-primary px-6 text-sm font-medium text-primary-foreground transition-[background-color,scale] duration-(--dur-fast) hover:bg-primary/90 active:scale-95"
-            >
-              View details
-            </Link>
+            <Button asChild size="lg">
+              <Link to={`/media/${mediaType}/${active.id}`} viewTransition>
+                View details
+              </Link>
+            </Button>
           </div>
         </div>
 

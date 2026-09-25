@@ -1,4 +1,5 @@
 import { ReactNode, useMemo, useState } from "react";
+import { ChevronRight } from "lucide-react";
 import { Movie } from "@/lib/types";
 import { MovieCard } from "./MovieCard";
 import { Rail } from "./Rail";
@@ -15,8 +16,8 @@ interface MediaRailProps {
   showNotInterested?: boolean;
 }
 
-const RAIL_POSTER_SIZES = "(min-width: 768px) 172px, (min-width: 640px) 152px, 132px";
-const EXPANDED_GRID_CLASS = "grid grid-cols-3 gap-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-6";
+const RAIL_POSTER_SIZES = "(min-width: 768px) 180px, (min-width: 640px) 160px, 140px";
+const EXPANDED_GRID_CLASS = "grid grid-cols-3 gap-2 sm:gap-4 md:grid-cols-4 md:gap-5 lg:grid-cols-5";
 
 /**
  * A rail of media cards that can open into a full grid in place, for lists
@@ -62,21 +63,24 @@ export function MediaRail({ title, subtitle, movies, limit = 20, showNotInterest
       type="button"
       onClick={() => setExpanded((value) => !value)}
       aria-expanded={expanded}
-      className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+      className="group flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
     >
-      {expanded ? "Show less" : "See all"}
+      <span>{expanded ? "Show less" : "See all"}</span>
+      <ChevronRight
+        className={`h-4 w-4 transition-transform duration-(--dur-ui) ease-(--ease-out) ${expanded ? "-rotate-90" : "group-hover:translate-x-0.5"}`}
+      />
     </button>
   );
 
   if (expanded) {
     return (
       <section className="space-y-4">
-        <header className="flex items-end justify-between gap-4">
+        <header className="flex items-center justify-between gap-4">
           <div className="min-w-0">
-            <h2 className="text-2xl md:text-3xl font-semibold leading-tight">{title}</h2>
+            <h2 className="font-display text-2xl md:text-3xl font-bold tracking-tight lowercase">{title}</h2>
             {subtitle && <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>}
           </div>
-          <div className="shrink-0 pb-1">{toggle}</div>
+          <div className="shrink-0">{toggle}</div>
         </header>
         <div className={`${EXPANDED_GRID_CLASS} animate-fade-in-up`}>
           {enrichedMovies.map((movie) => renderCard(movie))}

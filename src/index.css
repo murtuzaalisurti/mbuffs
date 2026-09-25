@@ -4,11 +4,10 @@
 
 @utility container {
   margin-inline: auto;
-  padding-inline: 1rem;
+  padding-inline: 2rem;
 
   @media (width >=--theme(--breakpoint-sm)) {
     max-width: none;
-    padding-inline: 2rem;
   }
 
   @media (width >=1400px) {
@@ -17,60 +16,52 @@
 }
 
 /*
-  The ambient colour is sampled from whatever title is on screen and tints the
-  room around it. Registering it lets the browser interpolate between films.
+  The ambient colour is sampled from the title on screen and faintly tints the
+  top of the page. Registering it lets the browser interpolate between films.
 */
 @property --ambient {
   syntax: "<color>";
   inherits: true;
-  initial-value: oklch(0.13 0.006 60);
+  initial-value: oklch(0.141 0.005 285.823);
 }
 
 :root {
-  /* Screening room: warm black surfaces lit only by the picture. */
-  --background: oklch(0.13 0.006 60);
-  --foreground: oklch(0.95 0.008 80);
-  --card: oklch(0.17 0.007 60);
-  --card-foreground: var(--foreground);
-  --popover: oklch(0.19 0.008 60);
-  --popover-foreground: var(--foreground);
-
-  /* Tungsten: the single brand accent, reserved for action and selection. */
-  --primary: oklch(0.82 0.12 75);
-  --primary-foreground: oklch(0.17 0.02 60);
-
-  --secondary: oklch(0.22 0.008 60);
-  --secondary-foreground: var(--foreground);
-  --muted: oklch(0.22 0.008 60);
-  --muted-foreground: oklch(0.7 0.014 75);
-  --accent: oklch(0.24 0.009 60);
-  --accent-foreground: var(--foreground);
-  --destructive: oklch(0.68 0.17 25);
-  --destructive-foreground: var(--foreground);
-  --border: oklch(0.95 0.02 80 / 8%);
-  --input: oklch(0.95 0.02 80 / 12%);
-  --ring: oklch(0.82 0.12 75 / 55%);
-
-  --chart-1: oklch(0.82 0.12 75);
-  --chart-2: oklch(0.7 0.12 160);
-  --chart-3: oklch(0.68 0.14 250);
-  --chart-4: oklch(0.68 0.16 330);
-  --chart-5: oklch(0.68 0.17 25);
-
-  --sidebar: var(--card);
-  --sidebar-foreground: var(--foreground);
-  --sidebar-primary: var(--primary);
-  --sidebar-primary-foreground: var(--primary-foreground);
-  --sidebar-accent: var(--accent);
-  --sidebar-accent-foreground: var(--foreground);
-  --sidebar-border: var(--border);
-  --sidebar-ring: var(--ring);
+  --background: oklch(0.141 0.005 285.823);
+  --foreground: oklch(98.511% 0.00011 271.152 / 0.875);
+  --card: oklch(0.21 0.006 285.885);
+  --card-foreground: oklch(98.511% 0.00011 271.152 / 0.875);
+  --popover: oklch(0.21 0.006 285.885);
+  --popover-foreground: oklch(98.511% 0.00011 271.152 / 0.875);
+  --primary: oklch(0.92 0.004 286.32);
+  --primary-foreground: oklch(0.21 0.006 285.885);
+  --secondary: oklch(0.274 0.006 286.033);
+  --secondary-foreground: oklch(98.511% 0.00011 271.152 / 0.875);
+  --muted: oklch(0.274 0.006 286.033);
+  --muted-foreground: oklch(0.705 0.015 286.067);
+  --accent: oklch(0.274 0.006 286.033);
+  --accent-foreground: oklch(98.511% 0.00011 271.152 / 0.875);
+  --destructive: oklch(0.704 0.191 22.216);
+  --destructive-foreground: oklch(98.511% 0.00011 271.152 / 0.875);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.552 0.016 285.938);
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.21 0.006 285.885);
+  --sidebar-foreground: oklch(98.511% 0.00011 271.152 / 0.875);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(98.511% 0.00011 271.152 / 0.875);
+  --sidebar-accent: oklch(0.274 0.006 286.033);
+  --sidebar-accent-foreground: oklch(98.511% 0.00011 271.152 / 0.875);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.552 0.016 285.938);
   --sidebar-background: var(--sidebar);
-
-  /* Panels are soft; posters (see @theme) are crisp like printed one-sheets. */
-  --radius: 0.875rem;
-
+  --radius: 0.67rem;
   --font-primary: "Google Sans Flex Variable", system-ui, sans-serif;
+  --font-heading: "Plus Jakarta Sans Variable", var(--font-primary);
   --font-display: "Fraunces Variable", Georgia, serif;
 
   /* Motion durations (curves live in @theme so they also become ease-* utilities) */
@@ -80,7 +71,6 @@
 }
 
 @theme {
-  --radius-poster: 6px;
   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
   --ease-emph: cubic-bezier(0.3, 0, 0, 1);
 }
@@ -113,8 +103,6 @@
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
 
-  --color-ambient: var(--ambient);
-
   --color-sidebar: var(--sidebar-background);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -134,6 +122,7 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
   --font-sans: var(--font-primary);
+  --font-heading: var(--font-heading);
   --font-display: var(--font-display);
 
   --animate-accordion-down: accordion-down var(--dur-ui) var(--ease-out);
@@ -179,9 +168,9 @@
   }
 
   .glass {
-    backdrop-filter: blur(20px) saturate(160%) !important;
-    -webkit-backdrop-filter: blur(20px) saturate(160%);
-    background-color: color-mix(in oklch, var(--background) 72%, transparent) !important;
+    backdrop-filter: blur(16px) saturate(180%) !important;
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    background-color: color-mix(in srgb, var(--background) 78%, transparent) !important;
     transform: translateZ(0);
     /* GPU boost */
   }
@@ -197,26 +186,47 @@
   }
 }
 
-@utility slate {
-  /* Clapperboard metadata: year, runtime, rating */
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+@utility text-gradient {
+  /* Gradient text utility */
+  @apply bg-clip-text text-transparent;
+  background-image: linear-gradient(180deg,
+      var(--muted-foreground),
+      var(--foreground));
+}
+
+@utility card-glow {
+  /* Subtle glow effect for cards on hover */
+  transition:
+    box-shadow var(--dur-ui) var(--ease-out),
+    transform var(--dur-ui) var(--ease-out),
+    translate var(--dur-ui) var(--ease-out),
+    scale var(--dur-fast) var(--ease-out);
+
+  &:hover {
+    box-shadow:
+      0 8px 32px -8px color-mix(in srgb, var(--ring) 25%, transparent),
+      0 4px 16px -4px rgb(0 0 0 / 0.35);
+  }
+}
+
+@utility animate-shimmer {
+  /* Slow, low-contrast shimmer for loading states (keeps the element's own background colour) */
+  background-image: linear-gradient(100deg,
+      transparent 30%,
+      color-mix(in oklch, var(--foreground) 6%, transparent) 50%,
+      transparent 70%);
+  background-size: 250% 100%;
+  animation: shimmer 2.2s var(--ease-out) infinite;
+}
+
+@utility animate-fade-in-up {
+  /* Fade-in animation */
+  animation: fadeInUp var(--dur-scene) var(--ease-out) both;
 }
 
 @utility fade-out-bottom {
-  /* Artwork dissolves into whatever is behind it (the ambient glow), not into a flat colour */
+  /* Artwork dissolves into the page instead of ending at a hard edge */
   mask-image: linear-gradient(to bottom, #000 45%, transparent 100%);
-}
-
-@utility display-title {
-  /* Large Fraunces set like opening credits */
-  font-family: var(--font-display);
-  font-optical-sizing: auto;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  line-height: 0.95;
-  text-wrap: balance;
 }
 
 @utility rail {
@@ -224,7 +234,7 @@
   display: flex;
   overflow-x: auto;
   scroll-snap-type: x mandatory;
-  scroll-padding-inline: 1rem;
+  scroll-padding-inline: 2rem;
   overscroll-behavior-x: contain;
   -ms-overflow-style: none;
   scrollbar-width: none;
@@ -236,24 +246,6 @@
   & > * {
     scroll-snap-align: start;
   }
-
-  @media (width >=--theme(--breakpoint-sm)) {
-    scroll-padding-inline: 2rem;
-  }
-}
-
-@utility animate-shimmer {
-  /* Slow, low-contrast shimmer for loading states */
-  background-image: linear-gradient(100deg,
-      transparent 30%,
-      color-mix(in oklch, var(--foreground) 5%, transparent) 50%,
-      transparent 70%);
-  background-size: 250% 100%;
-  animation: shimmer 2.2s var(--ease-out) infinite;
-}
-
-@utility animate-fade-in-up {
-  animation: fadeInUp var(--dur-scene) var(--ease-out) both;
 }
 
 @utility custom-scrollbar {
@@ -282,39 +274,23 @@
     @apply border-border;
   }
 
-  html {
-    color-scheme: dark;
-  }
-
   body {
     @apply bg-background text-foreground antialiased;
     font-family: var(--font-primary);
     font-feature-settings:
       "rlig" 1,
       "calt" 1;
+    /* Room for the floating tab bar */
     padding-bottom: calc(5.5rem + env(safe-area-inset-bottom));
   }
 
-  ::selection {
-    background: color-mix(in oklch, var(--primary) 35%, transparent);
-  }
-
   h1,
-  h2 {
-    font-family: var(--font-display);
-    font-optical-sizing: auto;
-    letter-spacing: -0.015em;
-  }
-
+  h2,
   h3,
   h4,
   h5,
   h6 {
-    letter-spacing: -0.01em;
-  }
-
-  :focus-visible {
-    outline-color: var(--primary);
+    font-family: var(--font-heading);
   }
 
   @media (width >= 768px) {
@@ -345,45 +321,6 @@
       opacity: 1;
       transform: translateY(0);
     }
-  }
-}
-
-/* Page-to-page: a quick cross-fade; shared posters morph on their own. */
-::view-transition-old(root),
-::view-transition-new(root) {
-  animation-duration: var(--dur-ui);
-  animation-timing-function: var(--ease-out);
-}
-
-::view-transition-group(*) {
-  animation-duration: var(--dur-scene);
-  animation-timing-function: var(--ease-emph);
-}
-
-/* Persistent chrome shows its live state only, so its own animations read cleanly. */
-::view-transition-old(bottom-nav) {
-  display: none;
-}
-
-::view-transition-new(bottom-nav) {
-  animation: none;
-}
-
-@media (prefers-reduced-motion: reduce) {
-
-  *,
-  ::before,
-  ::after {
-    animation-duration: 1ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 1ms !important;
-    scroll-behavior: auto !important;
-  }
-
-  ::view-transition-group(*),
-  ::view-transition-old(*),
-  ::view-transition-new(*) {
-    animation: none !important;
   }
 }
 
@@ -436,5 +373,44 @@
 
   to {
     scale: 1;
+  }
+}
+
+/* Page-to-page: a quick cross-fade; shared posters morph on their own. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: var(--dur-ui);
+  animation-timing-function: var(--ease-out);
+}
+
+::view-transition-group(*) {
+  animation-duration: var(--dur-scene);
+  animation-timing-function: var(--ease-emph);
+}
+
+/* Persistent chrome shows its live state only, so its own animations read cleanly. */
+::view-transition-old(bottom-nav) {
+  display: none;
+}
+
+::view-transition-new(bottom-nav) {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+  *,
+  ::before,
+  ::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
   }
 }
