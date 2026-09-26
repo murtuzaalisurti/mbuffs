@@ -135,7 +135,7 @@ const CollectionSection = ({ collectionId, currentMediaId }: { collectionId: num
                 </h2>
             </div>
 
-            <ScrollRow>
+            <ScrollRow bleed="mobile">
                 {parts.map((part) => (
                     <Link
                         key={part.id}
@@ -1050,7 +1050,7 @@ const MovieDetail = () => {
                     {videos.length > 0 && (
                         <section className="space-y-6 reveal">
                             <h2 className="text-xl md:text-2xl font-semibold text-foreground/90">Trailers & Clips</h2>
-                            <ScrollRow>
+                            <ScrollRow bleed="mobile">
                                 {videos.map((video: Video) => (
                                     <div key={video.key} className="shrink-0 w-80 md:w-96 group/card">
                                         <div className="relative aspect-video rounded-xl overflow-hidden border border-border/60 bg-muted shadow-lg shadow-black/20">
@@ -1134,7 +1134,7 @@ const MovieDetail = () => {
                             <h2 className="text-xl md:text-2xl font-semibold text-foreground/90">
                                 {mediaDetails.seasons.some(s => s.name.includes('Part')) ? 'Parts' : 'Seasons'}
                             </h2>
-                            <ScrollRow>
+                            <ScrollRow bleed="mobile">
                                 {mediaDetails.seasons.map((season) => {
                                     const seasonScore = seasonScoresMap.get(season.season_number);
                                     return (
@@ -1199,7 +1199,7 @@ const MovieDetail = () => {
                             <h2 className="text-xl md:text-2xl font-semibold text-foreground/90">Top Cast</h2>
                             {/* Mobile: horizontal scroll row */}
                             <div className="md:hidden">
-                                <ScrollRow>
+                                <ScrollRow bleed="mobile">
                                     {cast.map((member: CastMember) => (
                                         <Link key={member.id} to={`/person/${member.id}`} viewTransition state={{ profilePath: member.profile_path } satisfies PersonLinkState} onClick={nameSharedElementOnClick(personTransitionName(member.id))} className="shrink-0 w-24 flex flex-col items-center text-center group">
                                             <div data-shared-element className="w-20 h-20 rounded-full overflow-hidden bg-muted/30 border border-border/60 mb-2 transition-transform duration-300 group-hover:scale-105">
@@ -1285,7 +1285,7 @@ const MovieDetail = () => {
                                 <h2 className="text-xl md:text-2xl font-semibold text-foreground/90">Crew</h2>
                                 {/* Mobile: horizontal scroll row */}
                                 <div className="md:hidden">
-                                    <ScrollRow>
+                                    <ScrollRow bleed="mobile">
                                         {uniqueCrew.map((member) => (
                                             <Link key={member.id} to={`/person/${member.id}`} viewTransition state={{ profilePath: member.profile_path } satisfies PersonLinkState} onClick={nameSharedElementOnClick(personTransitionName(member.id))} className="shrink-0 w-24 flex flex-col items-center text-center group">
                                                 <div data-shared-element className="w-20 h-20 rounded-full overflow-hidden bg-muted/30 border border-border/60 mb-2 transition-transform duration-300 group-hover:scale-105">
@@ -1382,7 +1382,7 @@ const MovieDetail = () => {
                                     <h2 className="text-xl md:text-2xl font-semibold text-foreground/90">
                                         More from {targetPerson.name}
                                     </h2>
-                                    <ScrollRow>
+                                    <ScrollRow bleed="mobile">
                                         {topWorks.map((work: PersonCredit) => (
                                             <Link
                                                 key={`${work.media_type}-${work.id}`}
@@ -1436,7 +1436,7 @@ const MovieDetail = () => {
                                 <h2 className="text-xl md:text-2xl font-semibold text-foreground/90">
                                     Popular from Producers
                                 </h2>
-                                <ScrollRow>
+                                <ScrollRow bleed="mobile">
                                     {topStudioWorks.map((work) => (
                                         <Link
                                             key={`studio-${work.id}`}

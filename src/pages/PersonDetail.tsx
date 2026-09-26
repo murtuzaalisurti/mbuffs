@@ -421,7 +421,7 @@ export default function PersonDetail() {
                             <div className="relative group/section">
                                 {!isCastExpanded ? (
                                     // Scrollable View (Collapsed)
-                                    <ScrollRow className="gap-4 animate-stagger">
+                                    <ScrollRow bleed="mobile" className="gap-4 animate-stagger">
                                         {visibleCastCredits.map((credit: PersonCredit) => (
                                             <Link
                                                 key={`${credit.id}-${credit.character}`}
@@ -525,7 +525,7 @@ export default function PersonDetail() {
                             <div className="relative group/section">
                                 {!isCrewExpanded ? (
                                     // Scrollable View (Collapsed)
-                                    <ScrollRow className="gap-4 animate-stagger">
+                                    <ScrollRow bleed="mobile" className="gap-4 animate-stagger">
                                         {visibleCrewCredits.map((credit) => (
                                             <Link
                                                 key={`${credit.id}-${credit.jobs.join('-')}`}
