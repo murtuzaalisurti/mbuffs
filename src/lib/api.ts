@@ -108,6 +108,21 @@ export const fetchAdminUsersApi = async (): Promise<AdminUsersResponse> => {
     return fetchBackend('/admin/users');
 };
 
+export const suspendUserApi = async (userId: string, reason?: string): Promise<{ userId: string; suspendedAt: string; suspensionReason: string | null }> => {
+    return fetchBackend(`/admin/users/${encodeURIComponent(userId)}/suspend`, {
+        method: 'POST',
+        body: JSON.stringify({ reason: reason || undefined }),
+    });
+};
+
+export const unsuspendUserApi = async (userId: string): Promise<{ userId: string; suspendedAt: null; suspensionReason: null }> => {
+    return fetchBackend(`/admin/users/${encodeURIComponent(userId)}/unsuspend`, { method: 'POST' });
+};
+
+export const deleteUserApi = async (userId: string): Promise<void> => {
+    await fetchBackend(`/admin/users/${encodeURIComponent(userId)}`, { method: 'DELETE' });
+};
+
 export const fetchAdminCuratedItemsApi = async (): Promise<AdminCuratedItemsResponse> => {
     return fetchBackend('/admin/curated-items');
 };
@@ -196,6 +211,14 @@ export const updateUserPreferencesApi = async (data: UpdateUserPreferencesInput)
     }
 
     return result;
+};
+
+// Permanently deletes the signed-in user's account and all of their data.
+export const deleteOwnAccountApi = async (confirmEmail: string): Promise<void> => {
+    await fetchBackend('/user/account', {
+        method: 'DELETE',
+        body: JSON.stringify({ confirmEmail }),
+    });
 };
 
 // --- Avatar API Functions ---

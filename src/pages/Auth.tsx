@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { useNavigate, Navigate } from 'react-router-dom';
+import { useNavigate, Navigate, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod/v4';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -14,11 +14,21 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Badge } from '@/components/ui/badge';
+import { toast } from 'sonner';
 
 const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || '';
 const LAST_AUTH_METHOD_KEY = 'mbuffs_last_auth_method';
 
 type AuthMethod = 'google' | 'email';
+
+const ACCOUNT_SUSPENDED_CODE = 'ACCOUNT_SUSPENDED';
+const ACCOUNT_SUSPENDED_MESSAGE = 'This account has been suspended. Contact support if you believe this is a mistake.';
+
+// Maps the `?error=` code Better Auth appends when an OAuth sign-in fails.
+const getOAuthErrorMessage = (code: string): string =>
+    code === ACCOUNT_SUSPENDED_CODE
+        ? ACCOUNT_SUSPENDED_MESSAGE
+        : 'Could not sign in with Google. Please try again.';
 
 // ============================================================================
 // Validation schemas
@@ -59,12 +69,16 @@ const GoogleIcon = () => (
 // ============================================================================
 const Auth = () => {
     const navigate = useNavigate();
+    const [searchParams, setSearchParams] = useSearchParams();
     const { isLoggedIn, isLoadingUser } = useAuth();
     const [authMethod, setAuthMethod] = useState<AuthMethod | null>(null);
     const [activeTab, setActiveTab] = useState<string>('sign-in');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isGoogleSigningIn, setIsGoogleSigningIn] = useState(false);
-    const [formError, setFormError] = useState<string | null>(null);
+    const [formError, setFormError] = useState<string | null>(() => {
+        const oauthError = searchParams.get('error');
+        return oauthError ? getOAuthErrorMessage(oauthError) : null;
+    });
     const [captchaToken, setCaptchaToken] = useState<string | null>(null);
     const turnstileRef = useRef<TurnstileInstance | null>(null);
     const [lastUsedMethod, setLastUsedMethod] = useState<AuthMethod | null>(null);
@@ -79,6 +93,17 @@ const Auth = () => {
         resolver: zodResolver(signUpSchema),
         defaultValues: { firstName: '', lastName: '', email: '', password: '', confirmPassword: '' },
     });
+
+    // Drop the OAuth error params once shown so a refresh doesn't re-show them.
+    useEffect(() => {
+        if (searchParams.has('error')) {
+            setSearchParams((params) => {
+                params.delete('error');
+                params.delete('error_description');
+                return params;
+            }, { replace: true });
+        }
+    }, [searchParams, setSearchParams]);
 
     useEffect(() => {
         const stored = localStorage.getItem(LAST_AUTH_METHOD_KEY) as AuthMethod | null;
@@ -133,6 +158,8 @@ const Auth = () => {
                 let message = result.error.message || 'Something went wrong.';
                 if (code === 'INVALID_EMAIL_OR_PASSWORD') {
                     message = 'Invalid email or password. If you don\'t have an account, please sign up first.';
+                } else if (code === ACCOUNT_SUSPENDED_CODE) {
+                    message = ACCOUNT_SUSPENDED_MESSAGE;
                 }
                 setFormError(message);
                 resetCaptcha();
@@ -178,6 +205,7 @@ const Auth = () => {
                 resetCaptcha();
             } else {
                 saveLastAuthMethod('email');
+                toast.success(`Account created. We sent a verification link to ${values.email}.`);
                 navigate('/');
             }
         } catch {
@@ -202,6 +230,9 @@ const Auth = () => {
             const result = await signIn.social({
                 provider: 'google',
                 callbackURL: window.location.origin,
+                // Land failed sign-ins (e.g. a suspended account) back here
+                // instead of Better Auth's bare backend error page.
+                errorCallbackURL: `${window.location.origin}/login`,
             });
 
             if (result.error) {
@@ -324,7 +355,16 @@ const Auth = () => {
                                             name="password"
                                             render={({ field }) => (
                                                 <FormItem>
-                                                    <FormLabel>Password</FormLabel>
+                                                    <div className="flex items-center justify-between">
+                                                        <FormLabel>Password</FormLabel>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => navigate('/forgot-password', { state: { email: signInForm.getValues('email') } })}
+                                                            className="text-xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                                                        >
+                                                            Forgot password?
+                                                        </button>
+                                                    </div>
                                                     <FormControl>
                                                         <Input type="password" placeholder="Enter your password" {...field} />
                                                     </FormControl>

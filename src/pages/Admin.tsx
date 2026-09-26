@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient, useInfiniteQuery } from '@tansta
 import { Navbar } from '@/components/Navbar';
 import {
   fetchAdminUsersApi, fetchUserPreferencesApi, updateUserPreferencesApi,
+  suspendUserApi, unsuspendUserApi, deleteUserApi,
   fetchAdminCuratedItemsApi, addAdminCuratedItemApi, removeAdminCuratedItemApi,
   fetchCollageItemsApi, addCollageItemApi, removeCollageItemApi,
   searchMoviesApi, getImageUrl, fetchMovieDetailsApi, fetchTvDetailsApi,
@@ -23,17 +24,20 @@ import { Switch } from '@/components/ui/switch';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useAuth } from '@/hooks/useAuth';
 import { getPreferencesQueryKey } from '@/lib/recommendationQueries';
 import { useDebounce } from '@/hooks/use-debounce';
 import { MovieCard } from '@/components/MovieCard';
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
-import { Plus, Search as SearchIcon, Loader2, Check, Trash2, Database, Clock3, RefreshCw, ShieldAlert, Zap, ChevronRight, Copy, Lock, Hourglass } from 'lucide-react';
+import { Plus, Search as SearchIcon, Loader2, Check, Trash2, Database, Clock3, RefreshCw, ShieldAlert, Zap, ChevronRight, Copy, Lock, Hourglass, Ban, UserCheck } from 'lucide-react';
 
 const ADMIN_USERS_QUERY_KEY = ['admin', 'users'];
 const ADMIN_CURATED_QUERY_KEY = ['admin', 'curated-items'];
@@ -56,6 +60,162 @@ const getInitials = (user: AdminUser) => {
     .join('')
     .toUpperCase()
     .slice(0, 2);
+};
+
+const getDisplayName = (user: AdminUser) =>
+  user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email;
+
+const MAX_SUSPENSION_REASON_LENGTH = 500;
+
+// ============================================================================
+// User moderation (suspend / unsuspend / delete)
+// ============================================================================
+const UserModerationActions = ({ user, isSelf }: { user: AdminUser; isSelf: boolean }) => {
+  const queryClient = useQueryClient();
+  const [isSuspendDialogOpen, setIsSuspendDialogOpen] = useState(false);
+  const [reason, setReason] = useState('');
+  const displayName = getDisplayName(user);
+  const isSuspended = Boolean(user.suspendedAt);
+
+  const patchUser = (patch: Partial<AdminUser>) => {
+    queryClient.setQueryData<AdminUsersResponse>(ADMIN_USERS_QUERY_KEY, (old) => old && {
+      ...old,
+      users: old.users.map((u) => (u.id === user.id ? { ...u, ...patch } : u)),
+    });
+  };
+
+  const suspendMutation = useMutation({
+    mutationFn: () => suspendUserApi(user.id, reason.trim()),
+    onSuccess: (response) => {
+      patchUser({ suspendedAt: response.suspendedAt, suspensionReason: response.suspensionReason });
+      setIsSuspendDialogOpen(false);
+      setReason('');
+      toast.success(`${displayName} has been suspended and signed out.`);
+    },
+    onError: (error: Error) => toast.error(error.message || 'Failed to suspend user.'),
+  });
+
+  const unsuspendMutation = useMutation({
+    mutationFn: () => unsuspendUserApi(user.id),
+    onSuccess: () => {
+      patchUser({ suspendedAt: null, suspensionReason: null });
+      toast.success(`${displayName} can sign in again.`);
+    },
+    onError: (error: Error) => toast.error(error.message || 'Failed to unsuspend user.'),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteUserApi(user.id),
+    onSuccess: () => {
+      queryClient.setQueryData<AdminUsersResponse>(ADMIN_USERS_QUERY_KEY, (old) => old && {
+        ...old,
+        users: old.users.filter((u) => u.id !== user.id),
+        total: Math.max(0, old.total - 1),
+      });
+      toast.success(`${displayName}'s account has been deleted.`);
+    },
+    onError: (error: Error) => toast.error(error.message || 'Failed to delete user.'),
+  });
+
+  // Admin accounts (including your own) can't be moderated from here.
+  if (isSelf || user.role === 'admin') {
+    return <span className="text-xs text-muted-foreground">—</span>;
+  }
+
+  const isBusy = suspendMutation.isPending || unsuspendMutation.isPending || deleteMutation.isPending;
+
+  return (
+    <div className="flex items-center gap-2">
+      {isSuspended ? (
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={isBusy}
+          onClick={() => unsuspendMutation.mutate()}
+        >
+          {unsuspendMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserCheck className="h-3.5 w-3.5" />}
+          Unsuspend
+        </Button>
+      ) : (
+        <Dialog
+          open={isSuspendDialogOpen}
+          onOpenChange={(open) => {
+            setIsSuspendDialogOpen(open);
+            if (!open) setReason('');
+          }}
+        >
+          <DialogTrigger asChild>
+            <Button variant="outline" size="sm" disabled={isBusy}>
+              <Ban className="h-3.5 w-3.5" />
+              Suspend
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="w-[90%] sm:max-w-[440px] rounded-lg">
+            <DialogHeader>
+              <DialogTitle>Suspend {displayName}?</DialogTitle>
+              <DialogDescription>
+                They'll be signed out everywhere and won't be able to sign in until you unsuspend them. Their data is kept.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2">
+              <Label htmlFor={`suspend-reason-${user.id}`}>Reason (optional, only admins see this)</Label>
+              <Textarea
+                id={`suspend-reason-${user.id}`}
+                value={reason}
+                maxLength={MAX_SUSPENSION_REASON_LENGTH}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder="e.g. Spam in comments"
+              />
+            </div>
+            <DialogFooter>
+              <DialogClose asChild>
+                <Button variant="outline" disabled={suspendMutation.isPending}>Cancel</Button>
+              </DialogClose>
+              <Button
+                variant="destructive"
+                disabled={suspendMutation.isPending}
+                onClick={() => suspendMutation.mutate()}
+              >
+                {suspendMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                Suspend
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+            disabled={isBusy}
+            aria-label={`Delete ${displayName}'s account`}
+          >
+            {deleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent className="w-[90%] sm:max-w-[440px] rounded-lg">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {displayName}'s account?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently deletes {user.email} and everything they own: collections (including ones shared with others), ratings, comments, and notifications. Titles they added to other people's collections stay. This can't be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteMutation.mutate()}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete account
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
 };
 
 // ============================================================================
@@ -158,12 +318,14 @@ const UsersTab = () => {
                 <TableHead className="px-4">Name / Username</TableHead>
                 <TableHead className="px-4">Email</TableHead>
                 <TableHead className="px-4">Role</TableHead>
+                <TableHead className="px-4">Status</TableHead>
                 <TableHead className="px-4">Provider</TableHead>
                 <TableHead className="px-4">Recommendations</TableHead>
                 <TableHead className="px-4">Category Recs</TableHead>
                 <TableHead className="px-4">Reddit Label</TableHead>
                 <TableHead className="px-4">Collections</TableHead>
                 <TableHead className="px-4">Joined</TableHead>
+                <TableHead className="px-4">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -173,12 +335,14 @@ const UsersTab = () => {
                   <TableCell className="px-4"><Skeleton className="h-4 w-44" /></TableCell>
                   <TableCell className="px-4"><Skeleton className="h-4 w-52" /></TableCell>
                   <TableCell className="px-4"><Skeleton className="h-5 w-14 rounded-full" /></TableCell>
+                  <TableCell className="px-4"><Skeleton className="h-5 w-16 rounded-full" /></TableCell>
                   <TableCell className="px-4"><Skeleton className="h-5 w-20 rounded-full" /></TableCell>
                   <TableCell className="px-4"><Skeleton className="h-5 w-9 rounded-full" /></TableCell>
                   <TableCell className="px-4"><Skeleton className="h-5 w-9 rounded-full" /></TableCell>
                   <TableCell className="px-4"><Skeleton className="h-5 w-9 rounded-full" /></TableCell>
                   <TableCell className="px-4"><Skeleton className="h-4 w-8" /></TableCell>
                   <TableCell className="px-4"><Skeleton className="h-4 w-28" /></TableCell>
+                  <TableCell className="px-4"><Skeleton className="h-8 w-28" /></TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -213,12 +377,14 @@ const UsersTab = () => {
               <TableHead className="px-4">Name / Username</TableHead>
               <TableHead className="px-4">Email</TableHead>
               <TableHead className="px-4">Role</TableHead>
+              <TableHead className="px-4">Status</TableHead>
               <TableHead className="px-4">Provider</TableHead>
               <TableHead className="px-4">Recommendations</TableHead>
               <TableHead className="px-4">Category Recs</TableHead>
               <TableHead className="px-4">Reddit Label</TableHead>
               <TableHead className="px-4">Collections</TableHead>
               <TableHead className="px-4">Joined</TableHead>
+              <TableHead className="px-4">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -260,6 +426,21 @@ const UsersTab = () => {
                     </Badge>
                   </TableCell>
                   <TableCell className="px-4">
+                    {user.suspendedAt ? (
+                      <div className="flex flex-col gap-1">
+                        <Badge variant="destructive" className="w-fit">Suspended</Badge>
+                        <span className="text-xs text-muted-foreground">since {formatDate(user.suspendedAt)}</span>
+                        {user.suspensionReason && (
+                          <span className="text-xs text-muted-foreground max-w-48 truncate" title={user.suspensionReason}>
+                            {user.suspensionReason}
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <Badge variant="outline">Active</Badge>
+                    )}
+                  </TableCell>
+                  <TableCell className="px-4">
                     <div className="flex flex-wrap gap-1">
                       {(user.providers ?? []).map((provider) => (
                         <Badge key={provider} variant="outline" className="capitalize">
@@ -286,6 +467,9 @@ const UsersTab = () => {
                   </TableCell>
                   <TableCell className="px-4">{user.collectionCount}</TableCell>
                   <TableCell className="px-4">{formatDate(user.createdAt)}</TableCell>
+                  <TableCell className="px-4">
+                    <UserModerationActions user={user} isSelf={currentUser?.id === user.id} />
+                  </TableCell>
                 </TableRow>
               );
             })}

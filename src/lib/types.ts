@@ -273,6 +273,8 @@ export interface AdminUser extends User {
   categoryRecommendationsEnabled?: boolean;
   showRedditLabel?: boolean;
   collectionCount: number;
+  suspendedAt: string | null;
+  suspensionReason: string | null;
 }
 
 export interface AdminUsersResponse {
@@ -443,7 +445,7 @@ export interface CollectionSummary {
 export interface CollectionMovieEntry {
   movie_id: number | string; // Can be string with 'tv' suffix for TV shows (e.g., "12345tv")
   added_at: string; // ISO string from DB
-  added_by_user_id: string;
+  added_by_user_id: string | null; // null when the user who added it has deleted their account
   added_by_username: string | null;
   is_movie: boolean; // true if movie, false if TV show
 }

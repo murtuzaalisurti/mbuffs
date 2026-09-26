@@ -32,6 +32,11 @@ export const user = pgTable("user", {
 	showAdultItems: boolean("show_adult_items").default(false).notNull(),
 	showRedditLabel: boolean("show_reddit_label").default(true).notNull(),
 	showMovieCardInfo: boolean("show_movie_card_info").default(false).notNull(),
+	// Account suspension (admin-managed). A non-null suspended_at blocks sign-in.
+	// FK to user.id (ON DELETE SET NULL) exists in DB; omitted here like the other self-reference.
+	suspendedAt: timestamp("suspended_at", { withTimezone: true, mode: 'string' }),
+	suspensionReason: text("suspension_reason"),
+	suspendedByUserId: text("suspended_by_user_id"),
 }, (table) => [
 	index("idx_user_email").using("btree", table.email.asc().nullsLast().op("text_ops")),
 	unique("user_username_key").on(table.username),
@@ -173,7 +178,7 @@ export const collectionMovies = pgTable("collection_movies", {
 	id: text().primaryKey().notNull(),
 	collectionId: text("collection_id").notNull(),
 	movieId: varchar("movie_id").notNull(),
-	addedByUserId: text("added_by_user_id").notNull(),
+	addedByUserId: text("added_by_user_id"),
 	addedAt: timestamp("added_at", { withTimezone: true, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`),
 	isMovie: boolean("is_movie"),
 }, (table) => [
@@ -318,7 +323,7 @@ export const adminCuratedItems = pgTable("admin_curated_items", {
 	mediaType: text("media_type").notNull(),
 	title: text().notNull(),
 	posterPath: text("poster_path"),
-	addedByUserId: text("added_by_user_id").notNull(),
+	addedByUserId: text("added_by_user_id"),
 	addedAt: timestamp("added_at", { withTimezone: true, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [
 	index("idx_admin_curated_items_tmdb_id").using("btree", table.tmdbId.asc().nullsLast().op("text_ops")),
@@ -340,7 +345,7 @@ export const homepageCollageItems = pgTable("homepage_collage_items", {
 	mediaType: text("media_type").notNull(),
 	title: text().notNull(),
 	posterPath: text("poster_path"),
-	addedByUserId: text("added_by_user_id").notNull(),
+	addedByUserId: text("added_by_user_id"),
 	addedAt: timestamp("added_at", { withTimezone: true, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [
 	index("idx_homepage_collage_items_tmdb_id").using("btree", table.tmdbId.asc().nullsLast().op("text_ops")),

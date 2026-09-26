@@ -29,6 +29,7 @@ npm install
 - `TMDB_API_KEY`
 - `TMDB_BASE_URL`
 - `TMDB_IMAGE_BASE_URL`
+- `RESEND_API_KEY`, `EMAIL_FROM` - password-reset and email-verification emails via Resend. Outside production, emails are logged to the console when these are unset.
 
 ## Run
 
@@ -69,6 +70,14 @@ npm run build:no-scrape
 
 - `GET /api/user/preferences`
 - `PUT /api/user/preferences`
+- `DELETE /api/user/account` - permanently delete the signed-in account (body: `{ "confirmEmail": "<account email>" }`)
+
+### Admin
+
+- `GET /api/admin/users`
+- `POST /api/admin/users/:userId/suspend` - revoke sessions and block sign-in (body: optional `{ "reason": "..." }`)
+- `POST /api/admin/users/:userId/unsuspend`
+- `DELETE /api/admin/users/:userId` - permanently delete a non-admin account
 
 ### Collections
 

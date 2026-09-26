@@ -1,5 +1,5 @@
 import express, { RequestHandler } from 'express';
-import { getUserPreferences, updateUserPreferences, uploadAvatar, getAvatar, removeAvatar } from '../controllers/userController.js';
+import { getUserPreferences, updateUserPreferences, uploadAvatar, getAvatar, removeAvatar, deleteOwnAccount } from '../controllers/userController.js';
 import { requireAuth } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
@@ -15,6 +15,9 @@ router.post('/avatar', requireAuth as RequestHandler, uploadAvatar as RequestHan
 
 // DELETE /api/user/avatar - Remove avatar
 router.delete('/avatar', requireAuth as RequestHandler, removeAvatar as RequestHandler);
+
+// DELETE /api/user/account - Permanently delete the signed-in user's account and data
+router.delete('/account', requireAuth as RequestHandler, deleteOwnAccount as RequestHandler);
 
 // GET /api/user/avatar/:userId - Serve avatar image (public)
 router.get('/avatar/:userId', getAvatar as RequestHandler);

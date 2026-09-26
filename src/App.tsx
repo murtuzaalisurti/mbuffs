@@ -27,6 +27,8 @@ const ForYou = lazy(() => import('./pages/ForYou'));
 const WatchedItems = lazy(() => import('./pages/WatchedItems'));
 const NotInterestedItems = lazy(() => import('./pages/NotInterestedItems'));
 const Auth = lazy(() => import('./pages/Auth'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
+const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 const Admin = lazy(() => import('./pages/Admin'));
 
 // A thin bar at the top edge: quieter than a spinner, and it keeps the page
@@ -214,6 +216,8 @@ const router = createBrowserRouter(
       <Route path="/person/:personId" element={<PersonDetail />} />
       <Route path="/collection/:collectionId" element={<CollectionDetail />} />
       <Route path="/login" element={<Auth />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
 
       {/* Protected Routes */}
       <Route

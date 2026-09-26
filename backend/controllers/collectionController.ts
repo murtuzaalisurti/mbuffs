@@ -126,7 +126,7 @@ export const getCollectionById = async (req: Request, res: Response, next: NextF
         const moviesResult = await sql`
             SELECT cm.movie_id, cm.is_movie, cm.added_at, cm.added_by_user_id, COALESCE(u.username, u.name) as added_by_username
             FROM collection_movies cm
-            JOIN "user" u ON cm.added_by_user_id = u.id
+            LEFT JOIN "user" u ON cm.added_by_user_id = u.id
             WHERE cm.collection_id = ${collectionId}
             ORDER BY cm.added_at DESC
         `;
@@ -140,7 +140,7 @@ export const getCollectionById = async (req: Request, res: Response, next: NextF
         
         const responseData: CollectionDetailsResponse = {
              collection: collectionSummary,
-             movies: (moviesResult as (CollectionMovieEntry & { added_by_username: string | null; added_by_user_id: string })[]).map(m => ({ movie_id: m.movie_id, added_at: m.added_at, added_by_username: canViewMembers ? m.added_by_username : null, added_by_user_id: m.added_by_user_id, is_movie: m.is_movie })), 
+             movies: (moviesResult as (CollectionMovieEntry & { added_by_username: string | null; added_by_user_id: string | null })[]).map(m => ({ movie_id: m.movie_id, added_at: m.added_at, added_by_username: canViewMembers ? m.added_by_username : null, added_by_user_id: m.added_by_user_id, is_movie: m.is_movie })), 
              collaborators: collaboratorsResult as CollectionCollaborator[]
         };
 
@@ -588,7 +588,7 @@ export const bulkItemAction = async (req: Request, res: Response, next: NextFunc
             FROM collection_movies
             WHERE collection_id = ${sourceCollectionId}
               AND movie_id = ANY(${movieIds}::text[])
-        ` as Array<{ movie_id: string; is_movie: boolean | null; added_by_user_id: string }>;
+        ` as Array<{ movie_id: string; is_movie: boolean | null; added_by_user_id: string | null }>;
 
         if (sourceMovies.length === 0) {
             res.status(404).json({ message: 'No matching items found in the source collection' });
