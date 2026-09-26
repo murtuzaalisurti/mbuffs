@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchUserCollectionsApi, updateUserPreferencesApi, fetchRecommendationCollectionsApi, setRecommendationCollectionsApi, fetchUserPreferencesApi, fetchWatchedItemsApi, fetchNotInterestedItemsApi, uploadAvatarApi, removeAvatarApi, fetchCurrentUserApi, deleteOwnAccountApi } from '@/lib/api';
 import { UserCollectionsResponse, UpdateUserPreferencesInput, RecommendationCollectionsResponse, UserPreferences } from '@/lib/types';
 import { Navbar } from "@/components/Navbar";
+import { SecuritySettings } from '@/components/profile/SecuritySettings';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Switch } from "@/components/ui/switch";
@@ -817,6 +818,9 @@ const Profile = () => {
                         </Button>
                     </CardContent>
                 </Card>
+
+                {/* Until the session loads, older cached snapshots lack emailVerified; don't flash "Unverified" */}
+                <SecuritySettings email={user.email} emailVerified={user.emailVerified ?? true} />
 
                 {/* Account deletion */}
                 <Card className="mt-6 border-destructive/30">

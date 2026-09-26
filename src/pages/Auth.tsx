@@ -14,6 +14,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Badge } from '@/components/ui/badge';
+import { toast } from 'sonner';
 
 const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || '';
 const LAST_AUTH_METHOD_KEY = 'mbuffs_last_auth_method';
@@ -204,6 +205,7 @@ const Auth = () => {
                 resetCaptcha();
             } else {
                 saveLastAuthMethod('email');
+                toast.success(`Account created. We sent a verification link to ${values.email}.`);
                 navigate('/');
             }
         } catch {
@@ -353,7 +355,16 @@ const Auth = () => {
                                             name="password"
                                             render={({ field }) => (
                                                 <FormItem>
-                                                    <FormLabel>Password</FormLabel>
+                                                    <div className="flex items-center justify-between">
+                                                        <FormLabel>Password</FormLabel>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => navigate('/forgot-password', { state: { email: signInForm.getValues('email') } })}
+                                                            className="text-xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                                                        >
+                                                            Forgot password?
+                                                        </button>
+                                                    </div>
                                                     <FormControl>
                                                         <Input type="password" placeholder="Enter your password" {...field} />
                                                     </FormControl>

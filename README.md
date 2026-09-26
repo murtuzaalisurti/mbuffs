@@ -71,6 +71,7 @@ cd ..
   - `BETTER_AUTH_SECRET`
   - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
   - `TMDB_API_KEY`, `TMDB_BASE_URL`, `TMDB_IMAGE_BASE_URL`
+  - `RESEND_API_KEY`, `EMAIL_FROM` (password-reset and verification emails; logged to the console when unset outside production)
 
 ## Run Locally
 

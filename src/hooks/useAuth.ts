@@ -7,6 +7,7 @@ const AUTH_SNAPSHOT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 type AuthUser = {
     id: string;
     email: string;
+    emailVerified?: boolean;
     username?: string | null;
     avatarUrl?: string | null;
     name?: string | null;
@@ -88,6 +89,7 @@ const mapSessionUser = (sessionUser: unknown): AuthUser | null => {
     return {
         id: user.id,
         email: user.email,
+        emailVerified: typeof user.emailVerified === 'boolean' ? user.emailVerified : undefined,
         username: typeof user.username === 'string' ? user.username : (typeof user.name === 'string' ? user.name : null),
         avatarUrl: typeof user.image === 'string' ? user.image : null,
         name: typeof user.name === 'string' ? user.name : null,

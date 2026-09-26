@@ -7,6 +7,8 @@ import { neon } from "@neondatabase/serverless";
 import dotenv from "dotenv";
 import * as schema from "../db/schema.js";
 import { ACCOUNT_SUSPENDED_CODE, ACCOUNT_SUSPENDED_MESSAGE } from "../services/accountService.js";
+import { sendPasswordResetEmail, sendVerificationEmail } from "./email.js";
+import { scheduleBackground } from "./waitUntilHelper.js";
 
 dotenv.config();
 
@@ -35,6 +37,27 @@ export const auth = betterAuth({
     trustedOrigins: [process.env.FRONTEND_URL || "http://localhost:8080"],
     emailAndPassword: {
         enabled: true,
+        // Better Auth builds the link (backend /reset-password/:token, which
+        // redirects to the frontend's /reset-password?token=...). Sent in the
+        // background (see advanced.backgroundTasks), so the response doesn't
+        // reveal whether the email has an account.
+        sendResetPassword: async ({ user, url }) => {
+            await sendPasswordResetEmail(user, url);
+        },
+        resetPasswordTokenExpiresIn: 60 * 60, // 1 hour
+        // A reset signs out every device, in case the old password was compromised.
+        revokeSessionsOnPasswordReset: true,
+    },
+    emailVerification: {
+        sendVerificationEmail: async ({ user, url }) => {
+            await sendVerificationEmail(user, url);
+        },
+        sendOnSignUp: true,
+        expiresIn: 60 * 60, // 1 hour
+        // Also rewrites an already signed-in user's session cookie with
+        // emailVerified: true, so the change shows up without waiting out the
+        // 5-minute cookie cache.
+        autoSignInAfterVerification: true,
     },
     socialProviders: {
         google: {
@@ -63,6 +86,10 @@ export const auth = betterAuth({
         },
     },
     advanced: {
+        // Keeps email sends alive after the response on Vercel (waitUntil).
+        backgroundTasks: {
+            handler: scheduleBackground,
+        },
         // Cross-origin cookie setup for separate frontend/backend domains (PWA support)
         // sameSite:"none" + secure:true is required for cross-origin fetch()
         // requests to send cookies (used by useSession() in the PWA).

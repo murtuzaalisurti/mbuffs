@@ -29,6 +29,7 @@ npm install
 - `TMDB_API_KEY`
 - `TMDB_BASE_URL`
 - `TMDB_IMAGE_BASE_URL`
+- `RESEND_API_KEY`, `EMAIL_FROM` - password-reset and email-verification emails via Resend. Outside production, emails are logged to the console when these are unset.
 
 ## Run
 
