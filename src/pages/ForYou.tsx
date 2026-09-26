@@ -193,7 +193,7 @@ const ForYou = () => {
           
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-3">
-              <h1 className="font-display text-3xl md:text-4xl font-bold tracking-tight lowercase">
+              <h1 className="page-title">
                 For You
               </h1>
               <span className="text-xs font-medium bg-primary/10 text-primary px-2 py-0.5 rounded-full">
@@ -216,7 +216,7 @@ const ForYou = () => {
 
         {/* Grid */}
         {(isLoading || isLoadingWatched || isLoadingNotInterested) ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 md:gap-5">
+            <div className="poster-grid">
             {Array.from({ length: INITIAL_LOADING_SKELETON_COUNT }).map((_, index) => (
               <div key={index} className="space-y-3">
                 <Skeleton className="aspect-[2/3] w-full rounded-xl" />
@@ -227,7 +227,7 @@ const ForYou = () => {
           </div>
         ) : visibleMovies.length > 0 ? (
           <>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 md:gap-5">
+            <div className="poster-grid animate-stagger">
               {visibleMovies.map((movie, index) => {
                 const mediaId = getRecommendationMediaId(movie);
                 return (

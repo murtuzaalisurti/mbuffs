@@ -15,6 +15,16 @@
   }
 }
 
+/*
+  The ambient colour is sampled from the title on screen and faintly tints the
+  top of the page. Registering it lets the browser interpolate between films.
+*/
+@property --ambient {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: oklch(0.141 0.005 285.823);
+}
+
 :root {
   --background: oklch(0.141 0.005 285.823);
   --foreground: oklch(98.511% 0.00011 271.152 / 0.875);
@@ -53,6 +63,16 @@
   --font-primary: "Google Sans Flex Variable", system-ui, sans-serif;
   --font-heading: "Plus Jakarta Sans Variable", var(--font-primary);
   --font-display: "Fraunces Variable", Georgia, serif;
+
+  /* Motion durations (curves live in @theme so they also become ease-* utilities) */
+  --dur-fast: 120ms;
+  --dur-ui: 240ms;
+  --dur-scene: 480ms;
+}
+
+@theme {
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-emph: cubic-bezier(0.3, 0, 0, 1);
 }
 
 @theme inline {
@@ -105,8 +125,8 @@
   --font-heading: var(--font-heading);
   --font-display: var(--font-display);
 
-  --animate-accordion-down: accordion-down 0.2s ease-out;
-  --animate-accordion-up: accordion-up 0.2s ease-out;
+  --animate-accordion-down: accordion-down var(--dur-ui) var(--ease-out);
+  --animate-accordion-up: accordion-up var(--dur-ui) var(--ease-out);
 
   @keyframes accordion-down {
     from {
@@ -177,8 +197,10 @@
 @utility card-glow {
   /* Subtle glow effect for cards on hover */
   transition:
-    box-shadow 0.3s ease,
-    transform 0.3s ease;
+    box-shadow var(--dur-ui) var(--ease-out),
+    transform var(--dur-ui) var(--ease-out),
+    translate var(--dur-ui) var(--ease-out),
+    scale var(--dur-fast) var(--ease-out);
 
   &:hover {
     box-shadow:
@@ -188,18 +210,143 @@
 }
 
 @utility animate-shimmer {
-  /* Subtle shimmer for loading states */
-  background: linear-gradient(90deg,
-      transparent,
-      color-mix(in srgb, var(--muted) 55%, transparent),
-      transparent);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s ease-in-out infinite;
+  /*
+    A faint, slow sheen for loading states (keeps the element's own background
+    colour). It starts after a beat, so loads that finish quickly never flash.
+  */
+  background-image: linear-gradient(100deg,
+      transparent 35%,
+      color-mix(in oklch, var(--foreground) 3%, transparent) 50%,
+      transparent 65%);
+  background-size: 250% 100%;
+  animation: shimmer 2.8s ease-in-out 400ms infinite;
+}
+
+@utility page-title {
+  /* Title of a browse or list page (For You, a category, Search, Collections, Profile…) */
+  @apply font-display text-3xl md:text-4xl font-bold tracking-tight lowercase;
+}
+
+@utility section-title {
+  /* Title of a poster section on a browse page (home rows, category grids) */
+  @apply font-display text-2xl md:text-3xl font-bold tracking-tight lowercase;
+}
+
+@utility poster-grid {
+  /* The one poster grid: 2 columns on phones up to 6 on wide screens (matches MovieCard's image sizes) */
+  @apply grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 md:gap-5;
 }
 
 @utility animate-fade-in-up {
-  /* Fade-in animation */
-  animation: fadeInUp 0.5s ease-out forwards;
+  /* Entrance: fade up. "backwards" fill hides it during any delay and leaves nothing applied afterwards. */
+  animation: fadeInUp var(--dur-scene) var(--ease-out) backwards;
+}
+
+@utility reveal {
+  /*
+    Sections further down a page fade up once, the first time they scroll
+    into view (lib/revealOnScroll adds data-revealed). Time-based, not tied
+    to the scroll position, and nothing lingers once it has played. With
+    reduced motion (lib/motionPreference) sections are simply shown.
+  */
+  :root[data-motion="full"] &:not([data-revealed]) {
+    opacity: 0;
+  }
+
+  :root[data-motion="full"] &[data-revealed] {
+    animation: fadeInUp var(--dur-scene) var(--ease-out) backwards;
+  }
+}
+
+@utility animate-stagger {
+  /*
+    Children fade up one after another. The first dozen are staggered; the rest
+    (including items appended by infinite scroll) share the last delay, so a
+    long list never waits long. "backwards" fill keeps nothing applied once done.
+  */
+  & > * {
+    animation: fadeInUp var(--dur-scene) var(--ease-out) backwards;
+    animation-delay: 420ms;
+  }
+
+  & > :nth-child(1) {
+    animation-delay: 0ms;
+  }
+
+  & > :nth-child(2) {
+    animation-delay: 35ms;
+  }
+
+  & > :nth-child(3) {
+    animation-delay: 70ms;
+  }
+
+  & > :nth-child(4) {
+    animation-delay: 105ms;
+  }
+
+  & > :nth-child(5) {
+    animation-delay: 140ms;
+  }
+
+  & > :nth-child(6) {
+    animation-delay: 175ms;
+  }
+
+  & > :nth-child(7) {
+    animation-delay: 210ms;
+  }
+
+  & > :nth-child(8) {
+    animation-delay: 245ms;
+  }
+
+  & > :nth-child(9) {
+    animation-delay: 280ms;
+  }
+
+  & > :nth-child(10) {
+    animation-delay: 315ms;
+  }
+
+  & > :nth-child(11) {
+    animation-delay: 350ms;
+  }
+
+  & > :nth-child(12) {
+    animation-delay: 385ms;
+  }
+}
+
+@utility animate-backdrop-in {
+  /* Detail backdrops settle in from a slight zoom once the image has loaded (see lib/imageFade) */
+  &[data-img-fade] {
+    animation: backdrop-in 1.4s var(--ease-out) both;
+  }
+}
+
+@utility fade-out-bottom {
+  /* Artwork dissolves into the page instead of ending at a hard edge */
+  mask-image: linear-gradient(to bottom, #000 45%, transparent 100%);
+}
+
+@utility rail {
+  /* Horizontal poster rail with snap points */
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: 2rem;
+  overscroll-behavior-x: contain;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+
+  & > * {
+    scroll-snap-align: start;
+  }
 }
 
 @utility custom-scrollbar {
@@ -234,7 +381,8 @@
     font-feature-settings:
       "rlig" 1,
       "calt" 1;
-    padding-bottom: calc(4rem + env(safe-area-inset-bottom));
+    /* Room for the floating tab bar */
+    padding-bottom: calc(5.5rem + env(safe-area-inset-bottom));
   }
 
   h1,
@@ -256,11 +404,11 @@
 @layer utilities {
   @keyframes shimmer {
     0% {
-      background-position: -200% 0;
+      background-position: 100% 0;
     }
 
     100% {
-      background-position: 200% 0;
+      background-position: -150% 0;
     }
   }
 
@@ -274,5 +422,149 @@
       opacity: 1;
       transform: translateY(0);
     }
+  }
+}
+
+@keyframes loading-bar {
+  from {
+    translate: -100% 0;
+  }
+
+  to {
+    translate: 300% 0;
+  }
+}
+
+@keyframes backdrop-in {
+  from {
+    opacity: 0;
+    scale: 1.06;
+  }
+
+  to {
+    opacity: 1;
+    scale: 1;
+  }
+}
+
+@keyframes collage-drift {
+  from {
+    translate: 0 0;
+  }
+
+  to {
+    translate: -4% -6%;
+  }
+}
+
+/* The collage scrolls away slower than the page (scroll-driven, where supported) */
+@keyframes collage-parallax {
+  to {
+    translate: 0 30%;
+    opacity: 0.6;
+  }
+}
+
+@supports (animation-timeline: scroll()) {
+  :root[data-motion="full"] .collage-parallax {
+    animation: collage-parallax linear both;
+    animation-timeline: scroll(root);
+    animation-range: 0 100vh;
+  }
+}
+
+/*
+  Images stay hidden until loaded and decoded, then fade in (lib/imageFade);
+  images that are already available show at once. In the base layer so
+  utilities such as animate-backdrop-in can replace the plain fade.
+*/
+@layer base {
+  img[data-img-pending] {
+    opacity: 0;
+  }
+
+  img[data-img-fade] {
+    animation: img-fade-in 420ms var(--ease-out);
+  }
+}
+
+@keyframes img-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/*
+  Back/forward restores a page as it was: entrances don't replay (see
+  lib/navigationMotion). The collage posters are already loaded, so they
+  appear at once instead of fading in again.
+*/
+[data-nav="pop"] :is(.animate-stagger > *, .animate-fade-in-up, .animate-backdrop-in, img[data-img-fade], .reveal) {
+  animation: none;
+}
+
+[data-nav="pop"] .reveal {
+  opacity: 1;
+}
+
+/* No hover effects while scrolling (lib/scrollHoverGuard): cards passing under the pointer stay still */
+[data-scrolling] main a {
+  pointer-events: none;
+}
+
+[data-nav="pop"] .collage-poster {
+  transition: none;
+}
+
+/* Page-to-page: a quick cross-fade; shared posters morph on their own. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: var(--dur-ui);
+  animation-timing-function: var(--ease-out);
+}
+
+::view-transition-group(*) {
+  animation-duration: var(--dur-scene);
+  animation-timing-function: var(--ease-emph);
+}
+
+/* Persistent chrome shows its live state only, so its own animations read cleanly. */
+::view-transition-old(bottom-nav) {
+  display: none;
+}
+
+::view-transition-new(bottom-nav) {
+  animation: none;
+}
+
+/*
+  Reduced motion (device setting, or the Profile override; see
+  lib/motionPreference). Everything settles instantly, page changes swap
+  without morphs, and only essential progress indicators keep moving:
+  spinners still turn, and the loading bar pulses in place instead of sliding.
+*/
+:root[data-motion="reduce"] *:not(.animate-spin, .loading-indicator),
+:root[data-motion="reduce"] ::before,
+:root[data-motion="reduce"] ::after {
+  animation-duration: 1ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 1ms !important;
+  scroll-behavior: auto !important;
+}
+
+:root[data-motion="reduce"]::view-transition-group(*),
+:root[data-motion="reduce"]::view-transition-old(*),
+:root[data-motion="reduce"]::view-transition-new(*) {
+  animation: none !important;
+}
+
+:root[data-motion="reduce"] .loading-indicator {
+  width: 100%;
+  animation: loading-pulse 1.6s ease-in-out infinite !important;
+}
+
+@keyframes loading-pulse {
+  50% {
+    opacity: 0.35;
   }
 }

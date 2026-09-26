@@ -119,7 +119,7 @@ export const Navbar = () => {
   return (
     <>
       <header 
-        className={`sticky top-0 z-50 flex items-center gap-4 px-8 transition-all duration-300 ${scrolled ? 'glass border-b border-border/60' : 'bg-transparent border-b border-transparent'}`}
+        className={`sticky top-0 z-50 flex items-center gap-4 px-8 transition-[background-color,border-color,backdrop-filter] duration-(--dur-scene) ease-(--ease-out) ${scrolled ? 'glass border-b border-border/60' : 'bg-transparent border-b border-transparent'}`}
         style={{ 
           height: 'calc(4rem + env(safe-area-inset-top))', 
           paddingTop: 'env(safe-area-inset-top)' 
@@ -129,13 +129,15 @@ export const Navbar = () => {
         <nav className="flex shrink-0 items-center gap-6 text-lg font-medium md:gap-5 md:text-sm lg:gap-6">
           <Link
             to="/"
+            viewTransition
             className="flex items-center gap-2.5 text-lg font-bold tracking-tight md:text-base group"
           >
-            <LogoIcon className="h-7 w-7 transition-transform group-hover:scale-110" />
+            <LogoIcon className="h-7 w-7 transition-transform duration-(--dur-ui) ease-(--ease-emph) group-hover:scale-110 group-hover:-rotate-6" />
             <span className="font-heading bg-linear-to-r from-foreground to-muted-foreground bg-clip-text text-transparent">mbuffs</span>
           </Link>
           <Link
             to="/categories"
+            viewTransition
             className="hidden md:flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             <LayoutGrid className="h-4 w-4" />

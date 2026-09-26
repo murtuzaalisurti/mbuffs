@@ -471,7 +471,7 @@ const CollectionDetail = () => {
                 <main className="container py-10 max-w-6xl mx-auto">
                     <Skeleton className="h-10 w-1/3 mb-2" />
                     <Skeleton className="h-5 w-1/2 mb-8" />
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                    <div className="poster-grid">
                         {Array.from({ length: 12 }).map((_, i) => (
                             <Skeleton key={i} className="aspect-[2/3] rounded-lg" />
                         ))}
@@ -838,14 +838,14 @@ const CollectionDetail = () => {
 
                 {/* Grid */}
                 {isLoadingMovies && !moviesDetailsMap ? (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                    <div className="poster-grid">
                         {Array.from({ length: collectionDetails.movies.length || 12 }).map((_, i) => (
                             <Skeleton key={i} className="aspect-[2/3] rounded-lg" />
                         ))}
                     </div>
                 ) : currentVisibleMedia.length > 0 ? (
                     <Fragment>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                        <div className="poster-grid animate-stagger">
                             {currentVisibleMedia.map(movieEntry => {
                                 const movie = moviesDetailsMap?.[movieEntry.movie_id];
                                 if (!movie) return (

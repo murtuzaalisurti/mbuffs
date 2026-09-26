@@ -1,10 +1,10 @@
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
-import { useRef, useMemo } from 'react';
-import { MovieGrid } from "@/components/MovieGrid";
+import { useMemo } from 'react';
 import { MovieCard } from "@/components/MovieCard";
-import { fetchTrendingContentApi, fetchNowPlayingSortedApi, fetchUserPreferencesApi, fetchCollageItemsPublicApi, getImageUrl } from "@/lib/api";
-import { Navbar } from "@/components/Navbar";
-import { Skeleton } from '@/components/ui/skeleton';
+import { MediaRail } from "@/components/MediaRail";
+import { Rail, RailSkeleton } from "@/components/Rail";
+import { CollageHero } from "@/components/CollageHero";
+import { fetchTrendingContentApi, fetchNowPlayingSortedApi, fetchUserPreferencesApi, fetchCollageItemsPublicApi } from "@/lib/api";
 import { useAuth } from '@/hooks/useAuth';
 import { useWatchedStatus } from '@/hooks/useWatchedStatus';
 import { useNotInterestedStatus } from '@/hooks/useNotInterestedStatus';
@@ -25,6 +25,17 @@ import {
 const TRENDING_CONTENT_QUERY_KEY = ['content', 'trending'];
 const NOW_PLAYING_QUERY_KEY = ['content', 'now-playing'];
 const COLLAGE_QUERY_KEY = ['content', 'collage'];
+
+// One shuffle per visit: coming back to the home page shows the same wall
+const COLLAGE_SHUFFLE_SEED = Math.floor(Math.random() * 2 ** 32);
+
+/** Small deterministic PRNG (mulberry32), so a shuffle can be repeated from its seed. */
+const seededRandom = (seed: number) => () => {
+  seed = (seed + 0x6d2b79f5) | 0;
+  let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+};
 const Index = () => {
   const { user } = useAuth();
 
@@ -77,15 +88,15 @@ const Index = () => {
     enabled: !!user && recommendationsEnabled,
   });
 
-  const trendingContent = trendingContentData?.results?.slice(0, 50) || [];
+  const trendingContent = useMemo(() => trendingContentData?.results?.slice(0, 50) || [], [trendingContentData]);
   const nowPlayingContent = nowPlayingData?.results || [];
-  const collageItems = collageData?.items ?? [];
+  const collageItems = useMemo(() => collageData?.items ?? [], [collageData]);
   const collageMinItems = collageData?.minItems ?? 12;
-  const hasEnoughCollageItems = collageItems.length >= collageMinItems;
   const heroPosters = useMemo(() => {
+    const random = seededRandom(COLLAGE_SHUFFLE_SEED);
     const collagePosters = collageItems.map((item) => ({ id: item.tmdb_id, poster_path: item.poster_path }));
     for (let i = collagePosters.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
+      const j = Math.floor(random() * (i + 1));
       [collagePosters[i], collagePosters[j]] = [collagePosters[j], collagePosters[i]];
     }
     if (collagePosters.length >= collageMinItems) return collagePosters;
@@ -121,190 +132,84 @@ const Index = () => {
   );
   const hasRecommendations = recommendationsEnabled && recommendations.length > 0;
 
-  // For You scroll functionality
-  const forYouScrollRef = useRef<HTMLDivElement>(null);
-
-  const scrollForYouRight = () => {
-    if (forYouScrollRef.current) {
-      forYouScrollRef.current.scrollBy({ left: 200, behavior: 'smooth' });
-    }
-  };
+  const forYouSubtitle = (firstRecommendationsPage?.totalSourceItems || 0) > 0
+    ? `Based on ${firstRecommendationsPage?.totalSourceItems || 0} items from ${firstRecommendationsPage?.sourceCollections?.length || 0} collection${(firstRecommendationsPage?.sourceCollections?.length || 0) !== 1 ? 's' : ''}`
+    : 'Add source collections to personalize your recommendations';
 
   return (
     <>
       {/* Hero Section — full viewport width, extends behind navbar */}
-      <div className="relative overflow-hidden">
-        {/* Poster collage background — slanted, positioned behind everything including navbar */}
-        {heroPosters.length > 0 && (
-          <div className="absolute inset-0 pointer-events-none">
-            <div className="absolute inset-[-20%] flex flex-wrap gap-1.5 rotate-[-6deg] origin-center">
-              {heroPosters.map((item) => (
-                <img
-                  key={item.id}
-                  src={getImageUrl(item.poster_path, 'w342')}
-                  alt=""
-                  className="w-[18%] md:w-[15%] lg:w-[11%] xl:w-[10%] aspect-[2/3] object-cover rounded-md"
-                  loading="lazy"
-                />
-              ))}
-            </div>
-          </div>
-        )}
-        {/* Base darkening over entire collage */}
-        <div className="absolute inset-0 pointer-events-none bg-background/40" />
-        {/* Smooth edge vignette on all sides */}
-        <div className="absolute inset-0 pointer-events-none" style={{ boxShadow: 'inset 0 0 120px 60px oklch(0.141 0.005 285.823)' }} />
-        {/* Bottom fade — taller so the tagline can sit inside it and blend into the page */}
-        <div className="absolute inset-x-0 bottom-0 h-48 md:h-56 bg-gradient-to-t from-background via-background/85 to-transparent pointer-events-none" />
-
-        {/* Navbar sits inside the hero so collage extends behind it */}
-        <Navbar />
-
-        {/* Title sits at the bottom, nestled in the fade */}
-        <div className="relative z-10 container flex flex-col items-center justify-end min-h-[320px] md:min-h-[400px] lg:min-h-[460px] pb-6 md:pb-8">
-          <h1 className="font-display font-extrabold tracking-tight leading-none text-6xl md:text-7xl lg:text-8xl text-foreground">
-            mbuffs
-          </h1>
-          <p className="mt-1 text-base md:text-lg text-muted-foreground text-center text-balance max-w-md">
-            every story you love and share<span className="hidden md:inline">, or are yet to</span>
-          </p>
-        </div>
-      </div>
+      <CollageHero posters={heroPosters} />
 
       <main className="container py-6 md:py-10">
-        {/* Content Section */}
-        <div className="space-y-16">
-          {/* For You Section - Personalized Recommendations */}
+        <div className="space-y-12 md:space-y-16">
+          {/* For You - Personalized Recommendations */}
           {user && recommendationsEnabled && (
-            <section>
-              {(isRecommendationsLoading || isLoadingWatched || isLoadingNotInterested) ? (
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3">
-                    <Skeleton className="h-8 w-32 rounded-lg" />
+            (isRecommendationsLoading || isLoadingWatched || isLoadingNotInterested) ? (
+              <RailSkeleton />
+            ) : hasRecommendations ? (
+              <Rail
+                title={
+                  <span className="flex items-center gap-3">
+                    For You
+                    <span className="font-sans text-xs font-medium normal-case tracking-normal bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                      Beta
+                    </span>
+                  </span>
+                }
+                subtitle={forYouSubtitle}
+                action={
+                  <Link to="/for-you" viewTransition className="group flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
+                    <span>See all</span>
+                    <ChevronRight className="h-4 w-4 transition-transform duration-(--dur-ui) ease-(--ease-out) group-hover:translate-x-0.5" />
+                  </Link>
+                }
+              >
+                {recommendations.map((movie) => {
+                  const mediaId = getRecommendationMediaId(movie);
+                  return (
+                    <MovieCard
+                      key={movie.id}
+                      movie={movie}
+                      isWatched={watchedMap[mediaId] ?? false}
+                      isNotInterested={notInterestedMap[mediaId] ?? false}
+                      showNotInterested={recommendationsEnabled}
+                      imageSizes="(min-width: 768px) 180px, (min-width: 640px) 160px, 140px"
+                    />
+                  );
+                })}
+              </Rail>
+            ) : (
+              <section className="rounded-2xl bg-linear-to-br from-primary/5 via-muted/40 to-transparent border border-primary/10 p-6 md:p-8 animate-fade-in-up">
+                <div className="flex flex-col md:flex-row items-start md:items-center gap-4 md:gap-6">
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold mb-1">Get Personalized Recommendations</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Select source collections in your profile settings to see recommendations tailored to your taste.
+                    </p>
                   </div>
-                  <div className="relative -mx-4 px-4">
-                    <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide scroll-smooth">
-                      {Array.from({ length: 8 }).map((_, index) => (
-                        <div key={index} className="shrink-0 w-[140px] sm:w-[160px] md:w-[180px] space-y-3">
-                          <Skeleton className="aspect-[2/3] w-full rounded-xl" />
-                          <Skeleton className="h-4 w-[75%] rounded-md" />
-                          <Skeleton className="h-3 w-[45%] rounded-md" />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                  <Link to="/profile">
+                    <Button variant="outline" className="whitespace-nowrap">
+                      <Settings className="h-4 w-4 mr-2" />
+                      Set Up Now
+                    </Button>
+                  </Link>
                 </div>
-              ) : hasRecommendations ? (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <h2 className="font-display text-2xl md:text-3xl font-bold tracking-tight lowercase">For You</h2>
-                      <span className="text-xs font-medium bg-primary/10 text-primary px-2 py-0.5 rounded-full">
-                        Beta
-                      </span>
-                    </div>
-                    <Link to="/for-you" className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
-                      <span>See all</span>
-                      <ChevronRight className="h-4 w-4" />
-                    </Link>
-                  </div>
-                  <p className="text-sm text-muted-foreground -mt-1">
-                    {(firstRecommendationsPage?.totalSourceItems || 0) > 0
-                      ? `Based on ${firstRecommendationsPage?.totalSourceItems || 0} items from ${firstRecommendationsPage?.sourceCollections?.length || 0} collection${(firstRecommendationsPage?.sourceCollections?.length || 0) !== 1 ? 's' : ''}`
-                      : 'Add source collections to personalize your recommendations'}
-                  </p>
-                  <div className="relative -mx-4">
-                    <div 
-                      ref={forYouScrollRef}
-                      className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide scroll-smooth px-4 pr-16"
-                    >
-                      {recommendations.map((movie) => {
-                        const mediaId = getRecommendationMediaId(movie);
-                        return (
-                          <div key={movie.id} className="shrink-0 w-[140px] sm:w-[160px] md:w-[180px]">
-                            <MovieCard
-                              movie={movie}
-                              isWatched={watchedMap[mediaId] ?? false}
-                              isNotInterested={notInterestedMap[mediaId] ?? false}
-                              showNotInterested={recommendationsEnabled}
-                              imageSizes="(min-width: 768px) 180px, (min-width: 640px) 160px, 140px"
-                            />
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <button
-                      onClick={scrollForYouRight}
-                      className="absolute right-0 top-0 bottom-4 w-16 flex items-center justify-center bg-gradient-to-l from-background via-background/80 to-transparent"
-                      aria-label="Scroll right"
-                    >
-                      <ChevronRight className="w-5 h-5 text-foreground/60" />
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="rounded-2xl bg-linear-to-br from-primary/5 via-muted/40 to-transparent border border-primary/10 p-6 md:p-8">
-                  <div className="flex flex-col md:flex-row items-start md:items-center gap-4 md:gap-6">
-                    <div className="flex-1">
-                      <h3 className="text-lg font-semibold mb-1">Get Personalized Recommendations</h3>
-                      <p className="text-sm text-muted-foreground">
-                        Select source collections in your profile settings to see recommendations tailored to your taste.
-                      </p>
-                    </div>
-                    <Link to="/profile">
-                      <Button variant="outline" className="whitespace-nowrap">
-                        <Settings className="h-4 w-4 mr-2" />
-                        Set Up Now
-                      </Button>
-                    </Link>
-                  </div>
-                </div>
-              )}
-            </section>
+              </section>
+            )
           )}
 
-          {/* Trending Content */}
           {isTrendingContentLoading ? (
-            <div className="space-y-6">
-              <Skeleton className="h-7 w-48 rounded-lg" />
-              <div className="grid grid-cols-3 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 md:gap-5">
-                {Array.from({ length: 5 }).map((_, index) => (
-                  <div key={index} className="space-y-3">
-                    <Skeleton className="aspect-2/3 w-full rounded-xl" />
-                    <Skeleton className="h-4 w-[75%] rounded-md" />
-                    <Skeleton className="h-3 w-[45%] rounded-md" />
-                  </div>
-                ))}
-              </div>
-            </div>
+            <RailSkeleton />
           ) : trendingContent.length > 0 && (
-            <MovieGrid
-              movies={trendingContent}
-              title="Trending This Week"
-              collapsible
-            />
+            <MediaRail title="Trending This Week" movies={trendingContent} expandable />
           )}
 
-          {/* Now Playing Movies — region specific */}
+          {/* Now Playing — region specific */}
           {isNowPlayingLoading ? (
-            <div className="space-y-6">
-              <Skeleton className="h-7 w-40 rounded-lg" />
-              <div className="grid grid-cols-3 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 md:gap-5">
-                {Array.from({ length: 5 }).map((_, index) => (
-                  <div key={index} className="space-y-3">
-                    <Skeleton className="aspect-2/3 w-full rounded-xl" />
-                    <Skeleton className="h-4 w-[75%] rounded-md" />
-                    <Skeleton className="h-3 w-[45%] rounded-md" />
-                  </div>
-                ))}
-              </div>
-            </div>
+            <RailSkeleton />
           ) : nowPlayingContent.length > 0 && (
-            <MovieGrid
-              movies={nowPlayingContent}
-              title="Now Playing"
-              collapsible
-            />
+            <MediaRail title="Now Playing" movies={nowPlayingContent} expandable />
           )}
         </div>
       </main>

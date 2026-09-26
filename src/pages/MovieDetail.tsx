@@ -1,4 +1,4 @@
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchMediaPageDetailsApi, fetchPersonCreditsApi, fetchStudioMoviesApi, fetchUserCollectionsApi, fetchRecommendationCollectionsApi, fetchCollectionMembershipApi, addMovieToCollectionApi, removeMovieFromCollectionApi, getImageUrl, fetchTmdbCollectionDetailsApi, fetchCombinedRatingsApi, fetchOmdbRatingsApi, getWatchedStatusApi, toggleWatchedStatusApi, getNotInterestedStatusApi, toggleNotInterestedStatusApi, fetchUserPreferencesApi } from '@/lib/api';
 import { MovieDetails, MediaPageDetails, Network, ProductionCompany, Video, CastMember, CrewMember, CollectionSummary, WatchProvider, PersonCreditsResponse, PersonCredit, VideosResponse, CreditsResponse, TmdbCollectionDetails, CombinedRatingsResponse, OmdbRatingsResponse, UserPreferences, SearchResults, RecommendationCollectionsResponse } from '@/lib/types';
@@ -25,10 +25,13 @@ import {
 import { useWarmRecommendations } from '@/App';
 import { toast } from 'sonner';
 import { ReviewSection, MbuffScoreCard } from '@/components/reviews/ReviewSection';
+import { ScrollRow } from '@/components/ScrollRow';
 import { MbuffPicks } from '@/components/MbuffPicks';
 import { fetchReviewSummaryApi } from '@/lib/api';
 import type { ReviewSummaryResponse } from '@/lib/types';
 import { useOmdbRatings, enrichMoviesWithImdbRatings } from '@/hooks/useOmdbRatings';
+import { posterTransitionName, personTransitionName, seasonTransitionName, nameSharedElementOnClick, posterLinkProps, type PosterLinkState, type PersonLinkState } from '@/lib/posterTransition';
+import { useAmbientFromImage } from '@/lib/ambient';
 
 const TMDB_LOGO_BASE = 'https://image.tmdb.org/t/p/w92';
 const PROVIDER_PREVIEW_COUNT = 3;
@@ -125,21 +128,21 @@ const CollectionSection = ({ collectionId, currentMediaId }: { collectionId: num
     if (parts.length === 0) return null;
 
     return (
-        <section className="space-y-6">
+        <section className="space-y-6 reveal">
             <div className="flex items-baseline justify-between">
                 <h2 className="text-xl md:text-2xl font-semibold text-foreground/90">
                     The Collection
                 </h2>
             </div>
 
-            <div className="flex overflow-x-auto gap-4 pb-4 snap-x scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
+            <ScrollRow bleed="mobile">
                 {parts.map((part) => (
                     <Link
                         key={part.id}
-                        to={`/media/movie/${part.id}`}
-                        className="shrink-0 w-36 md:w-44 snap-center group/card block"
+                        to={`/media/movie/${part.id}`} {...posterLinkProps('movie', part.id, part.poster_path)}
+                        className="shrink-0 w-36 md:w-44 group/card block"
                     >
-                        <div className="aspect-2/3 rounded-lg overflow-hidden border border-border/60 bg-muted shadow-md mb-2 relative">
+                        <div data-shared-element className="aspect-2/3 rounded-lg overflow-hidden border border-border/60 bg-muted shadow-md mb-2 relative">
                             {part.poster_path ? (
                                 <img
                                     src={getImageUrl(part.poster_path, 'w342')}
@@ -175,7 +178,7 @@ const CollectionSection = ({ collectionId, currentMediaId }: { collectionId: num
                         </div>
                     </Link>
                 ))}
-            </div>
+            </ScrollRow>
         </section>
     );
 };
@@ -187,6 +190,10 @@ const MovieDetail = () => {
     const queryClient = useQueryClient();
 
     const isMovie = mediaType === 'movie';
+    const location = useLocation();
+    // Poster the user tapped on the previous page, available before details load
+    const linkedPosterPath = (location.state as PosterLinkState | null)?.posterPath ?? null;
+    const posterViewTransitionName = posterTransitionName(mediaType ?? 'movie', mediaId ?? '');
 
     const { data: preferencesData } = useQuery<{ preferences: UserPreferences }, Error>({
         queryKey: getPreferencesQueryKey(currentUser?.id),
@@ -216,6 +223,8 @@ const MovieDetail = () => {
         enabled: !!mediaId && !!mediaType,
         staleTime: 1000 * 60 * 60,
     });
+
+    useAmbientFromImage(mediaDetails?.poster_path ?? linkedPosterPath);
 
     const videosData = mediaDetails?.videos;
     const creditsData = mediaDetails?.credits;
@@ -593,19 +602,15 @@ const MovieDetail = () => {
     const [playingVideoId, setPlayingVideoId] = useState<string | null>(null);
     const [overviewExpanded, setOverviewExpanded] = useState(false);
     const [collectionsOpen, setCollectionsOpen] = useState(false);
-    const castScrollRef = useRef<HTMLDivElement>(null);
-    const crewScrollRef = useRef<HTMLDivElement>(null);
 
-    const scrollRight = (ref: React.RefObject<HTMLDivElement | null>) => {
-        if (ref.current) {
-            ref.current.scrollBy({ left: 200, behavior: 'smooth' });
-        }
-    };
 
     const renderSkeletons = () => (
         <>
             {/* Skeleton backdrop — matches real backdrop area */}
-            <div className="-mt-16 relative w-full h-[50vh] md:h-[60vh] overflow-hidden">
+            <div
+                className="relative w-full h-[50vh] md:h-[60vh] overflow-hidden"
+                style={{ marginTop: 'calc(-4rem - env(safe-area-inset-top))' }}
+            >
                 <Skeleton className="absolute inset-0 rounded-none" />
                 <div className="absolute inset-0 bg-linear-to-t from-background via-background/60 to-background/20" />
             </div>
@@ -614,7 +619,21 @@ const MovieDetail = () => {
                 <div className="flex flex-col md:flex-row gap-6 md:gap-8">
                     {/* Poster skeleton */}
                     <div className="w-48 md:w-56 lg:w-64 shrink-0 mx-auto md:mx-0">
-                        <Skeleton className="w-full aspect-2/3 rounded-xl" />
+                        {linkedPosterPath ? (
+                            // Same image the card showed (already cached), so the poster lands instantly
+                            <div
+                                className="rounded-xl overflow-hidden shadow-2xl shadow-black/50 border border-border/60"
+                                style={{ viewTransitionName: posterViewTransitionName }}
+                            >
+                                <img
+                                    src={getImageUrl(linkedPosterPath, 'w342')}
+                                    alt=""
+                                    className="w-full h-auto aspect-2/3 object-cover bg-muted"
+                                />
+                            </div>
+                        ) : (
+                            <Skeleton className="w-full aspect-2/3 rounded-xl" />
+                        )}
                     </div>
 
                     {/* Details skeleton */}
@@ -693,14 +712,14 @@ const MovieDetail = () => {
 
             {/* Backdrop Hero — extends behind navbar and status bar */}
             <div 
-                className="relative w-full h-[50vh] md:h-[60vh] overflow-hidden"
+                className="relative w-full h-[50vh] md:h-[60vh] overflow-hidden fade-out-bottom"
                 style={{ marginTop: 'calc(-4rem - env(safe-area-inset-top))' }}
             >
                 {backdropPath ? (
                     <img
                         src={getImageUrl(backdropPath, 'original')}
                         alt={`${title} backdrop`}
-                        className="absolute inset-0 w-full h-full object-cover object-top"
+                        className="absolute inset-0 w-full h-full object-cover object-top animate-backdrop-in"
                         onError={(e) => {
                             (e.target as HTMLImageElement).style.display = 'none';
                         }}
@@ -720,7 +739,14 @@ const MovieDetail = () => {
                 <div className="flex flex-col md:flex-row gap-6 md:gap-8">
                     {/* Poster */}
                     <div className="w-48 md:w-56 lg:w-64 shrink-0 mx-auto md:mx-0">
-                        <div className="rounded-xl overflow-hidden shadow-2xl shadow-black/50 border border-border/60">
+                        <div
+                            className="rounded-xl overflow-hidden shadow-2xl shadow-black/50 border border-border/60 bg-muted bg-cover bg-center bg-clip-padding"
+                            style={{
+                                viewTransitionName: posterViewTransitionName,
+                                // The card-sized poster (usually cached) holds the spot while the sharp one loads over it
+                                backgroundImage: (linkedPosterPath ?? posterPath) ? `url(${getImageUrl(linkedPosterPath ?? posterPath, 'w342')})` : undefined,
+                            }}
+                        >
                             <img
                                 src={posterPath ? getImageUrl(posterPath, 'w500') : '/placeholder.svg'}
                                 alt={title}
@@ -732,14 +758,14 @@ const MovieDetail = () => {
 
                     {/* Details */}
                     <div className="grow space-y-5 md:space-y-4 text-center md:text-left pt-2 md:pt-8">
-                        <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight leading-tight">{title}</h1>
+                        <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight leading-tight animate-fade-in-up">{title}</h1>
 
                         {tagline && (
-                            <p className="text-base md:text-lg text-muted-foreground italic">"{tagline}"</p>
+                            <p className="text-base md:text-lg text-muted-foreground italic animate-fade-in-up [animation-delay:60ms]">"{tagline}"</p>
                         )}
 
                         {/* Meta row */}
-                        <div className="flex flex-wrap justify-center md:justify-start items-center gap-x-4 gap-y-3 text-sm text-muted-foreground">
+                        <div className="flex flex-wrap justify-center md:justify-start items-center gap-x-4 gap-y-3 text-sm text-muted-foreground animate-fade-in-up [animation-delay:120ms]">
                             {releaseDate && (
                                 <span className="font-medium text-foreground/80">{new Date(releaseDate).getFullYear()}</span>
                             )}
@@ -856,7 +882,7 @@ const MovieDetail = () => {
                             <Popover open={collectionsOpen} onOpenChange={setCollectionsOpen}>
                                 <PopoverTrigger asChild>
                                     <button
-                                        className="flex flex-col items-center justify-center w-20 h-20 rounded-2xl border border-border bg-secondary/40 hover:bg-secondary/70 transition-colors"
+                                        className="flex flex-col items-center justify-center w-20 h-20 rounded-2xl border border-border bg-secondary/40 hover:bg-secondary/70 transition-[background-color,scale] duration-(--dur-fast) active:scale-95"
                                     >
                                         <Bookmark className={`h-6 w-6 text-foreground/90 ${isInAnyCollection ? 'fill-current' : ''}`} />
                                         <span className="text-xs font-semibold text-foreground/70 mt-1.5">Save</span>
@@ -947,7 +973,7 @@ const MovieDetail = () => {
                             {isLoggedIn && (
                                 <>
                                     <button
-                                        className={`flex flex-col items-center justify-center w-20 h-20 rounded-2xl border border-border transition-colors ${isWatched ? activeActionClass : 'bg-secondary/40 hover:bg-secondary/70'}`}
+                                        className={`flex flex-col items-center justify-center w-20 h-20 rounded-2xl border border-border transition-[background-color,scale] duration-(--dur-fast) active:scale-95 ${isWatched ? activeActionClass : 'bg-secondary/40 hover:bg-secondary/70'}`}
                                         onClick={() => toggleWatchedMutation.mutate()}
                                         disabled={isLoadingWatched}
                                     >
@@ -960,7 +986,7 @@ const MovieDetail = () => {
                                     </button>
                                     {showNotInterested && (
                                         <button
-                                            className={`flex flex-col items-center justify-center w-20 h-20 rounded-2xl border border-border transition-colors ${isNotInterested ? activeActionClass : 'bg-secondary/40 hover:bg-secondary/70'}`}
+                                            className={`flex flex-col items-center justify-center w-20 h-20 rounded-2xl border border-border transition-[background-color,scale] duration-(--dur-fast) active:scale-95 ${isNotInterested ? activeActionClass : 'bg-secondary/40 hover:bg-secondary/70'}`}
                                             onClick={() => toggleNotInterestedMutation.mutate()}
                                             disabled={isLoadingNotInterested}
                                         >
@@ -1022,11 +1048,11 @@ const MovieDetail = () => {
 
                     {/* Trailers Section */}
                     {videos.length > 0 && (
-                        <section className="space-y-6">
+                        <section className="space-y-6 reveal">
                             <h2 className="text-xl md:text-2xl font-semibold text-foreground/90">Trailers & Clips</h2>
-                            <div className="flex overflow-x-auto gap-4 pb-4 snap-x scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
+                            <ScrollRow bleed="mobile">
                                 {videos.map((video: Video) => (
-                                    <div key={video.key} className="shrink-0 w-80 md:w-96 snap-center group/card">
+                                    <div key={video.key} className="shrink-0 w-80 md:w-96 group/card">
                                         <div className="relative aspect-video rounded-xl overflow-hidden border border-border/60 bg-muted shadow-lg shadow-black/20">
                                             {playingVideoId === video.key ? (
                                                 <iframe
@@ -1082,13 +1108,15 @@ const MovieDetail = () => {
                                         </div>
                                     </div>
                                 ))}
-                            </div>
+                            </ScrollRow>
                         </section>
                     )}
 
                     {mediaType && mediaId && (
                         <>
-                            <ReviewSection mediaType={mediaType} tmdbId={Number(mediaId)} />
+                            <div className="reveal">
+                                <ReviewSection mediaType={mediaType} tmdbId={Number(mediaId)} />
+                            </div>
 
                             {/* mbuff picks on mobile: horizontal row below reviews */}
                             <MbuffPicks
@@ -1102,20 +1130,23 @@ const MovieDetail = () => {
 
                     {/* Seasons Section (TV Shows) */}
                     {!isMovie && mediaDetails.seasons && mediaDetails.seasons.length > 0 && (
-                        <section className="space-y-6">
+                        <section className="space-y-6 reveal">
                             <h2 className="text-xl md:text-2xl font-semibold text-foreground/90">
                                 {mediaDetails.seasons.some(s => s.name.includes('Part')) ? 'Parts' : 'Seasons'}
                             </h2>
-                            <div className="flex overflow-x-auto gap-4 pb-4 snap-x scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
+                            <ScrollRow bleed="mobile">
                                 {mediaDetails.seasons.map((season) => {
                                     const seasonScore = seasonScoresMap.get(season.season_number);
                                     return (
                                     <Link
                                         key={season.id}
                                         to={`/tv/${mediaId}/season/${season.season_number}`}
-                                        className="shrink-0 w-36 md:w-44 snap-center group/card block"
+                                        viewTransition
+                                        state={{ posterPath: season.poster_path } satisfies PosterLinkState}
+                                        onClick={nameSharedElementOnClick(seasonTransitionName(mediaId ?? '', season.season_number))}
+                                        className="shrink-0 w-36 md:w-44 group/card block"
                                     >
-                                        <div className="aspect-2/3 rounded-lg overflow-hidden border border-border/60 bg-muted shadow-md mb-2 relative">
+                                        <div data-shared-element className="aspect-2/3 rounded-lg overflow-hidden border border-border/60 bg-muted shadow-md mb-2 relative">
                                             {season.poster_path ? (
                                                 <img
                                                     src={getImageUrl(season.poster_path, 'w342')}
@@ -1158,23 +1189,20 @@ const MovieDetail = () => {
                                     </Link>
                                     );
                                 })}
-                            </div>
+                            </ScrollRow>
                         </section>
                     )}
 
                     {/* Cast Section */}
                     {cast.length > 0 && (
-                        <section className="space-y-6">
+                        <section className="space-y-6 reveal">
                             <h2 className="text-xl md:text-2xl font-semibold text-foreground/90">Top Cast</h2>
-                            {/* Mobile: horizontal scroll with gradient fade */}
-                            <div className="md:hidden relative -mx-4">
-                                <div 
-                                    ref={castScrollRef}
-                                    className="flex overflow-x-auto gap-4 pb-4 snap-x scrollbar-hide px-4 pr-16"
-                                >
+                            {/* Mobile: horizontal scroll row */}
+                            <div className="md:hidden">
+                                <ScrollRow bleed="mobile">
                                     {cast.map((member: CastMember) => (
-                                        <Link key={member.id} to={`/person/${member.id}`} className="shrink-0 w-24 flex flex-col items-center text-center snap-center group">
-                                            <div className="w-20 h-20 rounded-full overflow-hidden bg-muted/30 border border-border/60 mb-2 transition-transform duration-300 group-hover:scale-105">
+                                        <Link key={member.id} to={`/person/${member.id}`} viewTransition state={{ profilePath: member.profile_path } satisfies PersonLinkState} onClick={nameSharedElementOnClick(personTransitionName(member.id))} className="shrink-0 w-24 flex flex-col items-center text-center group">
+                                            <div data-shared-element className="w-20 h-20 rounded-full overflow-hidden bg-muted/30 border border-border/60 mb-2 transition-transform duration-300 group-hover:scale-105">
                                                 {member.profile_path ? (
                                                     <img
                                                         src={getImageUrl(member.profile_path, 'w185')}
@@ -1191,20 +1219,13 @@ const MovieDetail = () => {
                                             <p className="text-xs text-muted-foreground line-clamp-1">{member.character}</p>
                                         </Link>
                                     ))}
-                                </div>
-                                <button
-                                    onClick={() => scrollRight(castScrollRef)}
-                                    className="absolute right-0 top-0 bottom-4 w-16 flex items-center justify-center bg-linear-to-l from-background via-background/80 to-transparent"
-                                    aria-label="Scroll right"
-                                >
-                                    <ChevronRight className="w-5 h-5 text-foreground/60" />
-                                </button>
+                                </ScrollRow>
                             </div>
                             {/* Desktop: left-aligned grid */}
                             <div className="hidden md:grid grid-cols-4 lg:grid-cols-6 gap-x-6 gap-y-6">
                                 {cast.map((member: CastMember) => (
-                                    <Link key={member.id} to={`/person/${member.id}`} className="flex flex-col items-center text-center group">
-                                        <div className="w-24 h-24 rounded-full overflow-hidden bg-muted/30 border border-border/60 mb-2 transition-transform duration-300 group-hover:scale-105">
+                                    <Link key={member.id} to={`/person/${member.id}`} viewTransition state={{ profilePath: member.profile_path } satisfies PersonLinkState} onClick={nameSharedElementOnClick(personTransitionName(member.id))} className="flex flex-col items-center text-center group">
+                                        <div data-shared-element className="w-24 h-24 rounded-full overflow-hidden bg-muted/30 border border-border/60 mb-2 transition-transform duration-300 group-hover:scale-105">
                                             {member.profile_path ? (
                                                 <img
                                                     src={getImageUrl(member.profile_path, 'w185')}
@@ -1260,17 +1281,14 @@ const MovieDetail = () => {
                         if (uniqueCrew.length === 0) return null;
 
                         return (
-                            <section className="space-y-6">
+                            <section className="space-y-6 reveal">
                                 <h2 className="text-xl md:text-2xl font-semibold text-foreground/90">Crew</h2>
-                                {/* Mobile: horizontal scroll with gradient fade */}
-                                <div className="md:hidden relative -mx-4">
-                                    <div 
-                                        ref={crewScrollRef}
-                                        className="flex overflow-x-auto gap-4 pb-4 snap-x scrollbar-hide px-4 pr-16"
-                                    >
+                                {/* Mobile: horizontal scroll row */}
+                                <div className="md:hidden">
+                                    <ScrollRow bleed="mobile">
                                         {uniqueCrew.map((member) => (
-                                            <Link key={member.id} to={`/person/${member.id}`} className="shrink-0 w-24 flex flex-col items-center text-center snap-center group">
-                                                <div className="w-20 h-20 rounded-full overflow-hidden bg-muted/30 border border-border/60 mb-2 transition-transform duration-300 group-hover:scale-105">
+                                            <Link key={member.id} to={`/person/${member.id}`} viewTransition state={{ profilePath: member.profile_path } satisfies PersonLinkState} onClick={nameSharedElementOnClick(personTransitionName(member.id))} className="shrink-0 w-24 flex flex-col items-center text-center group">
+                                                <div data-shared-element className="w-20 h-20 rounded-full overflow-hidden bg-muted/30 border border-border/60 mb-2 transition-transform duration-300 group-hover:scale-105">
                                                     {member.profile_path ? (
                                                         <img
                                                             src={getImageUrl(member.profile_path, 'w185')}
@@ -1287,20 +1305,13 @@ const MovieDetail = () => {
                                                 <p className="text-xs text-muted-foreground line-clamp-2">{member.jobs.join(', ')}</p>
                                             </Link>
                                         ))}
-                                    </div>
-                                    <button
-                                        onClick={() => scrollRight(crewScrollRef)}
-                                        className="absolute right-0 top-0 bottom-4 w-16 flex items-center justify-center bg-linear-to-l from-background via-background/80 to-transparent"
-                                        aria-label="Scroll right"
-                                    >
-                                        <ChevronRight className="w-5 h-5 text-foreground/60" />
-                                    </button>
+                                    </ScrollRow>
                                 </div>
                                 {/* Desktop: left-aligned grid */}
                                 <div className="hidden md:grid grid-cols-4 lg:grid-cols-6 gap-x-6 gap-y-6">
                                     {uniqueCrew.map((member) => (
-                                        <Link key={member.id} to={`/person/${member.id}`} className="flex flex-col items-center text-center group">
-                                            <div className="w-24 h-24 rounded-full overflow-hidden bg-muted/30 border border-border/60 mb-2 transition-transform duration-300 group-hover:scale-105">
+                                        <Link key={member.id} to={`/person/${member.id}`} viewTransition state={{ profilePath: member.profile_path } satisfies PersonLinkState} onClick={nameSharedElementOnClick(personTransitionName(member.id))} className="flex flex-col items-center text-center group">
+                                            <div data-shared-element className="w-24 h-24 rounded-full overflow-hidden bg-muted/30 border border-border/60 mb-2 transition-transform duration-300 group-hover:scale-105">
                                                 {member.profile_path ? (
                                                     <img
                                                         src={getImageUrl(member.profile_path, 'w185')}
@@ -1367,18 +1378,18 @@ const MovieDetail = () => {
                             if (topWorks.length === 0) return null;
 
                             return (
-                                <section className="space-y-6">
+                                <section className="space-y-6 reveal">
                                     <h2 className="text-xl md:text-2xl font-semibold text-foreground/90">
                                         More from {targetPerson.name}
                                     </h2>
-                                    <div className="flex overflow-x-auto gap-4 pb-4 snap-x scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
+                                    <ScrollRow bleed="mobile">
                                         {topWorks.map((work: PersonCredit) => (
                                             <Link
                                                 key={`${work.media_type}-${work.id}`}
-                                                to={`/media/${work.media_type}/${work.id}`}
-                                                className="shrink-0 w-32 md:w-40 snap-center group/card block"
+                                                to={`/media/${work.media_type}/${work.id}`} {...posterLinkProps(work.media_type, work.id, work.poster_path)}
+                                                className="shrink-0 w-32 md:w-40 group/card block"
                                             >
-                                                <div className="aspect-2/3 rounded-lg overflow-hidden border border-border/60 bg-muted shadow-md mb-2">
+                                                <div data-shared-element className="aspect-2/3 rounded-lg overflow-hidden border border-border/60 bg-muted shadow-md mb-2">
                                                     <img
                                                         src={getImageUrl(work.poster_path, 'w342')}
                                                         alt={work.title || work.name}
@@ -1410,7 +1421,7 @@ const MovieDetail = () => {
                                                 </div>
                                             </Link>
                                         ))}
-                                    </div>
+                                    </ScrollRow>
                                 </section>
                             );
                         })()
@@ -1421,18 +1432,18 @@ const MovieDetail = () => {
                         const topStudioWorks = enrichMoviesWithImdbRatings(studioMovies, studioRatingsMap);
 
                         return (
-                            <section className="space-y-6">
+                            <section className="space-y-6 reveal">
                                 <h2 className="text-xl md:text-2xl font-semibold text-foreground/90">
                                     Popular from Producers
                                 </h2>
-                                <div className="flex overflow-x-auto gap-4 pb-4 snap-x scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
+                                <ScrollRow bleed="mobile">
                                     {topStudioWorks.map((work) => (
                                         <Link
                                             key={`studio-${work.id}`}
-                                            to={`/media/movie/${work.id}`}
-                                            className="shrink-0 w-32 md:w-40 snap-center group/card block"
+                                            to={`/media/movie/${work.id}`} {...posterLinkProps('movie', work.id, work.poster_path)}
+                                            className="shrink-0 w-32 md:w-40 group/card block"
                                         >
-                                            <div className="aspect-2/3 rounded-lg overflow-hidden border border-border/60 bg-muted shadow-md mb-2">
+                                            <div data-shared-element className="aspect-2/3 rounded-lg overflow-hidden border border-border/60 bg-muted shadow-md mb-2">
                                                 <img
                                                     src={getImageUrl(work.poster_path, 'w342')}
                                                     alt={work.title || work.name}
@@ -1464,7 +1475,7 @@ const MovieDetail = () => {
                                             </div>
                                         </Link>
                                     ))}
-                                </div>
+                                </ScrollRow>
                             </section>
                         );
                     })()}
@@ -1477,7 +1488,7 @@ const MovieDetail = () => {
                                 {isLoggedIn && (
                                     <>
                                         <button
-                                            className={`flex-1 flex items-center justify-center h-12 rounded-xl transition-colors cursor-pointer ${isWatched ? 'bg-accent' : 'hover:bg-secondary/70'}`}
+                                            className={`flex-1 flex items-center justify-center h-12 rounded-xl transition-[background-color,scale] duration-(--dur-fast) active:scale-95 cursor-pointer ${isWatched ? 'bg-accent' : 'hover:bg-secondary/70'}`}
                                             onClick={() => toggleWatchedMutation.mutate()}
                                             disabled={isLoadingWatched}
                                             title={isWatched ? 'Unwatch' : 'Watched'}
@@ -1490,7 +1501,7 @@ const MovieDetail = () => {
                                         </button>
                                         {showNotInterested && (
                                             <button
-                                                className={`flex-1 flex items-center justify-center h-12 rounded-xl transition-colors cursor-pointer ${isNotInterested ? 'bg-accent' : 'hover:bg-secondary/70'}`}
+                                                className={`flex-1 flex items-center justify-center h-12 rounded-xl transition-[background-color,scale] duration-(--dur-fast) active:scale-95 cursor-pointer ${isNotInterested ? 'bg-accent' : 'hover:bg-secondary/70'}`}
                                                 onClick={() => toggleNotInterestedMutation.mutate()}
                                                 disabled={isLoadingNotInterested}
                                                 title={isNotInterested ? 'Undo skip' : 'Skip'}

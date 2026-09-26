@@ -15,6 +15,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Button } from "@/components/ui/button";
 import { useState, useRef, ReactNode } from "react";
 import { haptics } from "@/lib/haptics";
+import { nameSharedElementOnClick, posterTransitionName, preloadMediaDetail, type PosterLinkState } from "@/lib/posterTransition";
 
 interface MovieCardProps {
   movie: Movie;
@@ -267,10 +268,16 @@ export function MovieCard({
     return null;
   }
 
+  const handlePosterIntent = () => {
+    if (!selectionMode) preloadMediaDetail();
+  };
+
   return (
     <Link
       to={navLink}
-      className={`group block card-glow rounded-xl transition-transform duration-300 group-hover:scale-[1.03] ${onLongPress ? 'select-none [-webkit-touch-callout:none]' : ''}`}
+      state={{ posterPath: movie.poster_path } satisfies PosterLinkState}
+      viewTransition
+      className={`group block card-glow rounded-xl pointer-fine:hover:-translate-y-1 active:scale-[0.98] ${onLongPress ? 'select-none [-webkit-touch-callout:none]' : ''}`}
       onClick={(e) => {
         // Swallow the click that follows a long-press so it doesn't navigate/toggle
         if (longPressFiredRef.current) {
@@ -283,18 +290,25 @@ export function MovieCard({
         if (selectionMode && onToggleSelect) {
           e.preventDefault();
           onToggleSelect(mediaId);
+          return;
         }
+        // Name this poster only now, so the detail page's poster can grow out of it
+        nameSharedElementOnClick(posterTransitionName(mediaType, movie.id))(e);
       }}
-      onTouchStart={handleTouchStart}
+      onPointerEnter={handlePosterIntent}
+      onTouchStart={(e) => {
+        handlePosterIntent();
+        handleTouchStart(e);
+      }}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
       onTouchCancel={handleTouchEnd}
       onContextMenu={(e) => { if (onLongPress) e.preventDefault(); }}
     >
       <div
-        className={`relative overflow-hidden rounded-xl bg-card border transition-all ${
+        className={`relative overflow-hidden rounded-xl bg-card border transition-all duration-(--dur-ui) ease-(--ease-out) ${
           isSelected
-            ? "border-primary ring-2 ring-primary/40"
+            ? "border-primary ring-2 ring-primary/40 scale-[0.95]"
             : "border-border/60"
         }`}
         onClick={(e) => {
@@ -310,6 +324,7 @@ export function MovieCard({
         {/* Poster Image */}
         <div className="aspect-2/3 relative overflow-hidden bg-muted">
           <img
+            data-shared-element
             src={getImageUrl(movie.poster_path, 'w342')}
             srcSet={getPosterSrcSet(movie.poster_path)}
             sizes={imageSizes}

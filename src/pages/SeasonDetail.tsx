@@ -1,5 +1,5 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { fetchTvSeasonDetailsApi, fetchTvDetailsApi, getImageUrl } from '@/lib/api';
 import { SeasonDetails, Episode, MovieDetails, Season } from '@/lib/types';
@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Star, ArrowLeft, ArrowRight, Clock, ImageOff, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { seasonTransitionName, type PosterLinkState } from '@/lib/posterTransition';
 
 const COLLAPSED_EPISODE_COUNT = 3;
 
@@ -37,6 +38,11 @@ const SeasonDetail = () => {
         enabled: !!mediaId,
         staleTime: 1000 * 60 * 60,
     });
+
+    const location = useLocation();
+    // Season poster from the show page's link, available before details load
+    const linkedPosterPath = (location.state as PosterLinkState | null)?.posterPath ?? null;
+    const posterViewTransitionName = seasonTransitionName(mediaId ?? '', seasonNumber ?? '');
 
     const { data: seasonDetails, isLoading, isError, error } = useQuery<SeasonDetails | null, Error>({
         queryKey: ['tv', mediaId, 'season', seasonNumber],
@@ -104,7 +110,17 @@ const SeasonDetail = () => {
                     <div className="flex flex-col lg:flex-row gap-8 items-start">
                         <div className="flex-1 min-w-0 space-y-6">
                             <div className="flex gap-4 md:gap-5 items-start">
-                                <Skeleton className="w-24 md:w-28 aspect-2/3 rounded-xl shrink-0" />
+                                {linkedPosterPath ? (
+                                    // Same poster the link showed (already cached), so it lands instantly
+                                    <div
+                                        className="w-24 md:w-28 shrink-0 rounded-xl overflow-hidden shadow-2xl shadow-black/50 border border-border/60 aspect-2/3 bg-muted"
+                                        style={{ viewTransitionName: posterViewTransitionName }}
+                                    >
+                                        <img src={getImageUrl(linkedPosterPath, 'w342')} alt="" className="w-full h-full object-cover" />
+                                    </div>
+                                ) : (
+                                    <Skeleton className="w-24 md:w-28 aspect-2/3 rounded-xl shrink-0" />
+                                )}
                                 <div className="space-y-3 flex-1 pt-1">
                                     <Skeleton className="h-8 w-2/3 max-w-sm" />
                                     <Skeleton className="h-4 w-1/2 max-w-xs" />
@@ -162,7 +178,7 @@ const SeasonDetail = () => {
                     <img
                         src={getImageUrl(backdropPath, 'original')}
                         alt={`${showName ?? 'Show'} backdrop`}
-                        className="absolute inset-0 w-full h-full object-cover object-top"
+                        className="absolute inset-0 w-full h-full object-cover object-top animate-backdrop-in"
                         onError={(e) => {
                             (e.target as HTMLImageElement).style.display = 'none';
                         }}
@@ -219,10 +235,13 @@ const SeasonDetail = () => {
                     <div className="flex-1 min-w-0 space-y-8">
                         {/* Season header: small poster + title/meta/overview */}
                         <div className="flex gap-4 md:gap-5 items-start">
-                            <div className="w-24 md:w-28 shrink-0 rounded-xl overflow-hidden shadow-2xl shadow-black/50 border border-border/60 aspect-2/3 bg-muted">
+                            <div
+                                className="w-24 md:w-28 shrink-0 rounded-xl overflow-hidden shadow-2xl shadow-black/50 border border-border/60 aspect-2/3 bg-muted"
+                                style={{ viewTransitionName: posterViewTransitionName }}
+                            >
                                 {seasonDetails.poster_path ? (
                                     <img
-                                        src={getImageUrl(seasonDetails.poster_path, 'w185')}
+                                        src={getImageUrl(seasonDetails.poster_path, 'w342')}
                                         alt={seasonDetails.name}
                                         className="w-full h-full object-cover"
                                         onError={(e) => { (e.target as HTMLImageElement).src = '/placeholder.svg'; }}
@@ -235,7 +254,7 @@ const SeasonDetail = () => {
                             </div>
                             {/* Text stack — constrained to the poster height so long
                                 overviews clip with ellipsis instead of flowing below */}
-                            <div className="min-w-0 pt-1 h-[146px] md:h-[170px] flex flex-col">
+                            <div className="min-w-0 pt-1 h-[146px] md:h-[170px] flex flex-col animate-fade-in-up">
                                 <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">
                                     {seasonDetails.air_date ? new Date(seasonDetails.air_date).getFullYear() : 'TBA'} · Season
                                 </p>
@@ -316,7 +335,7 @@ const SeasonDetail = () => {
                             <h2 className="text-xl md:text-2xl font-semibold text-foreground/90">Episodes</h2>
                             <div
                                 className={cn(
-                                    'grid gap-4',
+                                    'grid gap-4 animate-stagger',
                                     hasMoreEpisodes && !episodesExpanded &&
                                         '[mask-image:linear-gradient(to_bottom,black_55%,transparent_96%)]'
                                 )}

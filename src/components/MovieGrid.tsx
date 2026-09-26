@@ -19,15 +19,17 @@ interface MovieGridProps {
   defaultOpen?: boolean;
 }
 
-const GRID_CLASS = "grid grid-cols-3 gap-2 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 md:gap-5 lg:grid-cols-5";
+const GRID_CLASS = "poster-grid";
 
-/** Number of grid columns at the current viewport, matching GRID_CLASS breakpoints. */
+/** Number of grid columns at the current viewport, matching the poster-grid breakpoints. */
 const useGridRowSize = () => {
   const getRowSize = () => {
-    if (typeof window === "undefined") return 5;
+    if (typeof window === "undefined") return 6;
+    if (window.innerWidth >= 1280) return 6; // xl
     if (window.innerWidth >= 1024) return 5; // lg
     if (window.innerWidth >= 768) return 4; // md
-    return 3; // base & sm
+    if (window.innerWidth >= 640) return 3; // sm
+    return 2; // base
   };
   const [rowSize, setRowSize] = useState(getRowSize);
   useEffect(() => {
@@ -96,10 +98,10 @@ export function MovieGrid({ movies, title, showNotInterested = false, hideItemsW
       <div className="space-y-6">
         {title && (
           <div className="flex items-center gap-3">
-            <h2 className="font-display text-2xl md:text-3xl font-bold tracking-tight lowercase">{title}</h2>
+            <h2 className="section-title">{title}</h2>
           </div>
         )}
-        <div className={GRID_CLASS}>
+        <div className={`${GRID_CLASS} animate-stagger`}>
           {enrichedMovies.map(renderCard)}
         </div>
       </div>
@@ -122,7 +124,7 @@ export function MovieGrid({ movies, title, showNotInterested = false, hideItemsW
               className="group flex items-center gap-2 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               aria-expanded={isOpen}
             >
-              <h2 className="font-display text-2xl md:text-3xl font-bold tracking-tight lowercase">{title}</h2>
+              <h2 className="section-title">{title}</h2>
               <ChevronDown
                 className={cn(
                   "h-5 w-5 text-muted-foreground transition-transform duration-200 group-hover:text-foreground",

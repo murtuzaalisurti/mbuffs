@@ -33,7 +33,7 @@ function GridSkeletons({ count }: { count: number }) {
 }
 
 const GRID_CLASSES =
-  "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 md:gap-5";
+  "poster-grid";
 
 /**
  * Memoized grid cell. The parent grid re-renders on every infinite-scroll page
@@ -87,7 +87,7 @@ export function CategoryGrid({
 
   return (
     <>
-      <div className={GRID_CLASSES}>
+      <div className={`${GRID_CLASSES} animate-stagger`}>
         {movies.map((movie, index) => {
           const mediaId = getRecommendationMediaId(movie, mediaType);
           return (

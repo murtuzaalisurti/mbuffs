@@ -103,7 +103,7 @@ export function GenreRow({
       {/* Header with title and See All link */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <h2 className="font-display text-2xl md:text-3xl font-bold tracking-tight lowercase">
+          <h2 className="section-title">
             {rowTitle}
           </h2>
         </div>

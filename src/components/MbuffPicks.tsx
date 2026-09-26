@@ -3,11 +3,13 @@ import { Link } from 'react-router-dom';
 import { fetchMbuffPicksApi, getImageUrl } from '@/lib/api';
 import type { MbuffPickItem } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { posterLinkProps } from '@/lib/posterTransition';
+import { ScrollRow } from '@/components/ScrollRow';
 
 function PickPoster({ item, className }: { item: MbuffPickItem; className?: string }) {
     return (
         <Link
-            to={`/media/${item.media_type}/${item.tmdb_id}`}
+            to={`/media/${item.media_type}/${item.tmdb_id}`} {...posterLinkProps(item.media_type, item.tmdb_id, item.poster_path)}
             title={item.title}
             aria-label={item.title}
             className={cn(
@@ -15,7 +17,7 @@ function PickPoster({ item, className }: { item: MbuffPickItem; className?: stri
                 className
             )}
         >
-            <img
+            <img data-shared-element
                 src={getImageUrl(item.poster_path, 'w185')}
                 alt={item.title}
                 className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
@@ -72,15 +74,15 @@ export function MbuffPicks({
         return (
             <section className={cn('space-y-3', className)}>
                 <PicksHeading />
-                <div className="flex overflow-x-auto gap-2.5 pb-1 snap-x scrollbar-hide">
+                <ScrollRow className="gap-2.5">
                     {items.map((item) => (
                         <PickPoster
                             key={`${item.media_type}-${item.tmdb_id}`}
                             item={item}
-                            className="shrink-0 w-24 snap-start"
+                            className="shrink-0 w-24"
                         />
                     ))}
-                </div>
+                </ScrollRow>
             </section>
         );
     }
