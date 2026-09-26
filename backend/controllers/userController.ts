@@ -6,6 +6,7 @@ import {
     invalidateRecommendationCache,
     warmPersonalizedRecommendationCache
 } from '../services/recommendationService.js';
+import { countOtherAdmins, deleteUserAccount } from '../services/accountService.js';
 // Import to ensure Express Request extension is applied
 import '../middleware/authMiddleware.js';
 
@@ -262,6 +263,45 @@ export const removeAvatar = async (req: Request, res: Response, next: NextFuncti
         res.status(200).json({ message: "Avatar removed" });
     } catch (error) {
         console.error("Error removing avatar:", error);
+        next(error);
+    }
+};
+
+// ============================================================================
+// Delete own account — permanently removes the user and all of their data.
+// The caller must echo their account email back as confirmation so a stray
+// request (or a mis-click that skips the dialog) can't wipe an account.
+// ============================================================================
+export const deleteOwnAccount = async (req: Request, res: Response, next: NextFunction) => {
+    if (!req.userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    try {
+        const { confirmEmail } = (req.body ?? {}) as { confirmEmail?: unknown };
+
+        const rows = await sql`SELECT email, role FROM "user" WHERE id = ${req.userId}`;
+        if (rows.length === 0) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        const { email, role } = rows[0] as { email: string; role: string };
+
+        if (typeof confirmEmail !== 'string' || confirmEmail.trim().toLowerCase() !== email.toLowerCase()) {
+            return res.status(400).json({ message: "Confirmation email doesn't match your account email" });
+        }
+
+        // Keep at least one active admin so the admin panel stays reachable.
+        if (role === 'admin' && (await countOtherAdmins(req.userId)) === 0) {
+            return res.status(409).json({ message: "You're the only admin. Make someone else an admin before deleting your account." });
+        }
+
+        await deleteUserAccount(req.userId);
+        console.info(`[user] User ${req.userId} deleted their account`);
+
+        res.status(204).send();
+    } catch (error) {
+        console.error("Error deleting account:", error);
         next(error);
     }
 };

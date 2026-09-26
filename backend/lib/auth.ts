@@ -1,10 +1,12 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { captcha } from "better-auth/plugins";
+import { APIError } from "better-auth/api";
 import { drizzle } from "drizzle-orm/neon-http";
 import { neon } from "@neondatabase/serverless";
 import dotenv from "dotenv";
 import * as schema from "../db/schema.js";
+import { ACCOUNT_SUSPENDED_CODE, ACCOUNT_SUSPENDED_MESSAGE } from "../services/accountService.js";
 
 dotenv.config();
 
@@ -146,6 +148,20 @@ export const auth = betterAuth({
         session: {
             create: {
                 async before(session) {
+                    // Suspended accounts can't sign in by any method. Thrown outside
+                    // the try below so it isn't swallowed: email sign-in returns it
+                    // as the error code, and the OAuth callback redirects to the
+                    // error URL with ?error=ACCOUNT_SUSPENDED.
+                    const suspension = await sqlQuery`
+                        SELECT suspended_at FROM "user" WHERE id = ${session.userId}
+                    `;
+                    if (suspension.length > 0 && suspension[0].suspended_at) {
+                        throw APIError.from("FORBIDDEN", {
+                            message: ACCOUNT_SUSPENDED_MESSAGE,
+                            code: ACCOUNT_SUSPENDED_CODE,
+                        });
+                    }
+
                     // When a session is created after OAuth, check if the user
                     // is missing an image and has a Google account with an id_token
                     try {

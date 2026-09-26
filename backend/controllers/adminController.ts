@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { sql } from '../lib/db.js';
 import { AdminUserResponse } from '../lib/types.js';
 import { generateId } from '../lib/utils.js';
+import { deleteUserAccount, MAX_SUSPENSION_REASON_LENGTH, suspendUser, unsuspendUser } from '../services/accountService.js';
 
 interface AdminUserRow {
     id: string;
@@ -20,6 +21,8 @@ interface AdminUserRow {
     recommendations_collection_id: string | null;
     category_recommendations_enabled: boolean | null;
     show_reddit_label: boolean | null;
+    suspended_at: string | Date | null;
+    suspension_reason: string | null;
 }
 
 interface CollectionCountRow {
@@ -43,7 +46,7 @@ const toIsoString = (value: string | Date): string => {
 export const getAllUsers = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
         const usersResult = await sql`
-            SELECT id, name, email, email_verified, image, username, avatar_url, first_name, last_name, role, created_at, updated_at, recommendations_enabled, recommendations_collection_id, category_recommendations_enabled, show_reddit_label
+            SELECT id, name, email, email_verified, image, username, avatar_url, first_name, last_name, role, created_at, updated_at, recommendations_enabled, recommendations_collection_id, category_recommendations_enabled, show_reddit_label, suspended_at, suspension_reason
             FROM "user"
             ORDER BY created_at DESC
         `;
@@ -97,11 +100,102 @@ export const getAllUsers = async (req: Request, res: Response, next: NextFunctio
             showRedditLabel: userRow.show_reddit_label ?? true,
             providers: providersByUserId.get(userRow.id) ?? [],
             collectionCount: collectionCountByOwnerId.get(userRow.id) ?? 0,
+            suspendedAt: userRow.suspended_at ? toIsoString(userRow.suspended_at) : null,
+            suspensionReason: userRow.suspension_reason ?? null,
         }));
 
         res.status(200).json({ users, total: users.length });
     } catch (error) {
         console.error('Error fetching admin users:', error);
+        next(error);
+    }
+};
+
+// ============================================================================
+// Account moderation (suspend / unsuspend / delete)
+// Admins can't act on their own account here (self-deletion lives on the
+// profile page) or on other admins.
+// ============================================================================
+const findModerationTarget = async (req: Request, res: Response): Promise<{ id: string } | null> => {
+    const userId = String(req.params.userId);
+
+    if (userId === req.userId) {
+        res.status(400).json({ message: "You can't do this to your own account" });
+        return null;
+    }
+
+    const rows = await sql`SELECT id, role FROM "user" WHERE id = ${userId}`;
+    if (rows.length === 0) {
+        res.status(404).json({ message: 'User not found' });
+        return null;
+    }
+
+    if (rows[0].role === 'admin') {
+        res.status(403).json({ message: "Admin accounts can't be suspended or removed" });
+        return null;
+    }
+
+    return { id: userId };
+};
+
+export const suspendUserHandler = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+        const rawReason = (req.body as { reason?: unknown } | undefined)?.reason;
+        if (rawReason !== undefined && rawReason !== null && typeof rawReason !== 'string') {
+            res.status(400).json({ message: 'reason must be a string' });
+            return;
+        }
+
+        const reason = typeof rawReason === 'string' && rawReason.trim().length > 0 ? rawReason.trim() : null;
+        if (reason && reason.length > MAX_SUSPENSION_REASON_LENGTH) {
+            res.status(400).json({ message: `reason must be at most ${MAX_SUSPENSION_REASON_LENGTH} characters` });
+            return;
+        }
+
+        const target = await findModerationTarget(req, res);
+        if (!target) return;
+
+        const result = await suspendUser(target.id, req.userId!, reason);
+        if (!result) {
+            res.status(404).json({ message: 'User not found' });
+            return;
+        }
+
+        res.status(200).json({ userId: target.id, suspendedAt: result.suspendedAt, suspensionReason: reason });
+    } catch (error) {
+        console.error('Error suspending user:', error);
+        next(error);
+    }
+};
+
+export const unsuspendUserHandler = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+        const target = await findModerationTarget(req, res);
+        if (!target) return;
+
+        await unsuspendUser(target.id);
+        res.status(200).json({ userId: target.id, suspendedAt: null, suspensionReason: null });
+    } catch (error) {
+        console.error('Error unsuspending user:', error);
+        next(error);
+    }
+};
+
+export const deleteUserHandler = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+        const target = await findModerationTarget(req, res);
+        if (!target) return;
+
+        const deleted = await deleteUserAccount(target.id);
+        if (!deleted) {
+            res.status(404).json({ message: 'User not found' });
+            return;
+        }
+
+        console.info(`[admin] User ${target.id} deleted by admin ${req.userId}`);
+        res.status(204).send();
+    } catch (error) {
+        console.error('Error deleting user:', error);
         next(error);
     }
 };

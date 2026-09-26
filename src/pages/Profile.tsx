@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchUserCollectionsApi, updateUserPreferencesApi, fetchRecommendationCollectionsApi, setRecommendationCollectionsApi, fetchUserPreferencesApi, fetchWatchedItemsApi, fetchNotInterestedItemsApi, uploadAvatarApi, removeAvatarApi, fetchCurrentUserApi } from '@/lib/api';
+import { fetchUserCollectionsApi, updateUserPreferencesApi, fetchRecommendationCollectionsApi, setRecommendationCollectionsApi, fetchUserPreferencesApi, fetchWatchedItemsApi, fetchNotInterestedItemsApi, uploadAvatarApi, removeAvatarApi, fetchCurrentUserApi, deleteOwnAccountApi } from '@/lib/api';
 import { UserCollectionsResponse, UpdateUserPreferencesInput, RecommendationCollectionsResponse, UserPreferences } from '@/lib/types';
 import { Navbar } from "@/components/Navbar";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -13,8 +13,10 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Input } from '@/components/ui/input';
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useAuth } from '@/hooks/useAuth';
-import { Mail, Calendar, FolderHeart, X, ChevronDown, Grid3X3, Eye, ThumbsDown, ArrowRight, Camera, Loader2, Trash2, ShieldAlert, Sparkles } from 'lucide-react';
+import { Mail, Calendar, FolderHeart, X, ChevronDown, Grid3X3, Eye, ThumbsDown, ArrowRight, Camera, Loader2, Trash2, ShieldAlert, Sparkles, TriangleAlert } from 'lucide-react';
 import { toast } from "sonner";
 import { Link } from 'react-router-dom';
 import { setMotionSetting, systemPrefersReducedMotion, useMotionSetting } from '@/lib/motionPreference';
@@ -76,12 +78,14 @@ const NOT_INTERESTED_ITEMS_QUERY_KEY = ['collections', 'not-interested', 'items'
 
 const Profile = () => {
     const queryClient = useQueryClient();
-    const { user, isLoadingUser } = useAuth();
+    const { user, isLoadingUser, logout } = useAuth();
     const motion = useMotionSetting();
     const preferencesQueryKey = getPreferencesQueryKey(user?.id);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
     const recommendationCollectionsDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+    const [deleteConfirmEmail, setDeleteConfirmEmail] = useState('');
 
     // Fetch full user data from /me (includes avatarUrl for custom uploads)
     const { data: meData } = useQuery({
@@ -139,6 +143,24 @@ const Profile = () => {
         queryKey: NOT_INTERESTED_ITEMS_QUERY_KEY,
         queryFn: fetchNotInterestedItemsApi,
         enabled: !!user,
+    });
+
+    const deleteAccountMutation = useMutation({
+        mutationFn: () => deleteOwnAccountApi(deleteConfirmEmail.trim()),
+        onSuccess: async () => {
+            // The account and its sessions are gone server-side. Signing out
+            // clears the session cookies (otherwise the 5-minute cookie cache
+            // would keep the deleted user "signed in"); the full reload then
+            // drops every cached query.
+            try {
+                await logout();
+            } finally {
+                window.location.href = '/';
+            }
+        },
+        onError: (error: Error) => {
+            toast.error(error.message || 'Failed to delete your account.');
+        },
     });
 
     // Mutation for updating preferences with optimistic updates
@@ -793,6 +815,88 @@ const Profile = () => {
                                 </span>
                             </Link>
                         </Button>
+                    </CardContent>
+                </Card>
+
+                {/* Account deletion */}
+                <Card className="mt-6 border-destructive/30">
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2 text-destructive">
+                            <TriangleAlert className="h-5 w-5" />
+                            Delete Account
+                        </CardTitle>
+                        <CardDescription>
+                            Permanently delete your account and all of your data. This can't be undone.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <Dialog
+                            open={isDeleteDialogOpen}
+                            onOpenChange={(open) => {
+                                if (deleteAccountMutation.isPending) return;
+                                setIsDeleteDialogOpen(open);
+                                if (!open) setDeleteConfirmEmail('');
+                            }}
+                        >
+                            <DialogTrigger asChild>
+                                <Button variant="destructive" className="w-full sm:w-auto">
+                                    <Trash2 className="h-4 w-4" />
+                                    Delete my account
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent className="w-[90%] sm:max-w-[460px] rounded-lg">
+                                <DialogHeader>
+                                    <DialogTitle>Delete your account?</DialogTitle>
+                                    <DialogDescription>
+                                        This permanently deletes your account and signs you out everywhere.
+                                    </DialogDescription>
+                                </DialogHeader>
+                                <div className="space-y-4 text-sm">
+                                    <div className="space-y-1.5">
+                                        <p className="font-medium">What gets deleted</p>
+                                        <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+                                            <li>Your profile, sign-in methods, and preferences</li>
+                                            <li>Your collections, including ones you've shared with others</li>
+                                            <li>Your watched and not-interested lists and recommendations</li>
+                                            <li>Your ratings, comments, and likes (replies to your comments go too)</li>
+                                            <li>Your notifications and push subscriptions</li>
+                                        </ul>
+                                    </div>
+                                    <p className="text-muted-foreground">
+                                        Titles you added to other people's collections stay in those collections.
+                                    </p>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="delete-account-confirm">
+                                            Type <span className="font-semibold break-all">{user.email}</span> to confirm
+                                        </Label>
+                                        <Input
+                                            id="delete-account-confirm"
+                                            type="email"
+                                            autoComplete="off"
+                                            value={deleteConfirmEmail}
+                                            onChange={(e) => setDeleteConfirmEmail(e.target.value)}
+                                            disabled={deleteAccountMutation.isPending}
+                                        />
+                                    </div>
+                                </div>
+                                <DialogFooter>
+                                    <DialogClose asChild>
+                                        <Button variant="outline" disabled={deleteAccountMutation.isPending}>Cancel</Button>
+                                    </DialogClose>
+                                    <Button
+                                        variant="destructive"
+                                        disabled={
+                                            deleteAccountMutation.isPending ||
+                                            deleteConfirmEmail.trim().toLowerCase() !== (user.email || '').toLowerCase()
+                                        }
+                                        onClick={() => deleteAccountMutation.mutate()}
+                                    >
+                                        {deleteAccountMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                                        Delete account permanently
+                                    </Button>
+                                </DialogFooter>
+                            </DialogContent>
+                        </Dialog>
                     </CardContent>
                 </Card>
             </main>
