@@ -18,11 +18,14 @@ export function CollageHero({ posters }: CollageHeroProps) {
   return (
     <div className="relative overflow-hidden">
       {/* Poster collage background — slanted, positioned behind everything including navbar.
-          The wall fades out before the hero's bottom edge (a mask on this static wrapper, so it
-          doesn't move with the parallax): no poster pixels reach the edge, where sub-pixel
-          rounding could otherwise show them as a coloured line under the bottom fade. */}
+          The wall is clipped 40px above the hero's bottom edge (a band the bottom fade already
+          covers) and fades out before it. While the page moves (scrolling back up, iOS
+          overscroll bounce) the drifting, parallaxing layer sits at fractional positions, and
+          a poster reaching the edge showed through as a thin coloured line. A plain overflow
+          clip is used because WebKit does not reliably apply a parent's mask to a moving,
+          composited child; the mask only softens the wall's lower edge. */}
       {posters.length > 0 && (
-        <div className="absolute inset-0 pointer-events-none [mask-image:linear-gradient(to_bottom,black_55%,transparent_calc(100%-4px))]">
+        <div className="absolute inset-x-0 top-0 bottom-10 overflow-hidden pointer-events-none [mask-image:linear-gradient(to_bottom,black_55%,transparent)]">
           <div className="absolute inset-0 collage-parallax">
             <div className="absolute inset-[-20%] flex flex-wrap gap-1.5 rotate-[-6deg] origin-center animate-[collage-drift_70s_ease-in-out_infinite_alternate]">
               {posters.map((item, index) => (
