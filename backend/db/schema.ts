@@ -1,4 +1,4 @@
-import { pgTable, index, uniqueIndex, foreignKey, unique, text, varchar, timestamp, boolean, primaryKey, pgSequence, integer, numeric, check } from "drizzle-orm/pg-core"
+import { pgTable, index, uniqueIndex, foreignKey, unique, text, varchar, timestamp, boolean, primaryKey, pgSequence, integer, bigint, numeric, check } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 
 export const migrationsIdSeq = pgSequence("_migrations_id_seq", { startWith: "1", increment: "1", minValue: "1", maxValue: "2147483647", cache: "1", cycle: false })
@@ -102,6 +102,20 @@ export const verification = pgTable("verification", {
 	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [
 	index("idx_verification_identifier").using("btree", table.identifier.asc().nullsLast().op("text_ops")),
+]);
+
+// ============================================================================
+// RATE LIMIT TABLE (Better Auth - rateLimit.storage: "database")
+// One row per client IP + auth path, shared by every serverless instance.
+// ============================================================================
+export const rateLimit = pgTable("rate_limit", {
+	id: text().primaryKey().notNull(),
+	key: text().notNull(), // "<ip>|<path>"
+	count: integer().notNull(),
+	lastRequest: bigint("last_request", { mode: "number" }).notNull(), // epoch ms
+}, (table) => [
+	unique("rate_limit_key_unique").on(table.key),
+	index("idx_rate_limit_last_request").using("btree", table.lastRequest.asc().nullsLast()),
 ]);
 
 // ============================================================================

@@ -1,7 +1,7 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { captcha } from "better-auth/plugins";
-import { APIError } from "better-auth/api";
+import { APIError, createAuthMiddleware, getSessionFromCtx } from "better-auth/api";
 import { drizzle } from "drizzle-orm/neon-http";
 import { neon } from "@neondatabase/serverless";
 import dotenv from "dotenv";
@@ -22,6 +22,30 @@ if (!databaseUrl) {
 const sqlQuery = neon(databaseUrl);
 const db = drizzle(sqlQuery);
 
+// Rate-limit counters live in Postgres (rate_limit table) so every serverless
+// instance shares them; in-memory counters are per instance. Limiting stays on
+// Better Auth's default of production only, with its default rules (e.g. 3 per
+// minute per IP for password-reset and verification emails, 3 per 10 seconds
+// for sign-in, sign-up and change-password). Exported for the rate-limit test.
+export const rateLimitOptions = {
+    storage: "database" as const,
+    customRules: {
+        // Session reads are read-only, served from the cookie cache, and hit on
+        // every page load; limiting them would add database round trips to
+        // the hottest auth request for no real protection.
+        "/get-session": false as const,
+    },
+};
+
+// Limits are per client IP. Vercel overwrites x-forwarded-for with the
+// client's public IP (so it can't be spoofed); x-vercel-forwarded-for carries
+// the same value even behind another proxy. If no IP resolves, Better Auth
+// falls back to one bucket shared by everyone, which would throttle all users
+// together, so both are listed.
+export const ipAddressOptions = {
+    ipAddressHeaders: ["x-vercel-forwarded-for", "x-forwarded-for"],
+};
+
 export const auth = betterAuth({
     database: drizzleAdapter(db, {
         provider: "pg",
@@ -30,8 +54,10 @@ export const auth = betterAuth({
             session: schema.session,
             account: schema.account,
             verification: schema.verification,
+            rateLimit: schema.rateLimit,
         },
     }),
+    rateLimit: rateLimitOptions,
     baseURL: process.env.BETTER_AUTH_URL || "http://localhost:5001",
     secret: process.env.BETTER_AUTH_SECRET,
     trustedOrigins: [process.env.FRONTEND_URL || "http://localhost:8080"],
@@ -86,6 +112,7 @@ export const auth = betterAuth({
         },
     },
     advanced: {
+        ipAddress: ipAddressOptions,
         // Keeps email sends alive after the response on Vercel (waitUntil).
         backgroundTasks: {
             handler: scheduleBackground,
@@ -170,6 +197,26 @@ export const auth = betterAuth({
             enabled: true,
             trustedProviders: ["google", "credential"],
         },
+    },
+    hooks: {
+        before: createAuthMiddleware(async (ctx) => {
+            // Better Auth lets a signed-out caller request a verification email
+            // for any address, which (with no captcha on this route) lets a
+            // script mail a stranger's unverified account and burn the daily
+            // email quota. The app only offers "Verify my email" while signed in,
+            // and sign-up sends its email without going through this route, so
+            // require a session here. Better Auth then also checks the email
+            // matches the session's user.
+            if (ctx.path === "/send-verification-email") {
+                const session = await getSessionFromCtx(ctx);
+                if (!session) {
+                    throw APIError.from("UNAUTHORIZED", {
+                        message: "Sign in to request a verification email",
+                        code: "UNAUTHORIZED",
+                    });
+                }
+            }
+        }),
     },
     databaseHooks: {
         session: {

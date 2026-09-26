@@ -22,6 +22,11 @@ const googleUser = {
 
 const resetRedirect = `${frontendOrigin}/reset-password`;
 
+// Unverified email/password user for the send-verification-email checks
+const unverifiedEmail = `pw_unverified_${suffix}@example.com`;
+let unverifiedUserId: string;
+let unverifiedCookie: string;
+
 const signIn = (userEmail: string, password: string) =>
     auth.api.signInEmail({ body: { email: userEmail, password } });
 
@@ -52,6 +57,13 @@ beforeAll(async () => {
     });
     userId = user.id;
 
+    const unverified = await auth.api.signUpEmail({
+        body: { email: unverifiedEmail, password: `Unver1fied-pass-${suffix}`, name: 'Unverified User' },
+        returnHeaders: true,
+    });
+    unverifiedUserId = unverified.response.user.id;
+    unverifiedCookie = sessionCookieFrom(unverified.headers);
+
     await sql`
         INSERT INTO "user" (id, name, email, email_verified, role)
         VALUES (${googleUser.id}, ${googleUser.name}, ${googleUser.email}, true, 'user')
@@ -65,7 +77,7 @@ beforeAll(async () => {
 afterAll(async () => {
     await sql`DELETE FROM verification WHERE value IN (${userId}, ${googleUser.id})`;
     // sessions and accounts cascade on user delete
-    await sql`DELETE FROM "user" WHERE id IN (${userId}, ${googleUser.id})`;
+    await sql`DELETE FROM "user" WHERE id IN (${userId}, ${googleUser.id}, ${unverifiedUserId})`;
 });
 
 // ---------------------------------------------------------------------------
@@ -171,6 +183,31 @@ test('change password needs the current password and can sign out other devices'
 // ---------------------------------------------------------------------------
 // EMAIL VERIFICATION
 // ---------------------------------------------------------------------------
+
+test('signed-out callers cannot request verification emails (inbox/quota abuse regression)', async () => {
+    const res = await request(app)
+        .post('/api/auth/send-verification-email')
+        .set('Origin', frontendOrigin)
+        .send({ email: unverifiedEmail });
+    expect(res.status).toBe(401);
+});
+
+test('a signed-in user can request a verification email only for their own address', async () => {
+    const own = await request(app)
+        .post('/api/auth/send-verification-email')
+        .set('Origin', frontendOrigin)
+        .set('Cookie', unverifiedCookie)
+        .send({ email: unverifiedEmail, callbackURL: `${frontendOrigin}/profile?verified=1` });
+    expect(own.status).toBe(200);
+
+    const someoneElse = await request(app)
+        .post('/api/auth/send-verification-email')
+        .set('Origin', frontendOrigin)
+        .set('Cookie', unverifiedCookie)
+        .send({ email: googleUser.email });
+    expect(someoneElse.status).toBe(400);
+    expect(someoneElse.body.code).toBe('EMAIL_MISMATCH');
+});
 
 test('email/password sign-ups start unverified', async () => {
     const rows = await sql`SELECT email_verified FROM "user" WHERE id = ${userId}`;
