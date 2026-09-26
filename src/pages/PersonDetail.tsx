@@ -6,7 +6,7 @@ import { Navbar } from "@/components/Navbar";
 import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollRow } from '@/components/ScrollRow';
 import { SocialMediaLinks } from '@/components/SocialMediaLinks';
-import { User, Star, ImageOff, ChevronRight, ChevronLeft, ChevronDown, ChevronUp } from 'lucide-react';
+import { User, Star, ImageOff, ChevronDown } from 'lucide-react';
 import { useState, useRef, useMemo } from 'react';
 import { useOmdbRatings, enrichMoviesWithImdbRatings } from '@/hooks/useOmdbRatings';
 import { posterLinkProps, personTransitionName, type PersonLinkState } from '@/lib/posterTransition';
@@ -406,14 +406,13 @@ export default function PersonDetail() {
                             <div className="flex items-center justify-between">
                                 <button
                                     onClick={() => setIsCastExpanded(!isCastExpanded)}
-                                    className="flex items-center gap-2 group cursor-pointer hover:opacity-80 transition-opacity"
+                                    aria-expanded={isCastExpanded}
+                                    className="flex items-center gap-2 group cursor-pointer"
                                 >
                                     <h2 className="text-xl md:text-2xl font-semibold text-foreground/90">Known For</h2>
-                                    {isCastExpanded ? (
-                                        <ChevronDown className="w-5 h-5 md:w-6 md:h-6 text-foreground/70 group-hover:text-foreground transition-colors" />
-                                    ) : (
-                                        <ChevronRight className="w-5 h-5 md:w-6 md:h-6 text-foreground/70 group-hover:text-foreground transition-colors" />
-                                    )}
+                                    <ChevronDown
+                                        className={`h-5 w-5 shrink-0 text-muted-foreground transition-transform duration-(--dur-ui) ease-(--ease-emph) group-hover:text-foreground ${isCastExpanded ? 'rotate-180' : ''}`}
+                                    />
                                 </button>
                             </div>
 
@@ -510,14 +509,13 @@ export default function PersonDetail() {
                             <div className="flex items-center justify-between">
                                 <button
                                     onClick={() => setIsCrewExpanded(!isCrewExpanded)}
-                                    className="flex items-center gap-2 group cursor-pointer hover:opacity-80 transition-opacity"
+                                    aria-expanded={isCrewExpanded}
+                                    className="flex items-center gap-2 group cursor-pointer"
                                 >
                                     <h2 className="text-xl md:text-2xl font-semibold text-foreground/90">Also Known For</h2>
-                                    {isCrewExpanded ? (
-                                        <ChevronDown className="w-5 h-5 md:w-6 md:h-6 text-foreground/70 group-hover:text-foreground transition-colors" />
-                                    ) : (
-                                        <ChevronRight className="w-5 h-5 md:w-6 md:h-6 text-foreground/70 group-hover:text-foreground transition-colors" />
-                                    )}
+                                    <ChevronDown
+                                        className={`h-5 w-5 shrink-0 text-muted-foreground transition-transform duration-(--dur-ui) ease-(--ease-emph) group-hover:text-foreground ${isCrewExpanded ? 'rotate-180' : ''}`}
+                                    />
                                 </button>
                             </div>
 

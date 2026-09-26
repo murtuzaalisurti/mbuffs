@@ -7,6 +7,7 @@ import { AmbientGlow } from "@/components/AmbientGlow";
 import { createBrowserRouter, createRoutesFromElements, RouterProvider, Outlet, Route, Navigate, ScrollRestoration, useLocation } from "react-router-dom";
 import { isHistoryNavigation, trackNavigationMotion } from "@/lib/navigationMotion";
 import { claimReturnMorph } from "@/lib/posterTransition";
+import { prefersReducedMotion } from "@/lib/motionPreference";
 import { useAuth } from './hooks/useAuth';
 import { useRecommendationPrefetch } from './hooks/useRecommendationPrefetch';
 import { useToast } from "@/components/ui/use-toast"; // Import the correct useToast
@@ -33,7 +34,7 @@ const Admin = lazy(() => import('./pages/Admin'));
 const RouteLoadingFallback = () => (
   <div className="min-h-screen" role="progressbar" aria-label="Loading" aria-busy="true" data-route-fallback>
     <div className="fixed inset-x-0 top-0 z-60 h-0.5 overflow-hidden">
-      <div className="h-full w-1/3 bg-primary animate-[loading-bar_1.1s_var(--ease-emph)_infinite]" />
+      <div className="loading-indicator h-full w-1/3 bg-primary animate-[loading-bar_1.1s_var(--ease-emph)_infinite]" />
     </div>
   </div>
 );
@@ -141,7 +142,7 @@ const PageEnter = ({ children }: { children: React.ReactNode }) => {
       claimReturnMorph();
       return;
     }
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || isViewTransitionActive()) return;
+    if (prefersReducedMotion() || isViewTransitionActive()) return;
 
     const animations: Animation[] = [];
     const fadeIn = () => {

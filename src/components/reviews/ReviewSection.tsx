@@ -27,6 +27,7 @@ import { Star, Info, Pencil, Trash2, Loader2, MessageSquare, MoreHorizontal, Sen
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
+import { prefersReducedMotion } from '@/lib/motionPreference';
 
 /* ========================================================================== */
 /*  Props                                                                     */
@@ -694,7 +695,7 @@ export const ReviewSection = ({ mediaType, tmdbId, seasonNumber }: ReviewSection
             textarea.focus();
             const end = textarea.value.length;
             textarea.setSelectionRange(end, end);
-            textarea.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            textarea.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'nearest' });
         });
 
         return () => window.cancelAnimationFrame(frame);

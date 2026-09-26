@@ -155,7 +155,7 @@ const Categories = () => {
               <Skeleton className="h-7 w-44 rounded-lg" />
             ) : (
               <>
-                <h2 className="font-display text-2xl md:text-3xl font-bold tracking-tight lowercase">{genreName}</h2>
+                <h2 className="section-title">{genreName}</h2>
                 {totalResults > 0 && (
                   <span className="text-sm text-muted-foreground">{totalResults.toLocaleString()}</span>
                 )}

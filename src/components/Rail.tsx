@@ -4,6 +4,7 @@ import { ChevronDown } from 'lucide-react';
 import { ScrollRow } from '@/components/ScrollRow';
 import { Skeleton } from '@/components/ui/skeleton';
 import { isHistoryNavigation } from '@/lib/navigationMotion';
+import { prefersReducedMotion } from '@/lib/motionPreference';
 
 interface RailProps {
   title: ReactNode;
@@ -66,7 +67,7 @@ export function Rail({
     const next = !expanded;
     const scroller = scrollerRef.current;
     const section = sectionRef.current;
-    if (!scroller || !section || typeof document.startViewTransition !== 'function') {
+    if (!scroller || !section || typeof document.startViewTransition !== 'function' || prefersReducedMotion()) {
       setExpanded(next);
       return;
     }
@@ -92,7 +93,7 @@ export function Rail({
   };
 
   const heading = (
-    <h2 className="font-display text-2xl md:text-3xl font-bold tracking-tight lowercase">{title}</h2>
+    <h2 className="section-title">{title}</h2>
   );
 
   return (
@@ -121,7 +122,7 @@ export function Rail({
 
       <ScrollRow
         scrollerRef={scrollerRef}
-        gridClassName={isGrid ? 'grid-cols-3 gap-2 sm:gap-4 md:grid-cols-4 md:gap-5 lg:grid-cols-5' : undefined}
+        gridClassName={isGrid ? 'poster-grid' : undefined}
       >
         {Children.map(children, (child, index) => (
           <div

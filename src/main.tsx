@@ -8,6 +8,7 @@ import './index.css';
 import { installImageFadeIn } from './lib/imageFade';
 import { installRevealOnScroll } from './lib/revealOnScroll';
 import { installScrollHoverGuard } from './lib/scrollHoverGuard';
+import { installMotionPreference } from './lib/motionPreference';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { toast } from 'sonner';
 // Optional: If you want to use React Query DevTools
@@ -23,6 +24,7 @@ const queryClient = new QueryClient({
   },
 });
 
+installMotionPreference();
 installImageFadeIn();
 installRevealOnScroll();
 installScrollHoverGuard();

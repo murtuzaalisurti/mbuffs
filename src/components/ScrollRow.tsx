@@ -1,5 +1,6 @@
 import { ReactNode, RefObject, useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { prefersReducedMotion } from '@/lib/motionPreference';
 
 interface ScrollRowProps {
   children: ReactNode;
@@ -50,7 +51,7 @@ export function ScrollRow({ children, className = 'gap-4', gridClassName, scroll
   const scrollByPage = (direction: 1 | -1) => {
     const scroller = ref.current;
     if (!scroller) return;
-    scroller.scrollBy({ left: direction * scroller.clientWidth * 0.8, behavior: 'smooth' });
+    scroller.scrollBy({ left: direction * scroller.clientWidth * 0.8, behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
   };
 
   const arrowClass =

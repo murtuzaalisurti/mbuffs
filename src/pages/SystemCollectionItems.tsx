@@ -189,7 +189,7 @@ export function SystemCollectionItemsPage({ kind }: SystemCollectionItemsPagePro
 
           <div className="flex items-center gap-3 mb-2">
             {icon}
-            <h1 className="text-3xl md:text-4xl font-bold tracking-tight">{title}</h1>
+            <h1 className="page-title">{title}</h1>
           </div>
           <p className="text-muted-foreground">{description}</p>
           <p className="text-sm text-muted-foreground mt-1">
@@ -208,7 +208,7 @@ export function SystemCollectionItemsPage({ kind }: SystemCollectionItemsPagePro
         </section>
 
         {isLoading ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+          <div className="poster-grid">
             {Array.from({ length: 12 }).map((_, i) => (
               <div key={i} className="space-y-3">
                 <Skeleton className="aspect-[2/3] w-full rounded-xl" />
@@ -219,7 +219,7 @@ export function SystemCollectionItemsPage({ kind }: SystemCollectionItemsPagePro
           </div>
         ) : visibleEntries.length > 0 ? (
           <>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 animate-stagger">
+            <div className="poster-grid animate-stagger">
               {visibleEntries.map((entry) => {
                 const mediaId = String(entry.movie_id);
                 const movie = moviesDetailsMap?.[mediaId];

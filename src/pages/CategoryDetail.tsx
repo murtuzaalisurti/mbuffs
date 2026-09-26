@@ -40,7 +40,7 @@ const CategoryDetail = () => {
           </Link>
 
           <div className="flex items-center gap-3 mb-2">
-            <h1 className="font-display text-3xl md:text-4xl font-bold tracking-tight lowercase">{genreName}</h1>
+            <h1 className="page-title">{genreName}</h1>
             {showPersonalized && (
               <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20 gap-1">
                 Personalized

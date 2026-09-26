@@ -14,9 +14,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useAuth } from '@/hooks/useAuth';
-import { Mail, Calendar, FolderHeart, X, ChevronDown, Grid3X3, Eye, ThumbsDown, ArrowRight, Camera, Loader2, Trash2, ShieldAlert } from 'lucide-react';
+import { Mail, Calendar, FolderHeart, X, ChevronDown, Grid3X3, Eye, ThumbsDown, ArrowRight, Camera, Loader2, Trash2, ShieldAlert, Sparkles } from 'lucide-react';
 import { toast } from "sonner";
 import { Link } from 'react-router-dom';
+import { setMotionSetting, systemPrefersReducedMotion, useMotionSetting } from '@/lib/motionPreference';
 import {
     getCategoryRecommendationsQueryKey,
     getForYouRecommendationsQueryKey,
@@ -76,6 +77,7 @@ const NOT_INTERESTED_ITEMS_QUERY_KEY = ['collections', 'not-interested', 'items'
 const Profile = () => {
     const queryClient = useQueryClient();
     const { user, isLoadingUser } = useAuth();
+    const motion = useMotionSetting();
     const preferencesQueryKey = getPreferencesQueryKey(user?.id);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
@@ -424,7 +426,7 @@ const Profile = () => {
         <>
             <Navbar />
             <main className="container py-8 max-w-2xl mx-auto animate-stagger">
-                <h1 className="text-3xl font-bold mb-8">Profile</h1>
+                <h1 className="page-title mb-8">Profile</h1>
 
                 {/* User Info Card */}
                 <Card className="mb-6">
@@ -709,6 +711,51 @@ const Profile = () => {
                                     disabled={isLoadingPreferences}
                                 />
                             </div>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                {/* Motion (stored on this device, applies instantly) */}
+                <Card className="mt-6">
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <Sparkles className="h-5 w-5" />
+                            Motion
+                        </CardTitle>
+                        <CardDescription>
+                            Control animations and transitions on this device.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="flex items-center justify-between gap-4">
+                            <div className="space-y-0.5">
+                                <Label htmlFor="reduce-motion-toggle" className="text-base">
+                                    Reduce motion
+                                </Label>
+                                <p className="text-sm text-muted-foreground">
+                                    Turns off animations, page transitions and scroll effects. Follows your device setting unless you change it here.
+                                </p>
+                                {motion.setting !== 'system' && (
+                                    <p className="text-xs text-muted-foreground pt-1">
+                                        Overriding your device setting.{' '}
+                                        <button
+                                            type="button"
+                                            onClick={() => setMotionSetting('system')}
+                                            className="font-medium text-foreground underline-offset-4 hover:underline"
+                                        >
+                                            Use device setting
+                                        </button>
+                                    </p>
+                                )}
+                            </div>
+                            <Switch
+                                id="reduce-motion-toggle"
+                                checked={motion.reduced}
+                                onCheckedChange={(checked) =>
+                                    // Matching the device again means following it again
+                                    setMotionSetting(checked === systemPrefersReducedMotion() ? 'system' : checked ? 'reduce' : 'full')
+                                }
+                            />
                         </div>
                     </CardContent>
                 </Card>

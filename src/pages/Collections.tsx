@@ -156,7 +156,7 @@ const Collections = () => {
         {/* Header */}
         <div className="flex justify-between items-end mb-10">
           <div>
-            <h1 className="text-4xl font-semibold tracking-tight mb-1">Collections</h1>
+            <h1 className="page-title mb-1">Collections</h1>
             <p className="text-muted-foreground">Organize your favorite movies and shows</p>
           </div>
           <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>

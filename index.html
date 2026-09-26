@@ -16,6 +16,17 @@
     <meta property="og:title" content="mbuffs" />
     <meta property="og:description" content="mbuffs - collaborative movie lists" />
     <meta property="og:type" content="website" />
+
+    <!-- Motion preference before first paint (see src/lib/motionPreference.ts) -->
+    <script>
+      (function () {
+        var setting = 'system';
+        try { setting = localStorage.getItem('mbuffs:motion') || 'system'; } catch (e) {}
+        var reduce = setting === 'reduce' ||
+          (setting !== 'full' && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+        document.documentElement.dataset.motion = reduce ? 'reduce' : 'full';
+      })();
+    </script>
   </head>
 
   <body>
