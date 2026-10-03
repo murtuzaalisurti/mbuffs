@@ -1099,7 +1099,7 @@ export const fetchOmdbRatingsApi = async (
 };
 
 export interface OmdbRatingsBatchResponse {
-    ratings: Record<string, { imdbRating: number }>;
+    ratings: Record<string, { imdbRating: number | null; rottenTomatoesRating?: number | null }>;
 }
 
 export const fetchOmdbRatingsBatchApi = async (

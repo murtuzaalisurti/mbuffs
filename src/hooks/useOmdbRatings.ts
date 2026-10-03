@@ -26,14 +26,16 @@ export function useOmdbRatings(movies: Movie[]) {
     });
 
     const ratingsMap: Record<string, number> = {};
+    const rottenTomatoesMap: Record<string, number> = {};
 
     if (data?.ratings) {
         for (const [key, value] of Object.entries(data.ratings)) {
-            ratingsMap[key] = value.imdbRating;
+            if (typeof value.imdbRating === 'number') ratingsMap[key] = value.imdbRating;
+            if (typeof value.rottenTomatoesRating === 'number') rottenTomatoesMap[key] = value.rottenTomatoesRating;
         }
     }
 
-    return { ratingsMap };
+    return { ratingsMap, rottenTomatoesMap };
 }
 
 export function enrichMoviesWithImdbRatings(

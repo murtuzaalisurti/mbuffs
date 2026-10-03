@@ -400,3 +400,40 @@ export async function getImdbRatingsBatch(
 
     return result;
 }
+
+export interface OmdbScores {
+    imdbRating: number | null;
+    rottenTomatoesRating: number | null;
+}
+
+/** Like getImdbRatingsBatch, but also returns the Rotten Tomatoes score (DB only). */
+export async function getOmdbScoresBatch(
+    items: Array<{ tmdbId: string; mediaType: 'movie' | 'tv' }>
+): Promise<Map<string, OmdbScores>> {
+    const result = new Map<string, OmdbScores>();
+    if (items.length === 0) return result;
+
+    const tmdbIds = items.map(i => i.tmdbId);
+
+    try {
+        const rows = await sql`
+            SELECT tmdb_id, media_type, imdb_rating, rotten_tomatoes_rating
+            FROM omdb_ratings
+            WHERE tmdb_id = ANY(${tmdbIds}::text[])
+              AND (imdb_rating IS NOT NULL OR rotten_tomatoes_rating IS NOT NULL)
+        `;
+
+        for (const row of rows as Array<{ tmdb_id: string; media_type: string; imdb_rating: string | null; rotten_tomatoes_rating: number | null }>) {
+            const imdbRating = row.imdb_rating === null ? NaN : parseFloat(row.imdb_rating);
+            const rottenTomatoesRating = row.rotten_tomatoes_rating;
+            result.set(`${row.media_type}:${row.tmdb_id}`, {
+                imdbRating: isNaN(imdbRating) ? null : imdbRating,
+                rottenTomatoesRating: typeof rottenTomatoesRating === 'number' ? rottenTomatoesRating : null,
+            });
+        }
+    } catch (error) {
+        console.error('[omdb] Error batch-fetching OMDB scores:', error);
+    }
+
+    return result;
+}
