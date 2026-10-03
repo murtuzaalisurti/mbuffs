@@ -6,6 +6,8 @@ export type MosaicTier = "large" | "small";
 const LARGE_SHARE = 0.2;
 /** Only titles rated at least this well (out of 10) are highlighted */
 const MIN_HIGHLIGHT_RATING = 7;
+/** Rating's share of the tile score; trendiness gets the rest */
+const RATING_WEIGHT = 0.7;
 /** TMDB averages from fewer votes than this are too noisy to trust */
 const MIN_TMDB_VOTES = 50;
 
@@ -28,19 +30,28 @@ export function bestRating(
 }
 
 /**
- * Picks a tile size for each title from its rating: the best rated fifth (at
- * least MIN_HIGHLIGHT_RATING) get large tiles. Equal ratings keep list order.
+ * Picks a tile size for each title. The score blends two 0-1 parts, weighted
+ * toward rating: rating percentile among the rated titles, and trendiness from
+ * list position (TMDB returns trending ranked). The top fifth by score get large tiles; titles
+ * rated below MIN_HIGHLIGHT_RATING, or unrated, never do.
  */
 export function rankMosaicTiers(ratings: Array<number | null>): MosaicTier[] {
-  const largeCount = Math.max(1, Math.round(ratings.length * LARGE_SHARE));
-  const tiers = new Array<MosaicTier>(ratings.length).fill("small");
+  const count = ratings.length;
+  const largeCount = Math.max(1, Math.round(count * LARGE_SHARE));
+  const tiers = new Array<MosaicTier>(count).fill("small");
+
+  const rated = ratings.filter((rating): rating is number => rating !== null);
+  const ratingPercentile = (rating: number) =>
+    rated.length < 2 ? 1 : rated.filter((other) => other < rating).length / (rated.length - 1);
+  const trendiness = (index: number) => (count < 2 ? 1 : 1 - index / (count - 1));
 
   ratings
     .map((rating, index) => ({ rating, index }))
     .filter((entry): entry is { rating: number; index: number } =>
       entry.rating !== null && entry.rating >= MIN_HIGHLIGHT_RATING
     )
-    .sort((a, b) => b.rating - a.rating || a.index - b.index)
+    .map((entry) => ({ ...entry, score: RATING_WEIGHT * ratingPercentile(entry.rating) + (1 - RATING_WEIGHT) * trendiness(entry.index) }))
+    .sort((a, b) => b.score - a.score || a.index - b.index)
     .slice(0, largeCount)
     .forEach(({ index }) => {
       tiers[index] = "large";
