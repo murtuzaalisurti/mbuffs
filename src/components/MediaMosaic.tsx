@@ -27,7 +27,8 @@ interface MediaMosaicProps {
 }
 
 /**
- * A titled masonry of media cards; the best rated titles get large tiles. Shows a few rows at first; the title (or the button under the
+ * A titled masonry of media cards; the best rated, most trending titles get
+ * large tiles. Shows a few rows at first; the title (or the button under the
  * fade) reveals the rest.
  */
 export function MediaMosaic({ title, subtitle, movies, showNotInterested = false }: MediaMosaicProps) {

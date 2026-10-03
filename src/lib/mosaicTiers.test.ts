@@ -21,11 +21,18 @@ describe("rankMosaicTiers", () => {
     expect(rankMosaicTiers([])).toEqual([]);
   });
 
-  it("gives large tiles to the best rated fifth", () => {
+  it("gives large tiles to the top fifth by rating and trendiness", () => {
     const ratings = Array.from({ length: 50 }, (_, i) => 7 + (i % 30) / 10);
     const tiers = rankMosaicTiers(ratings);
     expect(tiers.filter((t) => t === "large")).toHaveLength(10);
-    expect(tiers[29]).toBe("large"); // 9.9, the top rating
+  });
+
+  it("lets a trending title beat a slightly better rated one further down", () => {
+    expect(rankMosaicTiers([8.0, 7.0, 7.0, 7.0, 8.2])).toEqual(["large", "small", "small", "small", "small"]);
+  });
+
+  it("still lets a much better rated title beat a trending one", () => {
+    expect(rankMosaicTiers([7.1, 7.2, 7.3, 9.5, 7.4])).toEqual(["small", "small", "small", "large", "small"]);
   });
 
   it("never highlights poorly rated or unrated titles", () => {
