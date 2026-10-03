@@ -6,6 +6,8 @@ export type MosaicTier = "large" | "small";
 const LARGE_SHARE = 0.2;
 /** Only titles rated at least this well (out of 10) are highlighted */
 const MIN_HIGHLIGHT_RATING = 7;
+/** Rating's share of the tile score; trendiness gets the rest */
+const RATING_WEIGHT = 0.7;
 /** TMDB averages from fewer votes than this are too noisy to trust */
 const MIN_TMDB_VOTES = 50;
 
@@ -28,9 +30,9 @@ export function bestRating(
 }
 
 /**
- * Picks a tile size for each title. The score averages two 0-1 parts: rating
- * percentile among the rated titles, and trendiness from list position (TMDB
- * returns trending ranked). The top fifth by score get large tiles; titles
+ * Picks a tile size for each title. The score blends two 0-1 parts, weighted
+ * toward rating: rating percentile among the rated titles, and trendiness from
+ * list position (TMDB returns trending ranked). The top fifth by score get large tiles; titles
  * rated below MIN_HIGHLIGHT_RATING, or unrated, never do.
  */
 export function rankMosaicTiers(ratings: Array<number | null>): MosaicTier[] {
@@ -48,7 +50,7 @@ export function rankMosaicTiers(ratings: Array<number | null>): MosaicTier[] {
     .filter((entry): entry is { rating: number; index: number } =>
       entry.rating !== null && entry.rating >= MIN_HIGHLIGHT_RATING
     )
-    .map((entry) => ({ ...entry, score: (ratingPercentile(entry.rating) + trendiness(entry.index)) / 2 }))
+    .map((entry) => ({ ...entry, score: RATING_WEIGHT * ratingPercentile(entry.rating) + (1 - RATING_WEIGHT) * trendiness(entry.index) }))
     .sort((a, b) => b.score - a.score || a.index - b.index)
     .slice(0, largeCount)
     .forEach(({ index }) => {

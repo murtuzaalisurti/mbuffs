@@ -31,6 +31,11 @@ describe("rankMosaicTiers", () => {
     expect(rankMosaicTiers([8.0, 7.0, 7.0, 7.0, 8.2])).toEqual(["large", "small", "small", "small", "small"]);
   });
 
+  it("weights rating over trendiness", () => {
+    // Best rated but last beats worst rated but first
+    expect(rankMosaicTiers([7.1, 7.2, 7.3, 7.4, 9.5])).toEqual(["small", "small", "small", "small", "large"]);
+  });
+
   it("still lets a much better rated title beat a trending one", () => {
     expect(rankMosaicTiers([7.1, 7.2, 7.3, 9.5, 7.4])).toEqual(["small", "small", "small", "large", "small"]);
   });
