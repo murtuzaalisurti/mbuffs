@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { fetchAndSaveOmdbRatings, getImdbRatingsBatch, getOmdbRatingsFromDb } from '../services/omdbService.js';
+import { fetchAndSaveOmdbRatings, getOmdbRatingsFromDb, getOmdbScoresBatch } from '../services/omdbService.js';
 
 export const getOmdbRatings = async (req: Request, res: Response, next: NextFunction) => {
     const { tmdbId, mediaType } = req.params;
@@ -52,7 +52,7 @@ export const getOmdbRatings = async (req: Request, res: Response, next: NextFunc
     }
 };
 
-const BATCH_MAX_ITEMS = 40;
+const BATCH_MAX_ITEMS = 60;
 
 export const getOmdbRatingsBatch = async (req: Request, res: Response, next: NextFunction) => {
     const { items } = req.body as { items?: Array<{ tmdbId: string; mediaType: string }> };
@@ -74,13 +74,13 @@ export const getOmdbRatingsBatch = async (req: Request, res: Response, next: Nex
     try {
         // DB-only lookup — no OMDB API calls to preserve the daily quota.
         // Ratings are populated when users visit detail pages.
-        const ratingsMap = await getImdbRatingsBatch(
+        const scoresMap = await getOmdbScoresBatch(
             validItems.map(i => ({ tmdbId: i.tmdbId, mediaType: i.mediaType as 'movie' | 'tv' }))
         );
 
-        const ratings: Record<string, { imdbRating: number }> = {};
-        for (const [key, rating] of ratingsMap) {
-            ratings[key] = { imdbRating: rating };
+        const ratings: Record<string, { imdbRating: number | null; rottenTomatoesRating: number | null }> = {};
+        for (const [key, scores] of scoresMap) {
+            ratings[key] = scores;
         }
 
         res.json({ ratings });

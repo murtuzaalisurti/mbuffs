@@ -237,6 +237,39 @@
   @apply grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 md:gap-5;
 }
 
+@utility mosaic-grid {
+  /*
+    Popularity mosaic (MediaMosaic): tiles span 1 or 2 cells. Rows are sized
+    from the column width (the parent is an inline-size container), so a tile of
+    either span stays close to a 2:3 poster. Dense flow fills the gaps big tiles leave.
+  */
+  --mosaic-cols: 3;
+  --mosaic-gap: 0.5rem;
+  --mosaic-row: calc((100cqw - (var(--mosaic-cols) - 1) * var(--mosaic-gap)) / var(--mosaic-cols) * 1.5);
+  display: grid;
+  grid-template-columns: repeat(var(--mosaic-cols), minmax(0, 1fr));
+  grid-auto-rows: var(--mosaic-row);
+  grid-auto-flow: row dense;
+  gap: var(--mosaic-gap);
+  /* Rows shown while collapsed */
+  --mosaic-peek: 4;
+
+  @variant sm {
+    --mosaic-cols: 4;
+  }
+  @variant md {
+    --mosaic-cols: 8;
+    --mosaic-gap: 0.75rem;
+    --mosaic-peek: 3;
+  }
+  @variant lg {
+    --mosaic-cols: 10;
+  }
+  @variant xl {
+    --mosaic-cols: 12;
+  }
+}
+
 @utility animate-fade-in-up {
   /* Entrance: fade up. "backwards" fill hides it during any delay and leaves nothing applied afterwards. */
   animation: fadeInUp var(--dur-scene) var(--ease-out) backwards;

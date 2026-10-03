@@ -37,6 +37,8 @@ interface MovieCardProps {
   onLongPress?: (movieId: string) => void;
   /** Rendered poster width for responsive image selection (`sizes` attribute) */
   imageSizes?: string;
+  /** Fill the parent's height instead of keeping a 2:3 poster shape (mosaic tiles) */
+  fill?: boolean;
 }
 
 // Matches the standard card grid: 2 columns on phones up to 6 on wide screens.
@@ -60,6 +62,7 @@ export function MovieCard({
   onToggleSelect,
   onLongPress,
   imageSizes = GRID_POSTER_SIZES,
+  fill = false,
 }: MovieCardProps) {
   const releaseYear = (movie.release_date || movie.first_air_date)
     ? new Date(movie.first_air_date || movie.release_date).getFullYear()
@@ -277,7 +280,7 @@ export function MovieCard({
       to={navLink}
       state={{ posterPath: movie.poster_path } satisfies PosterLinkState}
       viewTransition
-      className={`group block card-glow rounded-xl pointer-fine:hover:-translate-y-1 active:scale-[0.98] ${onLongPress ? 'select-none [-webkit-touch-callout:none]' : ''}`}
+      className={`group block card-glow rounded-xl ${fill ? 'h-full' : ''} pointer-fine:hover:-translate-y-1 active:scale-[0.98] ${onLongPress ? 'select-none [-webkit-touch-callout:none]' : ''}`}
       onClick={(e) => {
         // Swallow the click that follows a long-press so it doesn't navigate/toggle
         if (longPressFiredRef.current) {
@@ -306,7 +309,7 @@ export function MovieCard({
       onContextMenu={(e) => { if (onLongPress) e.preventDefault(); }}
     >
       <div
-        className={`relative overflow-hidden rounded-xl bg-card border transition-all duration-(--dur-ui) ease-(--ease-out) ${
+        className={`relative overflow-hidden rounded-xl bg-card border ${fill ? 'h-full' : ''} transition-all duration-(--dur-ui) ease-(--ease-out) ${
           isSelected
             ? "border-primary ring-2 ring-primary/40 scale-[0.95]"
             : "border-border/60"
@@ -322,7 +325,7 @@ export function MovieCard({
         }}
       >
         {/* Poster Image */}
-        <div className="aspect-2/3 relative overflow-hidden bg-muted">
+        <div className={`${fill ? 'h-full' : 'aspect-2/3'} relative overflow-hidden bg-muted`}>
           <img
             data-shared-element
             src={getImageUrl(movie.poster_path, 'w342')}

@@ -1,6 +1,7 @@
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { MovieCard } from "@/components/MovieCard";
+import { MediaMosaic } from "@/components/MediaMosaic";
 import { MediaRail } from "@/components/MediaRail";
 import { Rail, RailSkeleton } from "@/components/Rail";
 import { CollageHero } from "@/components/CollageHero";
@@ -202,7 +203,7 @@ const Index = () => {
           {isTrendingContentLoading ? (
             <RailSkeleton />
           ) : trendingContent.length > 0 && (
-            <MediaRail title="Trending This Week" movies={trendingContent} expandable />
+            <MediaMosaic title="Trending This Week" movies={trendingContent} />
           )}
 
           {/* Now Playing — region specific */}
