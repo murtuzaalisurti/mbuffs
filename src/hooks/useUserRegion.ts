@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { fetchUserRegion } from '@/lib/api';
+import { useRegionOverride } from '@/lib/regionPreference';
 
 const REGION_STORAGE_KEY = 'mbuffs_region_v1';
 const REGION_STALE_TIME_MS = 12 * 60 * 60 * 1000;
@@ -21,14 +22,14 @@ const storeRegion = (region: string) => {
 };
 
 /**
- * The visitor's country code, shared by every region-dependent query.
+ * The visitor's detected country code, ignoring any override from settings.
  *
  * Returning visitors get the region remembered from their last visit
  * immediately, so region-dependent queries (e.g. Now Playing) don't wait on a
  * lookup before starting. The stored value is treated as stale and refreshed in
  * the background; only a first visit waits for the lookup.
  */
-export const useUserRegion = () =>
+export const useDetectedRegion = () =>
     useQuery({
         queryKey: ['userRegion'],
         queryFn: async () => {
@@ -40,3 +41,13 @@ export const useUserRegion = () =>
         initialDataUpdatedAt: 0,
         staleTime: REGION_STALE_TIME_MS,
     });
+
+/**
+ * The country code shared by every region-dependent query: the one pinned in
+ * settings for this device, else the detected one.
+ */
+export const useUserRegion = () => {
+    const override = useRegionOverride();
+    const { data: detected } = useDetectedRegion();
+    return { data: override ?? detected };
+};
