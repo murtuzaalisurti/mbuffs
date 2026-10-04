@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchUserCollectionsApi, updateUserPreferencesApi, fetchRecommendationCollectionsApi, setRecommendationCollectionsApi, fetchUserPreferencesApi, fetchWatchedItemsApi, fetchNotInterestedItemsApi, uploadAvatarApi, removeAvatarApi, fetchCurrentUserApi, deleteOwnAccountApi } from '@/lib/api';
+import { fetchUserCollectionsApi, updateUserPreferencesApi, fetchRecommendationCollectionsApi, setRecommendationCollectionsApi, fetchUserPreferencesApi, fetchWatchedItemsApi, fetchNotInterestedItemsApi, uploadAvatarApi, removeAvatarApi, fetchCurrentUserApi, deleteOwnAccountApi, fetchCountriesApi } from '@/lib/api';
 import { UserCollectionsResponse, UpdateUserPreferencesInput, RecommendationCollectionsResponse, UserPreferences } from '@/lib/types';
 import { Navbar } from "@/components/Navbar";
 import { SecuritySettings } from '@/components/profile/SecuritySettings';
@@ -15,12 +15,15 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useAuth } from '@/hooks/useAuth';
-import { Mail, Calendar, FolderHeart, X, ChevronDown, Grid3X3, Eye, ThumbsDown, ArrowRight, Camera, Loader2, Trash2, ShieldAlert, Sparkles, TriangleAlert } from 'lucide-react';
+import { Mail, Calendar, FolderHeart, X, ChevronDown, Grid3X3, Eye, ThumbsDown, ArrowRight, Camera, Loader2, Trash2, ShieldAlert, Sparkles, TriangleAlert, Globe } from 'lucide-react';
 import { toast } from "sonner";
 import { Link } from 'react-router-dom';
 import { setMotionSetting, systemPrefersReducedMotion, useMotionSetting } from '@/lib/motionPreference';
+import { setRegionOverride, useRegionOverride } from '@/lib/regionPreference';
+import { useDetectedRegion } from '@/hooks/useUserRegion';
 import {
     getCategoryRecommendationsQueryKey,
     getForYouRecommendationsQueryKey,
@@ -81,6 +84,16 @@ const Profile = () => {
     const queryClient = useQueryClient();
     const { user, isLoadingUser, logout } = useAuth();
     const motion = useMotionSetting();
+
+    const regionOverride = useRegionOverride();
+    const { data: detectedRegion } = useDetectedRegion();
+    const { data: countries = [] } = useQuery({
+        queryKey: ['countries'],
+        queryFn: fetchCountriesApi,
+        staleTime: Infinity,
+    });
+    const countryName = (code: string | undefined) =>
+        countries.find((country) => country.iso_3166_1 === code)?.english_name ?? code;
     const preferencesQueryKey = getPreferencesQueryKey(user?.id);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
@@ -779,6 +792,53 @@ const Profile = () => {
                                     setMotionSetting(checked === systemPrefersReducedMotion() ? 'system' : checked ? 'reduce' : 'full')
                                 }
                             />
+                        </div>
+                    </CardContent>
+                </Card>
+
+                {/* Region (stored on this device) */}
+                <Card className="mt-6">
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <Globe className="h-5 w-5" />
+                            Region
+                        </CardTitle>
+                        <CardDescription>
+                            Sets which country's theatrical releases and streaming providers you see on this device.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                            <div className="space-y-0.5">
+                                <Label htmlFor="region-select" className="text-base">
+                                    Country
+                                </Label>
+                                <p className="text-sm text-muted-foreground">
+                                    {detectedRegion
+                                        ? `Detected from your location: ${countryName(detectedRegion)}.`
+                                        : 'Detected from your location unless you pick one here.'}
+                                </p>
+                            </div>
+                            <Select
+                                value={regionOverride ?? 'auto'}
+                                onValueChange={(value) => setRegionOverride(value === 'auto' ? null : value)}
+                            >
+                                <SelectTrigger id="region-select" className="w-full sm:w-60">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="auto">Automatic</SelectItem>
+                                    {countries.map((country) => (
+                                        <SelectItem key={country.iso_3166_1} value={country.iso_3166_1}>
+                                            {country.english_name}
+                                        </SelectItem>
+                                    ))}
+                                    {/* Keep a pinned code selectable while the list loads */}
+                                    {regionOverride && !countries.some((country) => country.iso_3166_1 === regionOverride) && (
+                                        <SelectItem value={regionOverride}>{regionOverride}</SelectItem>
+                                    )}
+                                </SelectContent>
+                            </Select>
                         </div>
                     </CardContent>
                 </Card>

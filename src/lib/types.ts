@@ -28,6 +28,8 @@ export interface Movie {
   imdb_rating?: number | null;
   /** TMDB genre ids for this item. By convention genre_ids[0] is the primary genre. */
   genre_ids?: number[];
+  /** Set on theatrical listings when the film is back in theatres long after its original release. */
+  is_rerelease?: boolean;
   explainability?: {
     reason_codes: string[];
     source_appearances: number;

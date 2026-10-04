@@ -294,7 +294,7 @@ export const fetchTheatricalRecommendationsApi = async (
         params.set('region', region);
     }
 
-    return fetchBackend(`/recommendations/theatrical?${params.toString()}`);
+    return tagReReleases(await fetchBackend(`/recommendations/theatrical?${params.toString()}`));
 };
 
 export const fetchRecommendationCacheDebugApi = async (): Promise<RecommendationCacheDebugResponse> => {
@@ -487,6 +487,19 @@ export const getPosterSrcSet = (path: string | null | undefined): string | undef
 
 const COUNTRY_CODE_PATTERN = /^[A-Z]{2}$/;
 
+export interface Country {
+    iso_3166_1: string;
+    english_name: string;
+}
+
+export const fetchCountriesApi = async (): Promise<Country[]> => {
+    const countries: Country[] = await fetchBackend(`/content`, {
+        method: 'POST',
+        body: JSON.stringify({ endpoint: `/configuration/countries` }),
+    });
+    return [...countries].sort((a, b) => a.english_name.localeCompare(b.english_name));
+};
+
 // Best-effort region from the browser locale (e.g. "en-IN" -> "IN").
 const guessRegionFromLocale = (): string | null => {
     try {
@@ -499,8 +512,12 @@ const guessRegionFromLocale = (): string | null => {
 
 // Resolves the visitor's country via our backend, which reads Vercel's edge
 // geolocation header. Falls back to the browser locale (e.g. in local dev, where
-// the header is absent), then to US.
+// the header is absent), then to US. In dev, VITE_DEV_REGION skips detection.
 export const fetchUserRegion = async (): Promise<string> => {
+    const devRegion = import.meta.env.DEV ? import.meta.env.VITE_DEV_REGION?.toUpperCase() : undefined;
+    if (devRegion && COUNTRY_CODE_PATTERN.test(devRegion)) {
+        return devRegion;
+    }
     try {
         const data: { country: string | null } = await fetchBackend('/region');
         if (data?.country && COUNTRY_CODE_PATTERN.test(data.country)) {
@@ -622,6 +639,17 @@ export const fetchTrendingContentApi = async (page = 1): Promise<SearchResults> 
     }
 };
 
+// A film counts as a re-release when it is back in theatres more than a year
+// after its original release (anniversary runs, restorations, re-screenings).
+// The year of slack keeps festival-premiere-then-theatrical gaps from counting.
+const isReRelease = (movie: Movie): boolean =>
+    !!movie.release_date && dayjs(movie.release_date).isBefore(dayjs().subtract(1, 'year'));
+
+const tagReReleases = <T extends { results: Movie[] }>(data: T): T => ({
+    ...data,
+    results: (data?.results ?? []).map((movie) => (isReRelease(movie) ? { ...movie, is_rerelease: true } : movie)),
+});
+
 export const fetchNowPlayingMoviesApi = async (page = 1, region?: string): Promise<SearchResults> => {
     try {
         const params: Record<string, string> = { page: String(page) };
@@ -629,13 +657,13 @@ export const fetchNowPlayingMoviesApi = async (page = 1, region?: string): Promi
             params.region = region;
         }
 
-        return await fetchBackend(`/content`, {
+        return tagReReleases(await fetchBackend(`/content`, {
             method: 'POST',
             body: JSON.stringify({
                 endpoint: `/movie/now_playing`,
                 params
             }),
-        });
+        }));
     } catch (error) {
         console.error("Failed to fetch now playing movies:", error);
         return { page: 0, results: [], total_pages: 0, total_results: 0 };
@@ -644,13 +672,14 @@ export const fetchNowPlayingMoviesApi = async (page = 1, region?: string): Promi
 
 // Discover-based now playing: the docs note /movie/now_playing is a discover
 // call under the hood (with_release_type=2|3 + release_date.gte/lte), so use
-// discover directly to control sorting. Newest releases first. A vote-count
-// floor filters out the zero-vote obscurities that date sorting otherwise surfaces.
+// discover directly to control sorting. Most popular first, so zero-vote
+// obscurities sink without a vote-count floor (a floor hides fresh regional
+// releases that haven't collected TMDB votes yet).
 export const fetchNowPlayingSortedApi = async (page = 1, region?: string): Promise<SearchResults> => {
     try {
         const params: Record<string, string> = {
             page: String(page),
-            sort_by: 'primary_release_date.desc',
+            sort_by: 'popularity.desc',
             // Theatrical release types: 2 = limited, 3 = wide — excludes
             // streaming/digital-only titles
             with_release_type: '2|3',
@@ -658,22 +687,20 @@ export const fetchNowPlayingSortedApi = async (page = 1, region?: string): Promi
             // equivalent uses release_date.* + with_release_type + region):
             // recently released, nothing dated in the future
             'release_date.lte': dayjs().format('YYYY-MM-DD'),
-            'release_date.gte': dayjs().subtract(6, 'week').format('YYYY-MM-DD'),
-            // Keep zero-vote obscurities out of a "newest first" sort
-            'vote_count.gte': '10',
+            'release_date.gte': dayjs().subtract(4, 'week').format('YYYY-MM-DD'),
         };
         if (region) {
             params.region = region;
             params.watch_region = region;
         }
 
-        return await fetchBackend(`/content`, {
+        return tagReReleases(await fetchBackend(`/content`, {
             method: 'POST',
             body: JSON.stringify({
                 endpoint: `/discover/movie`,
                 params
             }),
-        });
+        }));
     } catch (error) {
         console.error("Failed to fetch now playing (sorted) movies:", error);
         return { page: 0, results: [], total_pages: 0, total_results: 0 };
