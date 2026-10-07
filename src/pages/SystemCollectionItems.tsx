@@ -180,7 +180,7 @@ export function SystemCollectionItemsPage({ kind }: SystemCollectionItemsPagePro
       <main className="container py-6 md:py-10">
         <section className="mb-8">
           <Link
-            to="/profile"
+            to="/profile?section=marked"
             className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4"
           >
             <ChevronLeft className="h-4 w-4" />

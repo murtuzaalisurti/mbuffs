@@ -166,7 +166,7 @@ const ForYou = () => {
               Turn on personalized recommendations in your profile settings to discover content tailored to your taste.
             </p>
             <Button asChild>
-              <Link to="/profile">
+              <Link to="/profile?section=recommendations">
                 <Settings className="h-4 w-4 mr-2" />
                 Go to Settings
               </Link>
@@ -200,7 +200,7 @@ const ForYou = () => {
                 Beta
               </span>
             </div>
-            <Link to="/profile">
+            <Link to="/profile?section=recommendations">
               <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
                 <Settings className="h-4 w-4 md:mr-1" />
                 <span className="hidden md:inline">Customize</span>
@@ -260,7 +260,7 @@ const ForYou = () => {
               Select source collections in your profile settings to start getting personalized recommendations.
             </p>
             <Button asChild variant="outline">
-              <Link to="/profile">
+              <Link to="/profile?section=recommendations">
                 <Settings className="h-4 w-4 mr-2" />
                 Set Up Collections
               </Link>
