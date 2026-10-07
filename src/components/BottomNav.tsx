@@ -36,7 +36,8 @@ export const BottomNav = () => {
     enabled: !!user,
   });
   const avatarUrl = meData?.user?.avatarUrl || meData?.user?.image || user?.avatarUrl || user?.image || undefined;
-  const isOnProfilePage = location.pathname === '/profile';
+  // Pages reached from the profile (menu or Marked Items) light up the profile tab too
+  const isOnProfilePage = PROFILE_TAB_PATHS.includes(location.pathname);
   const activeIndex = getActiveTabIndex(location.pathname);
 
   if (HIDDEN_PATHS.some((path) => location.pathname.startsWith(path))) {
@@ -192,11 +193,13 @@ export const BottomNav = () => {
   );
 };
 
+const PROFILE_TAB_PATHS = ['/profile', '/admin', '/watched', '/not-interested'];
+
 function getActiveTabIndex(pathname: string) {
   if (pathname === '/') return 0;
   if (pathname.startsWith('/categories')) return 1;
   if (pathname.startsWith('/collection')) return 3;
-  if (pathname === '/profile') return 4;
+  if (PROFILE_TAB_PATHS.includes(pathname)) return 4;
   return -1;
 }
 
