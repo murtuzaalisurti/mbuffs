@@ -5,16 +5,14 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod/v4';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
-import { ChevronDown, KeyRound, Loader2, MailCheck } from 'lucide-react';
+import { KeyRound, Loader2, MailCheck } from 'lucide-react';
 import { changePassword, listAccounts, sendVerificationEmail } from '@/lib/auth-client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 
@@ -45,7 +43,6 @@ export const SecuritySettings = ({ email, emailVerified }: SecuritySettingsProps
     const [isSendingVerification, setIsSendingVerification] = useState(false);
     const [verificationSent, setVerificationSent] = useState(false);
     const [signOutOtherDevices, setSignOutOtherDevices] = useState(true);
-    const [isOpen, setIsOpen] = useState(false);
 
     const { data: accounts, isLoading: isLoadingAccounts } = useQuery({
         queryKey: ACCOUNTS_QUERY_KEY,
@@ -79,6 +76,8 @@ export const SecuritySettings = ({ email, emailVerified }: SecuritySettingsProps
         setSearchParams((params) => {
             params.delete('verified');
             params.delete('error');
+            // Older links lack ?section=; pin it so the Profile page stays on this section
+            params.set('section', 'security');
             return params;
         }, { replace: true });
     }, [searchParams, setSearchParams]);
@@ -88,7 +87,7 @@ export const SecuritySettings = ({ email, emailVerified }: SecuritySettingsProps
         try {
             const result = await sendVerificationEmail({
                 email,
-                callbackURL: `${window.location.origin}/profile?verified=1`,
+                callbackURL: `${window.location.origin}/profile?section=security&verified=1`,
             });
             if (result.error) {
                 toast.error(result.error.status === 429
@@ -134,145 +133,130 @@ export const SecuritySettings = ({ email, emailVerified }: SecuritySettingsProps
     };
 
     return (
-        <Collapsible open={isOpen} onOpenChange={setIsOpen} asChild>
-            <Card className="mt-6">
+        <>
+            <Card>
                 <CardHeader>
-                    <CollapsibleTrigger className="flex w-full items-start justify-between gap-4 text-left rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background">
-                        <div className="space-y-1.5">
-                            <CardTitle className="flex items-center gap-2">
-                                <KeyRound className="h-5 w-5" />
-                                Sign-in &amp; Security
-                                {!emailVerified && !isOpen && (
-                                    <Badge variant="outline" className="font-normal">Email unverified</Badge>
-                                )}
-                            </CardTitle>
-                            <CardDescription>
-                                Manage your email verification and password.
-                            </CardDescription>
-                        </div>
-                        <ChevronDown
-                            className={`h-5 w-5 shrink-0 mt-0.5 text-muted-foreground transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
-                            aria-hidden="true"
-                        />
-                    </CollapsibleTrigger>
+                    <CardTitle className="flex items-center gap-2">
+                        <MailCheck className="h-5 w-5" />
+                        Email
+                    </CardTitle>
                 </CardHeader>
-                <CollapsibleContent>
-                    <CardContent className="space-y-6">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                            <div className="space-y-0.5 min-w-0">
-                                <p className="text-base font-medium flex items-center gap-2">
-                                    Email
-                                    <Badge variant={emailVerified ? 'secondary' : 'outline'}>
-                                        {emailVerified ? 'Verified' : 'Unverified'}
-                                    </Badge>
-                                </p>
-                                <p className="text-sm text-muted-foreground break-all">{email}</p>
-                                {!emailVerified && (
-                                    <p className="text-xs text-muted-foreground">
-                                        Verifying lets you also sign in with Google using this email.
-                                    </p>
-                                )}
-                            </div>
+                <CardContent>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="space-y-0.5 min-w-0">
+                            <p className="text-base font-medium flex items-center gap-2 break-all">
+                                {email}
+                                <Badge variant={emailVerified ? 'secondary' : 'outline'}>
+                                    {emailVerified ? 'Verified' : 'Unverified'}
+                                </Badge>
+                            </p>
                             {!emailVerified && (
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={handleSendVerification}
-                                    disabled={isSendingVerification}
-                                    className="shrink-0"
-                                >
-                                    {isSendingVerification ? <Loader2 className="h-4 w-4 animate-spin" /> : <MailCheck className="h-4 w-4" />}
-                                    {verificationSent ? 'Resend verification email' : 'Verify my email'}
-                                </Button>
+                                <p className="text-xs text-muted-foreground">
+                                    Verifying lets you also sign in with Google using this email.
+                                </p>
                             )}
                         </div>
-
-                        <Separator />
-
-                        <div className="space-y-4">
-                            <div className="space-y-0.5">
-                                <p className="text-base font-medium">Password</p>
-                                {!isLoadingAccounts && !hasPassword && (
-                                    <p className="text-sm text-muted-foreground">
-                                        You sign in with Google, so there's no password on this account. To add one, request a reset link for {email} and choose a password.
-                                    </p>
-                                )}
-                            </div>
-
-                            {isLoadingAccounts ? (
-                                <Skeleton className="h-10 w-full" />
-                            ) : hasPassword ? (
-                                <Form {...form}>
-                                    <form onSubmit={form.handleSubmit(onChangePassword)} className="space-y-4">
-                                        <FormField
-                                            control={form.control}
-                                            name="currentPassword"
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel>Current password</FormLabel>
-                                                    <FormControl>
-                                                        <Input type="password" autoComplete="current-password" {...field} />
-                                                    </FormControl>
-                                                    <FormMessage />
-                                                </FormItem>
-                                            )}
-                                        />
-                                        <FormField
-                                            control={form.control}
-                                            name="newPassword"
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel>New password</FormLabel>
-                                                    <FormControl>
-                                                        <Input type="password" autoComplete="new-password" {...field} />
-                                                    </FormControl>
-                                                    <FormMessage />
-                                                </FormItem>
-                                            )}
-                                        />
-                                        <FormField
-                                            control={form.control}
-                                            name="confirmPassword"
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel>Confirm new password</FormLabel>
-                                                    <FormControl>
-                                                        <Input type="password" autoComplete="new-password" {...field} />
-                                                    </FormControl>
-                                                    <FormMessage />
-                                                </FormItem>
-                                            )}
-                                        />
-                                        <div className="flex items-center gap-2">
-                                            <Checkbox
-                                                id="sign-out-other-devices"
-                                                checked={signOutOtherDevices}
-                                                onCheckedChange={(checked) => setSignOutOtherDevices(checked === true)}
-                                            />
-                                            <Label htmlFor="sign-out-other-devices" className="text-sm font-normal">
-                                                Sign out of other devices
-                                            </Label>
-                                        </div>
-                                        <div className="flex flex-col sm:flex-row gap-2">
-                                            <Button type="submit" disabled={form.formState.isSubmitting}>
-                                                {form.formState.isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
-                                                Change password
-                                            </Button>
-                                            <Button variant="ghost" asChild>
-                                                <Link to="/forgot-password" state={{ email }}>Forgot your password?</Link>
-                                            </Button>
-                                        </div>
-                                    </form>
-                                </Form>
-                            ) : (
-                                <Button variant="outline" asChild>
-                                    <Link to="/forgot-password" state={{ email }}>Add a password</Link>
-                                </Button>
-                            )}
-                        </div>
-                    </CardContent>
-                </CollapsibleContent>
+                        {!emailVerified && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={handleSendVerification}
+                                disabled={isSendingVerification}
+                                className="shrink-0"
+                            >
+                                {isSendingVerification ? <Loader2 className="h-4 w-4 animate-spin" /> : <MailCheck className="h-4 w-4" />}
+                                {verificationSent ? 'Resend verification email' : 'Verify my email'}
+                            </Button>
+                        )}
+                    </div>
+                </CardContent>
             </Card>
-        </Collapsible>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        <KeyRound className="h-5 w-5" />
+                        Password
+                    </CardTitle>
+                    {!isLoadingAccounts && !hasPassword && (
+                        <CardDescription>
+                            You sign in with Google, so there's no password on this account. To add one, request a reset link for {email} and choose a password.
+                        </CardDescription>
+                    )}
+                </CardHeader>
+                <CardContent>
+                    {isLoadingAccounts ? (
+                        <Skeleton className="h-10 w-full" />
+                    ) : hasPassword ? (
+                        <Form {...form}>
+                            <form onSubmit={form.handleSubmit(onChangePassword)} className="space-y-4">
+                                <FormField
+                                    control={form.control}
+                                    name="currentPassword"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Current password</FormLabel>
+                                            <FormControl>
+                                                <Input type="password" autoComplete="current-password" {...field} />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={form.control}
+                                    name="newPassword"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>New password</FormLabel>
+                                            <FormControl>
+                                                <Input type="password" autoComplete="new-password" {...field} />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={form.control}
+                                    name="confirmPassword"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Confirm new password</FormLabel>
+                                            <FormControl>
+                                                <Input type="password" autoComplete="new-password" {...field} />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <div className="flex items-center gap-2">
+                                    <Checkbox
+                                        id="sign-out-other-devices"
+                                        checked={signOutOtherDevices}
+                                        onCheckedChange={(checked) => setSignOutOtherDevices(checked === true)}
+                                    />
+                                    <Label htmlFor="sign-out-other-devices" className="text-sm font-normal">
+                                        Sign out of other devices
+                                    </Label>
+                                </div>
+                                <div className="flex flex-col sm:flex-row gap-2">
+                                    <Button type="submit" disabled={form.formState.isSubmitting}>
+                                        {form.formState.isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
+                                        Change password
+                                    </Button>
+                                    <Button variant="ghost" asChild>
+                                        <Link to="/forgot-password" state={{ email }}>Forgot your password?</Link>
+                                    </Button>
+                                </div>
+                            </form>
+                        </Form>
+                    ) : (
+                        <Button variant="outline" asChild>
+                            <Link to="/forgot-password" state={{ email }}>Add a password</Link>
+                        </Button>
+                    )}
+                </CardContent>
+            </Card>
+        </>
     );
 };

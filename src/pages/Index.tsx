@@ -189,7 +189,7 @@ const Index = () => {
                       Select source collections in your profile settings to see recommendations tailored to your taste.
                     </p>
                   </div>
-                  <Link to="/profile">
+                  <Link to="/profile?section=recommendations">
                     <Button variant="outline" className="whitespace-nowrap">
                       <Settings className="h-4 w-4 mr-2" />
                       Set Up Now

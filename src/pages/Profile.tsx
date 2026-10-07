@@ -16,11 +16,14 @@ import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useAuth } from '@/hooks/useAuth';
-import { Mail, Calendar, FolderHeart, X, ChevronDown, Grid3X3, Eye, ThumbsDown, ArrowRight, Camera, Loader2, Trash2, ShieldAlert, Sparkles, TriangleAlert, Globe } from 'lucide-react';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { Mail, Calendar, FolderHeart, X, ChevronDown, Grid3X3, Eye, ThumbsDown, ArrowRight, Camera, Loader2, Trash2, SlidersHorizontal, Sparkles, TriangleAlert, Globe, UserRound, KeyRound, ListChecks, type LucideIcon } from 'lucide-react';
 import { toast } from "sonner";
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
+import { cn } from '@/lib/utils';
 import { setMotionSetting, systemPrefersReducedMotion, useMotionSetting } from '@/lib/motionPreference';
 import { setRegionOverride, useRegionOverride } from '@/lib/regionPreference';
 import { useDetectedRegion } from '@/hooks/useUserRegion';
@@ -80,10 +83,76 @@ const RECOMMENDATION_COLLECTIONS_QUERY_KEY = ['recommendations', 'collections'];
 const WATCHED_ITEMS_QUERY_KEY = ['collections', 'watched', 'items'];
 const NOT_INTERESTED_ITEMS_QUERY_KEY = ['collections', 'not-interested', 'items'];
 
+// ============================================================================
+// Sections (side nav on desktop, dropdown on mobile; active one lives in ?section=)
+// ============================================================================
+const PROFILE_SECTION_GROUPS = ['Account', 'Preferences', 'Library', 'Danger zone'] as const;
+
+type ProfileSectionId = 'account' | 'security' | 'recommendations' | 'display' | 'region' | 'marked' | 'delete';
+
+interface ProfileSection {
+    id: ProfileSectionId;
+    group: typeof PROFILE_SECTION_GROUPS[number];
+    label: string;
+    title: string;
+    description: string;
+    icon: LucideIcon;
+}
+
+const PROFILE_SECTIONS: ProfileSection[] = [
+    { id: 'account', group: 'Account', label: 'Personal Info', title: 'Personal Info', description: 'Your picture and account details.', icon: UserRound },
+    { id: 'security', group: 'Account', label: 'Sign-in & Security', title: 'Sign-in & Security', description: 'Manage your email verification and password.', icon: KeyRound },
+    { id: 'recommendations', group: 'Preferences', label: 'Recommendations', title: 'Recommendations', description: 'Get personalized movie and TV show recommendations based on your collections.', icon: Sparkles },
+    { id: 'display', group: 'Preferences', label: 'Content & Display', title: 'Content & Display', description: 'Control which titles appear across the app and how it looks and moves.', icon: SlidersHorizontal },
+    { id: 'region', group: 'Preferences', label: 'Region', title: 'Region', description: "Sets which country's theatrical releases and streaming providers you see on this device.", icon: Globe },
+    { id: 'marked', group: 'Library', label: 'Marked Items', title: 'Marked Items', description: 'Review everything you have marked as watched or not interested.', icon: ListChecks },
+    { id: 'delete', group: 'Danger zone', label: 'Delete Account', title: 'Delete Account', description: "Permanently delete your account and all of your data. This can't be undone.", icon: TriangleAlert },
+];
+
+const isProfileSectionId = (value: string | null): value is ProfileSectionId =>
+    PROFILE_SECTIONS.some((s) => s.id === value);
+
 const Profile = () => {
     const queryClient = useQueryClient();
     const { user, isLoadingUser, logout } = useAuth();
     const motion = useMotionSetting();
+
+    const [searchParams, setSearchParams] = useSearchParams();
+    const sectionParam = searchParams.get('section');
+    const isMobile = useIsMobile();
+    // Verification links from older emails return with only ?verified=1
+    const requestedSection: ProfileSectionId | null = isProfileSectionId(sectionParam)
+        ? sectionParam
+        : searchParams.has('verified') ? 'security' : null;
+    // Desktop always shows one section; the mobile accordion may have none open
+    const activeSection: ProfileSectionId = requestedSection ?? 'account';
+    const openMobileSection = requestedSection;
+    const selectSection = (id: ProfileSectionId | null) => {
+        setSearchParams((params) => {
+            if (id) params.set('section', id);
+            else params.delete('section');
+            return params;
+        }, { replace: true });
+    };
+    const selectMobileSection = (id: ProfileSectionId | null) => {
+        selectSection(id);
+        if (!id) return;
+        // Collapsing the previous item shifts the page; bring the opened one into view once it settles
+        setTimeout(() => {
+            document.querySelector(`[data-section="${id}"]`)?.scrollIntoView({
+                behavior: motion.reduced ? 'auto' : 'smooth',
+                block: 'start',
+            });
+        }, 250);
+    };
+
+    // Arriving on mobile with a section already open (e.g. "Back to Profile"): bring it into view once
+    const hasScrolledToInitialSection = useRef(false);
+    useEffect(() => {
+        if (hasScrolledToInitialSection.current || !isMobile || !openMobileSection || !user) return;
+        hasScrolledToInitialSection.current = true;
+        document.querySelector(`[data-section="${openMobileSection}"]`)?.scrollIntoView({ block: 'start' });
+    }, [isMobile, openMobileSection, user]);
 
     const regionOverride = useRegionOverride();
     const { data: detectedRegion } = useDetectedRegion();
@@ -426,7 +495,7 @@ const Profile = () => {
         return (
             <>
                 <Navbar />
-                <main className="container py-8 max-w-2xl mx-auto">
+                <main className="container py-8 max-w-5xl mx-auto">
                     <div className="space-y-6">
                         <Skeleton className="h-32 w-full rounded-xl" />
                         <Skeleton className="h-48 w-full rounded-xl" />
@@ -440,7 +509,7 @@ const Profile = () => {
         return (
             <>
                 <Navbar />
-                <main className="container py-8 max-w-2xl mx-auto">
+                <main className="container py-8 max-w-5xl mx-auto">
                     <div className="text-center py-12">
                         <p className="text-muted-foreground">Please log in to view your profile.</p>
                     </div>
@@ -458,309 +527,287 @@ const Profile = () => {
     const watchedItemsCount = watchedItemsData?.items.length ?? 0;
     const notInterestedItemsCount = notInterestedItemsData?.items.length ?? 0;
 
-    return (
-        <>
-            <Navbar />
-            <main className="container py-8 max-w-2xl mx-auto animate-stagger">
-                <h1 className="page-title mb-8">Profile</h1>
+    const sectionContent: Record<ProfileSectionId, React.ReactNode> = {
+        account: (
+            <Card>
+                <CardContent>
+                    <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4">
+                        {/* Editable avatar */}
+                        <div className="relative group shrink-0">
+                            <Avatar className="h-20 w-20">
+                                <AvatarImage
+                                    src={resolvedAvatarUrl}
+                                    alt={user.username || user.name || 'User'}
+                                    referrerPolicy="no-referrer"
+                                />
+                                <AvatarFallback className="text-lg">
+                                    {getInitials(user.username)}
+                                </AvatarFallback>
+                            </Avatar>
 
-                {/* User Info Card */}
-                <Card className="mb-6">
-                    <CardContent>
-                        <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4">
-                            {/* Editable avatar */}
-                            <div className="relative group shrink-0">
-                                <Avatar className="h-20 w-20">
-                                    <AvatarImage
-                                        src={resolvedAvatarUrl}
-                                        alt={user.username || user.name || 'User'}
-                                        referrerPolicy="no-referrer"
-                                    />
-                                    <AvatarFallback className="text-lg">
-                                        {getInitials(user.username)}
-                                    </AvatarFallback>
-                                </Avatar>
+                            {/* Upload overlay */}
+                            <button
+                                type="button"
+                                onClick={handleAvatarClick}
+                                disabled={isUploadingAvatar}
+                                className="absolute inset-0 flex items-center justify-center rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer disabled:cursor-wait"
+                                aria-label="Change profile picture"
+                            >
+                                {isUploadingAvatar ? (
+                                    <Loader2 className="h-5 w-5 text-white animate-spin" />
+                                ) : (
+                                    <Camera className="h-5 w-5 text-white" />
+                                )}
+                            </button>
 
-                                {/* Upload overlay */}
+                            {/* Hidden file input */}
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept="image/jpeg,image/png,image/webp,image/gif"
+                                className="hidden"
+                                onChange={handleFileChange}
+                            />
+
+                            {/* Remove button (only when there's a custom uploaded avatar) */}
+                            {meData?.user?.avatarUrl && (
                                 <button
                                     type="button"
-                                    onClick={handleAvatarClick}
+                                    onClick={handleRemoveAvatar}
                                     disabled={isUploadingAvatar}
-                                    className="absolute inset-0 flex items-center justify-center rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer disabled:cursor-wait"
-                                    aria-label="Change profile picture"
+                                    className="absolute -bottom-1 -right-1 rounded-full bg-destructive p-1 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer disabled:cursor-wait"
+                                    aria-label="Remove profile picture"
                                 >
-                                    {isUploadingAvatar ? (
-                                        <Loader2 className="h-5 w-5 text-white animate-spin" />
-                                    ) : (
-                                        <Camera className="h-5 w-5 text-white" />
-                                    )}
+                                    <Trash2 className="h-3 w-3 text-white" />
                                 </button>
-
-                                {/* Hidden file input */}
-                                <input
-                                    ref={fileInputRef}
-                                    type="file"
-                                    accept="image/jpeg,image/png,image/webp,image/gif"
-                                    className="hidden"
-                                    onChange={handleFileChange}
-                                />
-
-                                {/* Remove button (only when there's a custom uploaded avatar) */}
-                                {meData?.user?.avatarUrl && (
-                                    <button
-                                        type="button"
-                                        onClick={handleRemoveAvatar}
-                                        disabled={isUploadingAvatar}
-                                        className="absolute -bottom-1 -right-1 rounded-full bg-destructive p-1 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer disabled:cursor-wait"
-                                        aria-label="Remove profile picture"
-                                    >
-                                        <Trash2 className="h-3 w-3 text-white" />
-                                    </button>
-                                )}
-                            </div>
-
-                            <div className="flex-1 min-w-0 space-y-1 text-center sm:text-left w-full">
-                                <h2 className="text-2xl font-semibold">
-                                    {user.username || 'User'}
-                                </h2>
-                                <div className="flex items-center justify-center sm:justify-start gap-2 text-muted-foreground">
-                                    <Mail className="h-4 w-4 shrink-0" />
-                                    <span className="truncate">{user.email || 'No email'}</span>
-                                </div>
-                                {user.createdAt && (
-                                    <div className="flex items-center justify-center sm:justify-start gap-2 text-muted-foreground text-sm">
-                                        <Calendar className="h-4 w-4 shrink-0" />
-                                        <span>Joined {formatDate(user.createdAt)}</span>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
-
-                {/* Recommendations Settings Card */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            Recommendations
-                            <span className="text-xs font-medium bg-primary/10 text-primary px-2 py-0.5 rounded-full">
-                                Beta
-                            </span>
-                        </CardTitle>
-                        <CardDescription>
-                            Get personalized movie and TV show recommendations based on your collections.
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-6">
-                        {/* Enable Recommendations Toggle */}
-                        <div className="flex items-center justify-between">
-                            <div className="space-y-0.5">
-                                <Label htmlFor="recommendations-toggle" className="text-base">
-                                    Enable Recommendations
-                                </Label>
-                                <p className="text-sm text-muted-foreground">
-                                    Receive personalized suggestions based on your taste
-                                </p>
-                            </div>
-                            <Switch
-                                id="recommendations-toggle"
-                                checked={recommendationsEnabled}
-                                onCheckedChange={handleToggleRecommendations}
-                            />
+                            )}
                         </div>
 
-                        {recommendationsEnabled && (
-                            <>
-                                <Separator />
-
-                                {/* Collection Multi-Select Dropdown */}
-                                <div className="space-y-3">
-                                    <div className="space-y-0.5">
-                                        <Label className="text-base flex items-center gap-2">
-                                            <FolderHeart className="h-4 w-4" />
-                                            Source Collections
-                                        </Label>
-                                        <p className="text-sm text-muted-foreground">
-                                            Select one or more collections to base your recommendations on
-                                        </p>
-                                    </div>
-
-                                    {isLoading ? (
-                                        <Skeleton className="h-10 w-full" />
-                                    ) : collectionsData?.collections.length === 0 ? (
-                                        <p className="text-sm text-muted-foreground py-4">
-                                            You don't have any collections yet. Create one to enable personalized recommendations.
-                                        </p>
-                                    ) : (
-                                        <Popover>
-                                            <PopoverTrigger asChild>
-                                                <Button
-                                                    variant="outline"
-                                                    role="combobox"
-                                                    className="w-full justify-between h-auto min-h-10 py-2"
-                                                >
-                                                    <span className="flex flex-wrap gap-1 text-left">
-                                                        {selectedCollectionIds.size === 0 ? (
-                                                            <span className="text-muted-foreground">Select collections...</span>
-                                                        ) : (
-                                                            <span className="text-sm">
-                                                                {selectedCollectionIds.size} collection{selectedCollectionIds.size !== 1 ? 's' : ''} selected
-                                                            </span>
-                                                        )}
-                                                    </span>
-                                                    <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                                </Button>
-                                            </PopoverTrigger>
-                                            <PopoverContent className="w-(--radix-popover-trigger-width) p-0" align="start">
-                                                <div className="max-h-64 overflow-y-auto p-2">
-                                                    {collectionsData?.collections.map((collection) => {
-                                                        const isSelected = selectedCollectionIds.has(collection.id);
-                                                        return (
-                                                            <div
-                                                                key={collection.id}
-                                                                className="flex items-center space-x-3 py-2 px-2 rounded-md hover:bg-muted/50 transition-colors cursor-pointer"
-                                                                onClick={() => handleCollectionToggle(collection.id, !isSelected)}
-                                                            >
-                                                                <Checkbox
-                                                                    id={`collection-${collection.id}`}
-                                                                    checked={isSelected}
-                                                                    onCheckedChange={(checked) =>
-                                                                        handleCollectionToggle(collection.id, checked === true)
-                                                                    }
-                                                                    onClick={(e) => e.stopPropagation()}
-                                                                />
-                                                                <label
-                                                                    htmlFor={`collection-${collection.id}`}
-                                                                    className="flex-1 text-sm font-medium cursor-pointer select-none"
-                                                                >
-                                                                    {collection.name}
-                                                                </label>
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            </PopoverContent>
-                                        </Popover>
-                                    )}
-
-                                    {/* Selected Collections Display */}
-                                    {selectedCollectionIds.size > 0 && (
-                                        <div className="flex flex-wrap gap-2">
-                                            {recommendationCollectionsData?.collections.map((collection) => (
-                                                <Badge
-                                                    key={collection.id}
-                                                    variant="secondary"
-                                                    className="flex items-center gap-1 pr-1"
-                                                >
-                                                    {collection.name}
-                                                    <button
-                                                        onClick={() => handleRemoveCollection(collection.id)}
-                                                        className="ml-1 rounded-full p-0.5 hover:bg-muted-foreground/20 transition-colors"
-                                                    >
-                                                        <X className="h-3 w-3" />
-                                                    </button>
-                                                </Badge>
-                                            ))}
-                                        </div>
-                                    )}
+                        <div className="flex-1 min-w-0 space-y-1 text-center sm:text-left w-full">
+                            <h3 className="text-2xl font-semibold">
+                                {user.username || 'User'}
+                            </h3>
+                            <div className="flex items-center justify-center sm:justify-start gap-2 text-muted-foreground">
+                                <Mail className="h-4 w-4 shrink-0" />
+                                <span className="truncate">{user.email || 'No email'}</span>
+                            </div>
+                            {user.createdAt && (
+                                <div className="flex items-center justify-center sm:justify-start gap-2 text-muted-foreground text-sm">
+                                    <Calendar className="h-4 w-4 shrink-0" />
+                                    <span>Joined {formatDate(user.createdAt)}</span>
                                 </div>
+                            )}
+                            <p className="text-xs text-muted-foreground pt-2">
+                                Hover your picture to change or remove it.
+                            </p>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+        ),
 
-                                <Separator />
+        // Until the session loads, older cached snapshots lack emailVerified; don't flash "Unverified"
+        security: <SecuritySettings email={user.email} emailVerified={user.emailVerified ?? true} />,
 
-                                {/* Category Recommendations Toggle */}
-                                <div className="flex items-center justify-between">
-                                    <div className="space-y-0.5">
-                                        <Label htmlFor="category-recommendations-toggle" className="text-base flex items-center gap-2">
-                                            <Grid3X3 className="h-4 w-4" />
-                                            Personalized Categories
-                                        </Label>
-                                        <p className="text-sm text-muted-foreground">
-                                            Show personalized recommendations on the Categories page based on your taste
-                                        </p>
-                                    </div>
-                                    <Switch
-                                        id="category-recommendations-toggle"
-                                        checked={categoryRecommendationsEnabled}
-                                        onCheckedChange={handleToggleCategoryRecommendations}
-                                        disabled={selectedCollectionIds.size === 0}
-                                    />
-                                </div>
-                                {selectedCollectionIds.size === 0 && (
-                                    <p className="text-xs text-muted-foreground">
-                                        Select at least one source collection to enable personalized categories
-                                    </p>
-                                )}
+        recommendations: (
+            <Card>
+                <CardContent className="space-y-6">
+                    {/* Enable Recommendations Toggle */}
+                    <div className="flex items-center justify-between gap-4">
+                        <div className="space-y-0.5">
+                            <Label htmlFor="recommendations-toggle" className="text-base">
+                                Enable Recommendations
+                            </Label>
+                            <p className="text-sm text-muted-foreground">
+                                Receive personalized suggestions based on your taste
+                            </p>
+                        </div>
+                        <Switch
+                            id="recommendations-toggle"
+                            checked={recommendationsEnabled}
+                            onCheckedChange={handleToggleRecommendations}
+                        />
+                    </div>
 
+                    {recommendationsEnabled && (
+                        <>
+                            <Separator />
 
-                            </>
-                        )}
-
-
-                    </CardContent>
-                </Card>
-
-                {/* Content Settings Card */}
-                <Card className="mt-6">
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <ShieldAlert className="h-5 w-5" />
-                            Content
-                        </CardTitle>
-                        <CardDescription>
-                            Control what kinds of titles appear across the app.
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="space-y-6">
-                            <div className="flex items-center justify-between gap-4">
+                            {/* Collection Multi-Select Dropdown */}
+                            <div className="space-y-3">
                                 <div className="space-y-0.5">
-                                    <Label htmlFor="show-adult-items-toggle" className="text-base">
-                                        Show adult items
+                                    <Label className="text-base flex items-center gap-2">
+                                        <FolderHeart className="h-4 w-4" />
+                                        Source Collections
                                     </Label>
                                     <p className="text-sm text-muted-foreground">
-                                        When off, TMDB-flagged adult titles are hidden from collections, recommendations, categories, and search.
+                                        Select one or more collections to base your recommendations on
                                     </p>
                                 </div>
-                                <Switch
-                                    id="show-adult-items-toggle"
-                                    checked={showAdultItems}
-                                    onCheckedChange={handleToggleShowAdultItems}
-                                    disabled={isLoadingPreferences}
-                                />
+
+                                {isLoading ? (
+                                    <Skeleton className="h-10 w-full" />
+                                ) : collectionsData?.collections.length === 0 ? (
+                                    <p className="text-sm text-muted-foreground py-4">
+                                        You don't have any collections yet. Create one to enable personalized recommendations.
+                                    </p>
+                                ) : (
+                                    <Popover>
+                                        <PopoverTrigger asChild>
+                                            <Button
+                                                variant="outline"
+                                                role="combobox"
+                                                className="w-full justify-between h-auto min-h-10 py-2"
+                                            >
+                                                <span className="flex flex-wrap gap-1 text-left">
+                                                    {selectedCollectionIds.size === 0 ? (
+                                                        <span className="text-muted-foreground">Select collections...</span>
+                                                    ) : (
+                                                        <span className="text-sm">
+                                                            {selectedCollectionIds.size} collection{selectedCollectionIds.size !== 1 ? 's' : ''} selected
+                                                        </span>
+                                                    )}
+                                                </span>
+                                                <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                            </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-(--radix-popover-trigger-width) p-0" align="start">
+                                            <div className="max-h-64 overflow-y-auto p-2">
+                                                {collectionsData?.collections.map((collection) => {
+                                                    const isSelected = selectedCollectionIds.has(collection.id);
+                                                    return (
+                                                        <div
+                                                            key={collection.id}
+                                                            className="flex items-center space-x-3 py-2 px-2 rounded-md hover:bg-muted/50 transition-colors cursor-pointer"
+                                                            onClick={() => handleCollectionToggle(collection.id, !isSelected)}
+                                                        >
+                                                            <Checkbox
+                                                                id={`collection-${collection.id}`}
+                                                                checked={isSelected}
+                                                                onCheckedChange={(checked) =>
+                                                                    handleCollectionToggle(collection.id, checked === true)
+                                                                }
+                                                                onClick={(e) => e.stopPropagation()}
+                                                            />
+                                                            <label
+                                                                htmlFor={`collection-${collection.id}`}
+                                                                className="flex-1 text-sm font-medium cursor-pointer select-none"
+                                                            >
+                                                                {collection.name}
+                                                            </label>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </PopoverContent>
+                                    </Popover>
+                                )}
+
+                                {/* Selected Collections Display */}
+                                {selectedCollectionIds.size > 0 && (
+                                    <div className="flex flex-wrap gap-2">
+                                        {recommendationCollectionsData?.collections.map((collection) => (
+                                            <Badge
+                                                key={collection.id}
+                                                variant="secondary"
+                                                className="flex items-center gap-1 pr-1"
+                                            >
+                                                {collection.name}
+                                                <button
+                                                    onClick={() => handleRemoveCollection(collection.id)}
+                                                    className="ml-1 rounded-full p-0.5 hover:bg-muted-foreground/20 transition-colors"
+                                                    aria-label={`Remove ${collection.name}`}
+                                                >
+                                                    <X className="h-3 w-3" />
+                                                </button>
+                                            </Badge>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
 
                             <Separator />
 
+                            {/* Category Recommendations Toggle */}
                             <div className="flex items-center justify-between gap-4">
                                 <div className="space-y-0.5">
-                                    <Label htmlFor="show-movie-card-info-toggle" className="text-base">
-                                        Show info on cards
+                                    <Label htmlFor="category-recommendations-toggle" className="text-base flex items-center gap-2">
+                                        <Grid3X3 className="h-4 w-4" />
+                                        Personalized Categories
                                     </Label>
                                     <p className="text-sm text-muted-foreground">
-                                        When on, recommendation cards show title, year, rating, and occasional explainability text.
+                                        Show personalized recommendations on the Categories page based on your taste
                                     </p>
                                 </div>
                                 <Switch
-                                    id="show-movie-card-info-toggle"
-                                    checked={showMovieCardInfo}
-                                    onCheckedChange={handleToggleShowMovieCardInfo}
-                                    disabled={isLoadingPreferences}
+                                    id="category-recommendations-toggle"
+                                    checked={categoryRecommendationsEnabled}
+                                    onCheckedChange={handleToggleCategoryRecommendations}
+                                    disabled={selectedCollectionIds.size === 0}
                                 />
                             </div>
+                            {selectedCollectionIds.size === 0 && (
+                                <p className="text-xs text-muted-foreground">
+                                    Select at least one source collection to enable personalized categories
+                                </p>
+                            )}
+                        </>
+                    )}
+                </CardContent>
+            </Card>
+        ),
+
+        display: (
+            <>
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Content</CardTitle>
+                        <CardDescription>Synced to your account across devices.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                        <div className="flex items-center justify-between gap-4">
+                            <div className="space-y-0.5">
+                                <Label htmlFor="show-adult-items-toggle" className="text-base">
+                                    Show adult items
+                                </Label>
+                                <p className="text-sm text-muted-foreground">
+                                    When off, TMDB-flagged adult titles are hidden from collections, recommendations, categories, and search.
+                                </p>
+                            </div>
+                            <Switch
+                                id="show-adult-items-toggle"
+                                checked={showAdultItems}
+                                onCheckedChange={handleToggleShowAdultItems}
+                                disabled={isLoadingPreferences}
+                            />
+                        </div>
+
+                        <Separator />
+
+                        <div className="flex items-center justify-between gap-4">
+                            <div className="space-y-0.5">
+                                <Label htmlFor="show-movie-card-info-toggle" className="text-base">
+                                    Show info on cards
+                                </Label>
+                                <p className="text-sm text-muted-foreground">
+                                    When on, recommendation cards show title, year, rating, and occasional explainability text.
+                                </p>
+                            </div>
+                            <Switch
+                                id="show-movie-card-info-toggle"
+                                checked={showMovieCardInfo}
+                                onCheckedChange={handleToggleShowMovieCardInfo}
+                                disabled={isLoadingPreferences}
+                            />
                         </div>
                     </CardContent>
                 </Card>
 
                 {/* Motion (stored on this device, applies instantly) */}
-                <Card className="mt-6">
+                <Card>
                     <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <Sparkles className="h-5 w-5" />
-                            Motion
-                        </CardTitle>
-                        <CardDescription>
-                            Control animations and transitions on this device.
-                        </CardDescription>
+                        <CardTitle>Motion</CardTitle>
+                        <CardDescription>Stored on this device only.</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <div className="flex items-center justify-between gap-4">
@@ -795,174 +842,268 @@ const Profile = () => {
                         </div>
                     </CardContent>
                 </Card>
+            </>
+        ),
 
-                {/* Region (stored on this device) */}
-                <Card className="mt-6">
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <Globe className="h-5 w-5" />
-                            Region
-                        </CardTitle>
-                        <CardDescription>
-                            Sets which country's theatrical releases and streaming providers you see on this device.
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                            <div className="space-y-0.5">
-                                <Label htmlFor="region-select" className="text-base">
-                                    Country
-                                </Label>
-                                <p className="text-sm text-muted-foreground">
-                                    {detectedRegion
-                                        ? `Detected from your location: ${countryName(detectedRegion)}.`
-                                        : 'Detected from your location unless you pick one here.'}
-                                </p>
-                            </div>
-                            <Select
-                                value={regionOverride ?? 'auto'}
-                                onValueChange={(value) => setRegionOverride(value === 'auto' ? null : value)}
-                            >
-                                <SelectTrigger id="region-select" className="w-full sm:w-60">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="auto">Automatic</SelectItem>
-                                    {countries.map((country) => (
-                                        <SelectItem key={country.iso_3166_1} value={country.iso_3166_1}>
-                                            {country.english_name}
-                                        </SelectItem>
-                                    ))}
-                                    {/* Keep a pinned code selectable while the list loads */}
-                                    {regionOverride && !countries.some((country) => country.iso_3166_1 === regionOverride) && (
-                                        <SelectItem value={regionOverride}>{regionOverride}</SelectItem>
-                                    )}
-                                </SelectContent>
-                            </Select>
+        // Region (stored on this device)
+        region: (
+            <Card>
+                <CardContent>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                        <div className="space-y-0.5">
+                            <Label htmlFor="region-select" className="text-base">
+                                Country
+                            </Label>
+                            <p className="text-sm text-muted-foreground">
+                                {detectedRegion
+                                    ? `Detected from your location: ${countryName(detectedRegion)}.`
+                                    : 'Detected from your location unless you pick one here.'}
+                            </p>
                         </div>
-                    </CardContent>
-                </Card>
-
-                <Card className="mt-6">
-                    <CardHeader>
-                        <CardTitle>Marked Items</CardTitle>
-                        <CardDescription>
-                            Review everything you have marked as watched or not interested.
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                        <Button asChild variant="outline" className="w-full h-11 justify-between">
-                            <Link to="/watched">
-                                <span className="inline-flex items-center gap-2">
-                                    <Eye className="h-4 w-4" />
-                                    Watched Items
-                                </span>
-                                <span className="inline-flex items-center gap-2 text-muted-foreground">
-                                    {isLoadingWatchedItems ? '...' : watchedItemsCount}
-                                    <ArrowRight className="h-4 w-4" />
-                                </span>
-                            </Link>
-                        </Button>
-
-                        <Button asChild variant="outline" className="w-full h-11 justify-between">
-                            <Link to="/not-interested">
-                                <span className="inline-flex items-center gap-2">
-                                    <ThumbsDown className="h-4 w-4" />
-                                    Not Interested Items
-                                </span>
-                                <span className="inline-flex items-center gap-2 text-muted-foreground">
-                                    {isLoadingNotInterestedItems ? '...' : notInterestedItemsCount}
-                                    <ArrowRight className="h-4 w-4" />
-                                </span>
-                            </Link>
-                        </Button>
-                    </CardContent>
-                </Card>
-
-                {/* Until the session loads, older cached snapshots lack emailVerified; don't flash "Unverified" */}
-                <SecuritySettings email={user.email} emailVerified={user.emailVerified ?? true} />
-
-                {/* Account deletion */}
-                <Card className="mt-6 border-destructive/30">
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2 text-destructive">
-                            <TriangleAlert className="h-5 w-5" />
-                            Delete Account
-                        </CardTitle>
-                        <CardDescription>
-                            Permanently delete your account and all of your data. This can't be undone.
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <Dialog
-                            open={isDeleteDialogOpen}
-                            onOpenChange={(open) => {
-                                if (deleteAccountMutation.isPending) return;
-                                setIsDeleteDialogOpen(open);
-                                if (!open) setDeleteConfirmEmail('');
-                            }}
+                        <Select
+                            value={regionOverride ?? 'auto'}
+                            onValueChange={(value) => setRegionOverride(value === 'auto' ? null : value)}
                         >
-                            <DialogTrigger asChild>
-                                <Button variant="destructive" className="w-full sm:w-auto">
-                                    <Trash2 className="h-4 w-4" />
-                                    Delete my account
+                            <SelectTrigger id="region-select" className="w-full sm:w-60">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="auto">Automatic</SelectItem>
+                                {countries.map((country) => (
+                                    <SelectItem key={country.iso_3166_1} value={country.iso_3166_1}>
+                                        {country.english_name}
+                                    </SelectItem>
+                                ))}
+                                {/* Keep a pinned code selectable while the list loads */}
+                                {regionOverride && !countries.some((country) => country.iso_3166_1 === regionOverride) && (
+                                    <SelectItem value={regionOverride}>{regionOverride}</SelectItem>
+                                )}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                </CardContent>
+            </Card>
+        ),
+
+        marked: (
+            <Card>
+                <CardContent className="space-y-3">
+                    <Button asChild variant="outline" className="w-full h-11 justify-between">
+                        <Link to="/watched">
+                            <span className="inline-flex items-center gap-2">
+                                <Eye className="h-4 w-4" />
+                                Watched Items
+                            </span>
+                            <span className="inline-flex items-center gap-2 text-muted-foreground">
+                                {isLoadingWatchedItems ? '...' : watchedItemsCount}
+                                <ArrowRight className="h-4 w-4" />
+                            </span>
+                        </Link>
+                    </Button>
+
+                    <Button asChild variant="outline" className="w-full h-11 justify-between">
+                        <Link to="/not-interested">
+                            <span className="inline-flex items-center gap-2">
+                                <ThumbsDown className="h-4 w-4" />
+                                Not Interested Items
+                            </span>
+                            <span className="inline-flex items-center gap-2 text-muted-foreground">
+                                {isLoadingNotInterestedItems ? '...' : notInterestedItemsCount}
+                                <ArrowRight className="h-4 w-4" />
+                            </span>
+                        </Link>
+                    </Button>
+                </CardContent>
+            </Card>
+        ),
+
+        delete: (
+            <Card className="border-destructive/30">
+                <CardContent className="space-y-4">
+                    <div className="space-y-1.5 text-sm">
+                        <p className="font-medium">What gets deleted</p>
+                        <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+                            <li>Your profile, sign-in methods, and preferences</li>
+                            <li>Your collections, including ones you've shared with others</li>
+                            <li>Your watched and not-interested lists and recommendations</li>
+                            <li>Your ratings, comments, and likes (replies to your comments go too)</li>
+                            <li>Your notifications and push subscriptions</li>
+                        </ul>
+                        <p className="text-muted-foreground pt-1">
+                            Titles you added to other people's collections stay in those collections.
+                        </p>
+                    </div>
+                    <Dialog
+                        open={isDeleteDialogOpen}
+                        onOpenChange={(open) => {
+                            if (deleteAccountMutation.isPending) return;
+                            setIsDeleteDialogOpen(open);
+                            if (!open) setDeleteConfirmEmail('');
+                        }}
+                    >
+                        <DialogTrigger asChild>
+                            <Button variant="destructive" className="w-full sm:w-auto">
+                                <Trash2 className="h-4 w-4" />
+                                Delete my account
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent className="w-[90%] sm:max-w-[460px] rounded-lg">
+                            <DialogHeader>
+                                <DialogTitle>Delete your account?</DialogTitle>
+                                <DialogDescription>
+                                    This permanently deletes your account and signs you out everywhere.
+                                </DialogDescription>
+                            </DialogHeader>
+                            <div className="space-y-2 text-sm">
+                                <Label htmlFor="delete-account-confirm">
+                                    Type <span className="font-semibold break-all">{user.email}</span> to confirm
+                                </Label>
+                                <Input
+                                    id="delete-account-confirm"
+                                    type="email"
+                                    autoComplete="off"
+                                    value={deleteConfirmEmail}
+                                    onChange={(e) => setDeleteConfirmEmail(e.target.value)}
+                                    disabled={deleteAccountMutation.isPending}
+                                />
+                            </div>
+                            <DialogFooter>
+                                <DialogClose asChild>
+                                    <Button variant="outline" disabled={deleteAccountMutation.isPending}>Cancel</Button>
+                                </DialogClose>
+                                <Button
+                                    variant="destructive"
+                                    disabled={
+                                        deleteAccountMutation.isPending ||
+                                        deleteConfirmEmail.trim().toLowerCase() !== (user.email || '').toLowerCase()
+                                    }
+                                    onClick={() => deleteAccountMutation.mutate()}
+                                >
+                                    {deleteAccountMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                                    Delete account permanently
                                 </Button>
-                            </DialogTrigger>
-                            <DialogContent className="w-[90%] sm:max-w-[460px] rounded-lg">
-                                <DialogHeader>
-                                    <DialogTitle>Delete your account?</DialogTitle>
-                                    <DialogDescription>
-                                        This permanently deletes your account and signs you out everywhere.
-                                    </DialogDescription>
-                                </DialogHeader>
-                                <div className="space-y-4 text-sm">
-                                    <div className="space-y-1.5">
-                                        <p className="font-medium">What gets deleted</p>
-                                        <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
-                                            <li>Your profile, sign-in methods, and preferences</li>
-                                            <li>Your collections, including ones you've shared with others</li>
-                                            <li>Your watched and not-interested lists and recommendations</li>
-                                            <li>Your ratings, comments, and likes (replies to your comments go too)</li>
-                                            <li>Your notifications and push subscriptions</li>
-                                        </ul>
-                                    </div>
-                                    <p className="text-muted-foreground">
-                                        Titles you added to other people's collections stay in those collections.
-                                    </p>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="delete-account-confirm">
-                                            Type <span className="font-semibold break-all">{user.email}</span> to confirm
-                                        </Label>
-                                        <Input
-                                            id="delete-account-confirm"
-                                            type="email"
-                                            autoComplete="off"
-                                            value={deleteConfirmEmail}
-                                            onChange={(e) => setDeleteConfirmEmail(e.target.value)}
-                                            disabled={deleteAccountMutation.isPending}
-                                        />
-                                    </div>
+                            </DialogFooter>
+                        </DialogContent>
+                    </Dialog>
+                </CardContent>
+            </Card>
+        ),
+    };
+
+    const section = PROFILE_SECTIONS.find((s) => s.id === activeSection) ?? PROFILE_SECTIONS[0];
+    const showUnverifiedHint = user.emailVerified === false;
+
+    const renderBetaBadge = (id: ProfileSectionId) => id === 'recommendations' && (
+        <span className="text-xs font-medium bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+            Beta
+        </span>
+    );
+    const renderUnverifiedDot = (id: ProfileSectionId) => id === 'security' && showUnverifiedHint && (
+        <span className="h-2 w-2 shrink-0 rounded-full bg-primary" aria-label="Email unverified" />
+    );
+
+    return (
+        <>
+            <Navbar />
+            <main className="container py-8 max-w-5xl mx-auto">
+                <h1 className="page-title mb-6 md:mb-8">Profile</h1>
+
+                {isMobile ? (
+                    // Mobile: every section listed, one expanded at a time
+                    <Accordion
+                        type="single"
+                        collapsible
+                        value={openMobileSection ?? ''}
+                        onValueChange={(value) => selectMobileSection(isProfileSectionId(value) ? value : null)}
+                        className="space-y-6"
+                    >
+                        {PROFILE_SECTION_GROUPS.map((group) => (
+                            <div key={group} className="space-y-2">
+                                <p className="px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground/80">
+                                    {group}
+                                </p>
+                                <div className="rounded-lg border bg-card">
+                                    {PROFILE_SECTIONS.filter((s) => s.group === group).map(({ id, label, description, icon: Icon }) => {
+                                        const isDanger = id === 'delete';
+                                        return (
+                                            <AccordionItem key={id} value={id} className="scroll-mt-20" data-section={id}>
+                                                <AccordionTrigger
+                                                    className={cn(
+                                                        'items-center px-4 text-base hover:no-underline',
+                                                        isDanger && 'text-destructive',
+                                                    )}
+                                                >
+                                                    <span className="flex flex-1 items-center gap-3">
+                                                        <Icon className={cn('h-4 w-4 shrink-0', !isDanger && 'text-muted-foreground')} />
+                                                        {label}
+                                                        {renderBetaBadge(id)}
+                                                        {renderUnverifiedDot(id)}
+                                                    </span>
+                                                </AccordionTrigger>
+                                                <AccordionContent className="space-y-4 px-4">
+                                                    <p className="text-sm text-muted-foreground">{description}</p>
+                                                    {sectionContent[id]}
+                                                </AccordionContent>
+                                            </AccordionItem>
+                                        );
+                                    })}
                                 </div>
-                                <DialogFooter>
-                                    <DialogClose asChild>
-                                        <Button variant="outline" disabled={deleteAccountMutation.isPending}>Cancel</Button>
-                                    </DialogClose>
-                                    <Button
-                                        variant="destructive"
-                                        disabled={
-                                            deleteAccountMutation.isPending ||
-                                            deleteConfirmEmail.trim().toLowerCase() !== (user.email || '').toLowerCase()
-                                        }
-                                        onClick={() => deleteAccountMutation.mutate()}
-                                    >
-                                        {deleteAccountMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-                                        Delete account permanently
-                                    </Button>
-                                </DialogFooter>
-                            </DialogContent>
-                        </Dialog>
-                    </CardContent>
-                </Card>
+                            </div>
+                        ))}
+                    </Accordion>
+                ) : (
+                    <div className="flex gap-10">
+                        {/* Desktop: side nav */}
+                        <aside className="w-56 shrink-0">
+                            <nav aria-label="Profile sections" className="sticky top-24 space-y-6">
+                                {PROFILE_SECTION_GROUPS.map((group) => (
+                                    <div key={group} className="space-y-1">
+                                        <p className="px-3 pb-1 text-xs font-medium uppercase tracking-wider text-muted-foreground/80">
+                                            {group}
+                                        </p>
+                                        {PROFILE_SECTIONS.filter((s) => s.group === group).map(({ id, label, icon: Icon }) => {
+                                            const isActive = id === activeSection;
+                                            const isDanger = id === 'delete';
+                                            return (
+                                                <button
+                                                    key={id}
+                                                    type="button"
+                                                    onClick={() => selectSection(id)}
+                                                    aria-current={isActive ? 'page' : undefined}
+                                                    className={cn(
+                                                        'flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                                                        isActive
+                                                            ? isDanger ? 'bg-destructive/10 text-destructive' : 'bg-muted text-foreground'
+                                                            : isDanger ? 'text-destructive/80 hover:bg-destructive/10 hover:text-destructive' : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
+                                                    )}
+                                                >
+                                                    <Icon className="h-4 w-4 shrink-0" />
+                                                    <span className="flex-1 text-left">{label}</span>
+                                                    {renderUnverifiedDot(id)}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                ))}
+                            </nav>
+                        </aside>
+
+                        {/* Active section */}
+                        <section key={section.id} aria-labelledby="profile-section-title" className="flex-1 min-w-0 space-y-6 animate-stagger">
+                            <div className="space-y-1">
+                                <h2
+                                    id="profile-section-title"
+                                    className={cn('text-xl font-semibold flex items-center gap-2', section.id === 'delete' && 'text-destructive')}
+                                >
+                                    {section.title}
+                                    {renderBetaBadge(section.id)}
+                                </h2>
+                                <p className="text-sm text-muted-foreground">{section.description}</p>
+                            </div>
+                            {sectionContent[section.id]}
+                        </section>
+                    </div>
+                )}
             </main>
         </>
     );
