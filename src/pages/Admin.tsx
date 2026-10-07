@@ -1657,11 +1657,12 @@ const Admin = () => {
         <p className="text-muted-foreground mb-6">Manage users and curated recommendations.</p>
 
         <Tabs value={activeTab} onValueChange={handleTabChange}>
-          <TabsList className="mb-6 flex w-full justify-start overflow-x-auto sm:w-fit">
-            <TabsTrigger value="users" className="flex-1 sm:flex-none">Users</TabsTrigger>
-            <TabsTrigger value="curated" className="flex-1 sm:flex-none">Curated Items</TabsTrigger>
-            <TabsTrigger value="collage" className="flex-1 sm:flex-none">Collage</TabsTrigger>
-            <TabsTrigger value="cache-debug" className="flex-1 sm:flex-none">Cache Debug</TabsTrigger>
+          {/* 2x2 grid on mobile so the list never needs to scroll; a single row from sm up */}
+          <TabsList className="mb-6 grid h-auto w-full grid-cols-2 gap-1 p-1 sm:inline-flex sm:w-fit">
+            <TabsTrigger value="users" className="h-9 px-4">Users</TabsTrigger>
+            <TabsTrigger value="curated" className="h-9 px-4">Curated Items</TabsTrigger>
+            <TabsTrigger value="collage" className="h-9 px-4">Collage</TabsTrigger>
+            <TabsTrigger value="cache-debug" className="h-9 px-4">Cache Debug</TabsTrigger>
           </TabsList>
 
           <TabsContent value="users" className="px-1 sm:px-2 py-2">
