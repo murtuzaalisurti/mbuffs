@@ -1,4 +1,4 @@
-import { pgTable, index, uniqueIndex, foreignKey, unique, text, varchar, timestamp, boolean, primaryKey, pgSequence, integer, bigint, numeric, check } from "drizzle-orm/pg-core"
+import { pgTable, index, uniqueIndex, foreignKey, unique, text, varchar, timestamp, boolean, primaryKey, pgSequence, integer, bigint, numeric, check, jsonb } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 
 export const migrationsIdSeq = pgSequence("_migrations_id_seq", { startWith: "1", increment: "1", minValue: "1", maxValue: "2147483647", cache: "1", cycle: false })
@@ -544,4 +544,29 @@ export const omdbRatings = pgTable("omdb_ratings", {
 	index("idx_omdb_ratings_tmdb_id").using("btree", table.tmdbId.asc().nullsLast().op("text_ops")),
 	index("idx_omdb_ratings_imdb_id").using("btree", table.imdbId.asc().nullsLast().op("text_ops")),
 	unique("omdb_ratings_tmdb_id_media_type_key").on(table.tmdbId, table.mediaType),
+]);
+
+// ============================================================================
+// MEDIA METADATA TABLE
+// Shared TMDB metadata cache used by viewing stats (one row per title).
+// ============================================================================
+export const mediaMetadata = pgTable("media_metadata", {
+	mediaType: text("media_type").notNull(),
+	tmdbId: integer("tmdb_id").notNull(),
+	title: text(),
+	posterPath: text("poster_path"),
+	releaseYear: integer("release_year"),
+	runtimeMinutes: integer("runtime_minutes"),
+	genres: jsonb().default([]).notNull(),
+	directors: jsonb().default([]).notNull(),
+	topCast: jsonb("top_cast").default([]).notNull(),
+	originalLanguage: text("original_language"),
+	originCountries: jsonb("origin_countries").default([]).notNull(),
+	voteCount: integer("vote_count"),
+	voteAverage: numeric("vote_average", { precision: 3, scale: 1 }),
+	popularity: numeric({ precision: 10, scale: 3 }),
+	fetchedAt: timestamp("fetched_at", { withTimezone: true, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+	primaryKey({ columns: [table.mediaType, table.tmdbId], name: "media_metadata_pkey" }),
+	check("media_metadata_media_type_check", sql`${table.mediaType} IN ('movie', 'tv')`),
 ]);

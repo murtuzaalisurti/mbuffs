@@ -30,6 +30,7 @@ const Auth = lazy(() => import('./pages/Auth'));
 const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
 const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 const Admin = lazy(() => import('./pages/Admin'));
+const Stats = lazy(() => import('./pages/Stats'));
 
 // A thin bar at the top edge: quieter than a spinner, and it keeps the page
 // underneath calm while a route or the session loads.
@@ -257,6 +258,14 @@ const router = createBrowserRouter(
         element={
           <ProtectedRoute>
             <WatchedItems />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/stats"
+        element={
+          <ProtectedRoute>
+            <Stats />
           </ProtectedRoute>
         }
       />

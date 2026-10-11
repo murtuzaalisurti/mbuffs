@@ -22,6 +22,7 @@ import {
     UnreadCountResponse,
     SuggestedUser,
     ShareMediaInput,
+    UserStatsResponse,
 } from './types';
 
 const _dayjs = dayjs();
@@ -193,6 +194,16 @@ export const logoutUserApi = async (): Promise<void> => {
 // --- User Preferences API Functions ---
 export const fetchUserPreferencesApi = async (): Promise<{ preferences: UserPreferences }> => {
     return fetchBackend('/user/preferences');
+};
+
+// Viewing stats; omit `year` for all time. The browser's zone decides which year/month a watch lands in.
+export const fetchUserStatsApi = async (year: number | null): Promise<UserStatsResponse> => {
+    const params = new URLSearchParams();
+    if (year !== null) params.set('year', String(year));
+    try {
+        params.set('tz', Intl.DateTimeFormat().resolvedOptions().timeZone);
+    } catch { /* server falls back to UTC */ }
+    return fetchBackend(`/user/stats?${params.toString()}`);
 };
 
 export const updateUserPreferencesApi = async (data: UpdateUserPreferencesInput): Promise<{ preferences: UserPreferences }> => {
