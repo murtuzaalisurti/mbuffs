@@ -747,3 +747,93 @@ export interface PaginatedCommentsResponse {
     limit: number;
   };
 }
+
+// --- Viewing Stats ---
+
+export type StatsMediaType = 'movie' | 'tv';
+
+export interface StatsPerson {
+    id: number;
+    name: string;
+    profilePath: string | null;
+    count: number;
+}
+
+export interface StatsTimelinePoint {
+    // "YYYY-MM" for a single year, "YYYY" for all time
+    period: string;
+    movies: number;
+    shows: number;
+}
+
+export interface StatsTopTitle {
+    mediaType: StatsMediaType;
+    tmdbId: number;
+    title: string | null;
+    posterPath: string | null;
+    releaseYear: number | null;
+    rating: number;
+}
+
+export interface StatsPoster {
+    mediaType: StatsMediaType;
+    tmdbId: number;
+    title: string | null;
+    posterPath: string;
+}
+
+export interface StatsLongestMovie {
+    tmdbId: number;
+    title: string | null;
+    posterPath: string | null;
+    runtimeMinutes: number;
+}
+
+export interface StatsTitleRef {
+    mediaType: StatsMediaType;
+    tmdbId: number;
+    title: string | null;
+    posterPath: string | null;
+    releaseYear: number | null;
+}
+
+export interface StatsNiche {
+    underTheRadarPercent: number;
+    titlesWithVotes: number;
+    deepestCut: (StatsTitleRef & { voteCount: number }) | null;
+}
+
+export interface StatsTimeMachine {
+    era: { decade: number; percent: number };
+    oldest: StatsTitleRef;
+    newestYear: number;
+}
+
+export interface UserStatsResponse {
+    year: number | null;
+    timeZone: string;
+    availableYears: number[];
+    totals: {
+        titles: number;
+        movies: number;
+        shows: number;
+        movieMinutes: number;
+        moviesWithRuntime: number;
+        ratedTitles: number;
+        averageRating: number | null;
+    };
+    timeline: StatsTimelinePoint[];
+    ratingDistribution: Array<{ rating: number; count: number }>;
+    topGenres: Array<{ id: number; name: string; count: number }>;
+    topDirectors: StatsPerson[];
+    topActors: StatsPerson[];
+    decades: Array<{ decade: number; count: number }>;
+    languages: Array<{ code: string; count: number }>;
+    languageCount: number;
+    topRated: StatsTopTitle[];
+    posterWall: StatsPoster[];
+    longestMovie: StatsLongestMovie | null;
+    niche: StatsNiche | null;
+    timeMachine: StatsTimeMachine | null;
+    metadataPending: number;
+}

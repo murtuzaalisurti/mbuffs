@@ -155,3 +155,23 @@ export const commentsPaginationSchema = z.object({
 });
 
 export type CommentsPaginationInput = z.infer<typeof commentsPaginationSchema>;
+
+// --- Viewing Stats Schemas ---
+
+const isValidTimeZone = (value: string): boolean => {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: value });
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+export const userStatsQuerySchema = z.object({
+  // Omitted = all-time stats
+  year: z.coerce.number().int().min(1900).max(2100).optional(),
+  // IANA zone used to decide which year/month a watch falls in
+  tz: z.string().max(64).refine(isValidTimeZone, 'Invalid time zone').optional(),
+});
+
+export type UserStatsQuery = z.infer<typeof userStatsQuerySchema>;

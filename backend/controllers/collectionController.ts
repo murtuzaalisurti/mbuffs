@@ -24,6 +24,7 @@ import {
 } from '../services/recommendationService.js';
 import { createNotification } from '../services/notificationService.js';
 import { scheduleBackground } from '../lib/waitUntilHelper.js';
+import { parseStoredMediaId, warmMediaMetadata } from '../services/mediaMetadataService.js';
 import { checkCollectionOwnership } from '../middleware/collectionAuthMiddleware.js';
 
 interface CollectionDetailsResponse {
@@ -987,6 +988,9 @@ export const toggleWatchedStatus = async (req: Request, res: Response, next: Nex
             `;
             await expireRecommendationCache(userId);
             warmPersonalizedRecommendationCache(userId);
+            // Cache TMDB metadata now so the stats page does not have to fetch it later
+            const mediaRef = parseStoredMediaId(String(mediaId));
+            if (mediaRef) scheduleBackground(warmMediaMetadata(mediaRef));
             res.status(200).json({ isWatched: true, message: 'Added to watched' });
         }
     } catch (error) {

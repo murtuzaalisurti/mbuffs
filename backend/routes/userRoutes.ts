@@ -1,5 +1,6 @@
 import express, { RequestHandler } from 'express';
 import { getUserPreferences, updateUserPreferences, uploadAvatar, getAvatar, removeAvatar, deleteOwnAccount } from '../controllers/userController.js';
+import { getUserStats } from '../controllers/statsController.js';
 import { requireAuth } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
@@ -15,6 +16,9 @@ router.post('/avatar', requireAuth as RequestHandler, uploadAvatar as RequestHan
 
 // DELETE /api/user/avatar - Remove avatar
 router.delete('/avatar', requireAuth as RequestHandler, removeAvatar as RequestHandler);
+
+// GET /api/user/stats - Viewing stats (all time, or ?year=YYYY), bucketed in ?tz=
+router.get('/stats', requireAuth as RequestHandler, getUserStats as RequestHandler);
 
 // DELETE /api/user/account - Permanently delete the signed-in user's account and data
 router.delete('/account', requireAuth as RequestHandler, deleteOwnAccount as RequestHandler);

@@ -20,7 +20,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useAuth } from '@/hooks/useAuth';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { Mail, Calendar, FolderHeart, X, ChevronDown, Grid3X3, Eye, ThumbsDown, ArrowRight, Camera, Loader2, Trash2, SlidersHorizontal, Sparkles, TriangleAlert, Globe, UserRound, KeyRound, ListChecks, type LucideIcon } from 'lucide-react';
+import { Mail, Calendar, FolderHeart, X, ChevronDown, Grid3X3, Eye, ThumbsDown, ArrowRight, Camera, Loader2, Trash2, SlidersHorizontal, Sparkles, TriangleAlert, Globe, UserRound, KeyRound, ListChecks, BarChart3, type LucideIcon } from 'lucide-react';
 import { toast } from "sonner";
 import { Link, useSearchParams } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -105,7 +105,7 @@ const PROFILE_SECTIONS: ProfileSection[] = [
     { id: 'recommendations', group: 'Preferences', label: 'Recommendations', title: 'Recommendations', description: 'Get personalized movie and TV show recommendations based on your collections.', icon: Sparkles },
     { id: 'display', group: 'Preferences', label: 'Content & Display', title: 'Content & Display', description: 'Control which titles appear across the app and how it looks and moves.', icon: SlidersHorizontal },
     { id: 'region', group: 'Preferences', label: 'Region', title: 'Region', description: "Sets which country's theatrical releases and streaming providers you see on this device.", icon: Globe },
-    { id: 'marked', group: 'Library', label: 'Marked Items', title: 'Marked Items', description: 'Review everything you have marked as watched or not interested.', icon: ListChecks },
+    { id: 'marked', group: 'Library', label: 'Marked Items', title: 'Marked Items', description: 'Review everything you have marked as watched or not interested, and see your viewing stats.', icon: ListChecks },
     { id: 'delete', group: 'Danger zone', label: 'Delete Account', title: 'Delete Account', description: "Permanently delete your account and all of your data. This can't be undone.", icon: TriangleAlert },
 ];
 
@@ -898,6 +898,16 @@ const Profile = () => {
                                 {isLoadingWatchedItems ? '...' : watchedItemsCount}
                                 <ArrowRight className="h-4 w-4" />
                             </span>
+                        </Link>
+                    </Button>
+
+                    <Button asChild variant="outline" className="w-full h-11 justify-between">
+                        <Link to="/stats">
+                            <span className="inline-flex items-center gap-2">
+                                <BarChart3 className="h-4 w-4" />
+                                Your Stats
+                            </span>
+                            <ArrowRight className="h-4 w-4 text-muted-foreground" />
                         </Link>
                     </Button>
 

@@ -193,7 +193,7 @@ export const BottomNav = () => {
   );
 };
 
-const PROFILE_TAB_PATHS = ['/profile', '/admin', '/watched', '/not-interested'];
+const PROFILE_TAB_PATHS = ['/profile', '/admin', '/watched', '/not-interested', '/stats'];
 
 function getActiveTabIndex(pathname: string) {
   if (pathname === '/') return 0;
