@@ -11,6 +11,7 @@ interface ShareStatsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   stats: UserStatsResponse;
+  tasteSummary: string | null;
 }
 
 type RenderedCard = { format: ShareCardFormat; blob: Blob; url: string } | { format: ShareCardFormat; error: true };
@@ -20,7 +21,7 @@ const FORMATS: Array<{ value: ShareCardFormat; label: string }> = [
   { value: 'square', label: 'Square' },
 ];
 
-export function ShareStatsDialog({ open, onOpenChange, stats }: ShareStatsDialogProps) {
+export function ShareStatsDialog({ open, onOpenChange, stats, tasteSummary }: ShareStatsDialogProps) {
   const { toast } = useToast();
   const [format, setFormat] = useState<ShareCardFormat>('story');
   const [card, setCard] = useState<RenderedCard | null>(null);
@@ -29,7 +30,7 @@ export function ShareStatsDialog({ open, onOpenChange, stats }: ShareStatsDialog
     if (!open) return;
     let cancelled = false;
     let url: string | null = null;
-    renderStatsShareCard(stats, format)
+    renderStatsShareCard(stats, format, { tasteSummary })
       .then((blob) => {
         if (cancelled) return;
         url = URL.createObjectURL(blob);
@@ -43,7 +44,7 @@ export function ShareStatsDialog({ open, onOpenChange, stats }: ShareStatsDialog
       cancelled = true;
       if (url) URL.revokeObjectURL(url);
     };
-  }, [open, format, stats]);
+  }, [open, format, stats, tasteSummary]);
 
   // Only the card for the selected format counts; anything else is stale
   const current = card?.format === format ? card : null;

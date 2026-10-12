@@ -837,3 +837,14 @@ export interface UserStatsResponse {
     timeMachine: StatsTimeMachine | null;
     metadataPending: number;
 }
+
+// AI taste profile on the stats page (opt-in)
+export interface TasteProfileResponse {
+    enabled: boolean;
+    status: 'disabled' | 'not_enough' | 'ready' | 'unavailable';
+    summary: string | null;
+    commentCount: number;
+    ratingCount: number;
+    // Comments and ratings together needed before a profile is written
+    minSignals: number;
+}

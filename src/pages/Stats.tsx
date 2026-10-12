@@ -1,5 +1,5 @@
 import { Link, useSearchParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import {
   CalendarDays,
@@ -10,6 +10,7 @@ import {
   Film,
   History,
   Hourglass,
+  Quote,
   Languages,
   Share2,
   Star,
@@ -19,14 +20,16 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { Navbar } from "@/components/Navbar";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ShareStatsDialog } from "@/components/ShareStatsDialog";
-import { fetchUserStatsApi, getImageUrl } from "@/lib/api";
+import { fetchTasteProfileApi, fetchUserStatsApi, getImageUrl, updateTasteProfileApi } from "@/lib/api";
 import { useAmbientFromImage } from "@/lib/ambient";
 import { prefersReducedMotion } from "@/lib/motionPreference";
+import { parseTasteSummary, plainTasteSummary } from "@/lib/tasteSummary";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
-import type { StatsPerson, StatsPoster, StatsTimelinePoint, StatsTitleRef, UserStatsResponse } from "@/lib/types";
+import type { StatsPerson, StatsPoster, StatsTimelinePoint, StatsTitleRef, TasteProfileResponse, UserStatsResponse } from "@/lib/types";
 
 // Validated (dataviz validate_palette.js, dark mode on --background): lightness band,
 // CVD separation and 3:1 contrast all pass. Movies keep blue everywhere, shows orange.
@@ -294,7 +297,7 @@ function Hero({
 
       <div className="relative z-10 container flex min-h-[380px] flex-col justify-end pb-8 md:min-h-[460px] md:pb-10">
         <Link
-          to="/profile?section=marked"
+          to="/profile?section=stats"
           className="mb-auto mt-4 inline-flex w-fit items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
         >
           <ChevronLeft className="h-4 w-4" />
@@ -486,6 +489,134 @@ function TimeMachineTile({ stats }: { stats: UserStatsResponse }) {
       ) : (
         <EmptyNote>No release dates yet.</EmptyNote>
       )}
+    </Tile>
+  );
+}
+
+function TasteTile({ year, taste, isLoading }: { year: number | null; taste: TasteProfileResponse | undefined; isLoading: boolean }) {
+  const queryClient = useQueryClient();
+  const toggle = useMutation({
+    mutationFn: updateTasteProfileApi,
+    // Returning the refetch keeps the mutation pending until the new state (or a freshly
+    // written profile) has loaded, so the progress line covers the whole wait
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["user", "stats", "taste"] }),
+  });
+
+  const turnOff = (
+    <button
+      type="button"
+      onClick={() => toggle.mutate(false)}
+      disabled={toggle.isPending}
+      className="underline-offset-4 hover:text-foreground hover:underline"
+    >
+      Turn off
+    </button>
+  );
+
+  let body: React.ReactNode;
+  if (isLoading || !taste) {
+    body = (
+      <div className="mt-5 space-y-3" role="status" aria-label="Reading your reviews and ratings">
+        <Skeleton className="h-7 w-full rounded-md" />
+        <Skeleton className="h-7 w-2/3 rounded-md" />
+      </div>
+    );
+  } else if (taste.status === "disabled") {
+    body = (
+      <>
+        <p className="mt-4 max-w-2xl font-display text-2xl font-semibold tracking-tight md:text-3xl">
+          Your taste profile is off
+        </p>
+        <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+          Turn it back on for a short profile of what you love and what loses you, based on your reviews and ratings.
+        </p>
+        <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2">
+          <Button onClick={() => toggle.mutate(true)} disabled={toggle.isPending}>
+            Turn on
+          </Button>
+          <p className="text-xs text-muted-foreground">
+            Your reviews and ratings may be sent to AI.
+          </p>
+        </div>
+      </>
+    );
+  } else if (taste.status === "not_enough") {
+    const needed = taste.minSignals - taste.commentCount - taste.ratingCount;
+    body = (
+      <>
+        <p className="mt-4 font-display text-2xl font-semibold tracking-tight md:text-3xl">
+          {needed} more to go
+        </p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Your profile needs at least {taste.minSignals} reviews or ratings{year === null ? "" : ` from ${year}`}. Rate or
+          review what you watch to unlock it. · {turnOff}
+        </p>
+      </>
+    );
+  } else if (taste.status === "unavailable" || !taste.summary) {
+    body = (
+      <p className="mt-4 text-sm text-muted-foreground">
+        Couldn't write your profile right now. Try again later. · {turnOff}
+      </p>
+    );
+  } else {
+    body = (
+      <>
+        {/* Titles it names are set large; the phrases that sum up your taste stand out; the rest stays quiet */}
+        <p className="mt-8 max-w-4xl text-lg leading-[1.8] text-muted-foreground md:mt-10 md:text-xl">
+          {parseTasteSummary(taste.summary).map((segment, index) =>
+            segment.kind === "title" ? (
+              <span
+                key={index}
+                className="mx-0.5 font-display text-2xl font-bold italic leading-none tracking-tight text-foreground md:text-[1.75rem]"
+              >
+                {segment.text}
+              </span>
+            ) : segment.kind === "phrase" ? (
+              <span
+                key={index}
+                className="font-medium text-foreground underline decoration-2 underline-offset-[6px]"
+                style={{ textDecorationColor: `color-mix(in oklch, ${MOVIE_COLOR} 70%, transparent)` }}
+              >
+                {segment.text}
+              </span>
+            ) : (
+              <span key={index}>{segment.text}</span>
+            )
+          )}
+        </p>
+        <p className="mt-8 text-xs text-muted-foreground md:mt-10">
+          Based on{" "}
+          {[
+            taste.commentCount > 0 ? plural(taste.commentCount, "review") : null,
+            taste.ratingCount > 0 ? plural(taste.ratingCount, "rating") : null,
+          ]
+            .filter(Boolean)
+            .join(" and ")}
+          . Your reviews and ratings may be sent to AI. · {turnOff}
+        </p>
+      </>
+    );
+  }
+
+  return (
+    <Tile
+      label="Your taste, in a nutshell"
+      icon={Quote}
+      className="md:col-span-6"
+      backdrop={
+        toggle.isPending && (
+          <div
+            role="progressbar"
+            aria-label="Updating your taste profile"
+            className="absolute inset-x-0 top-0 h-0.5 overflow-hidden bg-white/[0.06]"
+          >
+            <div className="loading-indicator loading-ping-pong rounded-full" style={{ backgroundColor: MOVIE_COLOR }} />
+          </div>
+        )
+      }
+    >
+      {body}
     </Tile>
   );
 }
@@ -856,6 +987,15 @@ export default function Stats() {
     refetchInterval: (query) => (query.state.data?.metadataPending ? PENDING_POLL_MS : false),
   });
 
+  // Separate from the stats so a slow AI write never holds up the page
+  const { data: taste, isLoading: isTasteLoading } = useQuery<TasteProfileResponse, Error>({
+    queryKey: ["user", "stats", "taste", year ?? "all"],
+    queryFn: () => fetchTasteProfileApi(year),
+    enabled: !!user,
+    staleTime: 1000 * 60 * 5,
+    retry: false,
+  });
+
   // The favourite title lights the room
   useAmbientFromImage(stats?.topRated[0]?.posterPath ?? stats?.posterWall[0]?.posterPath);
 
@@ -876,7 +1016,14 @@ export default function Stats() {
         onSelectYear={selectYear}
         onShare={hasData ? () => setShareOpen(true) : null}
       />
-      {stats && hasData && <ShareStatsDialog open={shareOpen} onOpenChange={setShareOpen} stats={stats} />}
+      {stats && hasData && (
+        <ShareStatsDialog
+          open={shareOpen}
+          onOpenChange={setShareOpen}
+          stats={stats}
+          tasteSummary={taste?.status === "ready" && taste.summary ? plainTasteSummary(taste.summary) : null}
+        />
+      )}
 
       <main className="container pb-10">
         {isLoading ? (
@@ -900,6 +1047,7 @@ export default function Stats() {
               <TimeTile stats={stats} />
               <NicheTile stats={stats} />
               <TimeMachineTile stats={stats} />
+              <TasteTile year={year} taste={taste} isLoading={isTasteLoading} />
               <TimelineTile stats={stats} />
               <GenreTile stats={stats} />
               <DirectorTile stats={stats} />

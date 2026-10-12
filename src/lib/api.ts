@@ -23,6 +23,7 @@ import {
     SuggestedUser,
     ShareMediaInput,
     UserStatsResponse,
+    TasteProfileResponse,
 } from './types';
 
 const _dayjs = dayjs();
@@ -204,6 +205,23 @@ export const fetchUserStatsApi = async (year: number | null): Promise<UserStatsR
         params.set('tz', Intl.DateTimeFormat().resolvedOptions().timeZone);
     } catch { /* server falls back to UTC */ }
     return fetchBackend(`/user/stats?${params.toString()}`);
+};
+
+// AI taste profile from the user's comments; may take a few seconds when it has to be (re)written
+export const fetchTasteProfileApi = async (year: number | null): Promise<TasteProfileResponse> => {
+    const params = new URLSearchParams();
+    if (year !== null) params.set('year', String(year));
+    try {
+        params.set('tz', Intl.DateTimeFormat().resolvedOptions().timeZone);
+    } catch { /* server falls back to UTC */ }
+    return fetchBackend(`/user/stats/taste?${params.toString()}`);
+};
+
+export const updateTasteProfileApi = async (enabled: boolean): Promise<{ enabled: boolean }> => {
+    return fetchBackend('/user/stats/taste', {
+        method: 'PUT',
+        body: JSON.stringify({ enabled }),
+    });
 };
 
 export const updateUserPreferencesApi = async (data: UpdateUserPreferencesInput): Promise<{ preferences: UserPreferences }> => {

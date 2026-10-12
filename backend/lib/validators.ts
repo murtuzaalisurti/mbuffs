@@ -175,3 +175,7 @@ export const userStatsQuerySchema = z.object({
 });
 
 export type UserStatsQuery = z.infer<typeof userStatsQuerySchema>;
+
+export const tasteProfileUpdateSchema = z.object({
+  enabled: z.boolean(),
+});
