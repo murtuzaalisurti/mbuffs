@@ -1,8 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
 import { sql } from '../lib/db.js';
-import { userStatsQuerySchema } from '../lib/validators.js';
+import { tasteProfileUpdateSchema, userStatsQuerySchema } from '../lib/validators.js';
 import { computeUserStats, WatchedEntry } from '../lib/userStats.js';
 import { getMediaMetadata, mediaRefKey, parseStoredMediaId } from '../services/mediaMetadataService.js';
+import { getTasteProfile, setTasteProfileEnabled } from '../services/tasteProfileService.js';
 // Import to ensure Express Request extension is applied
 import '../middleware/authMiddleware.js';
 
@@ -68,6 +69,49 @@ export const getUserStats = async (req: Request, res: Response, next: NextFuncti
             timeZone,
             metadataPending: pending,
         }));
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * GET /api/user/stats/taste?year=2026&tz=Asia/Kolkata
+ * AI taste profile written from the user's comments and ratings (on unless turned off; see tasteProfileService).
+ */
+export const getUserTasteProfile = async (req: Request, res: Response, next: NextFunction) => {
+    if (!req.userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const parsed = userStatsQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+        return res.status(400).json({ message: 'Validation failed', errors: parsed.error.issues });
+    }
+
+    try {
+        res.status(200).json(await getTasteProfile(req.userId, parsed.data.year ?? null, parsed.data.tz ?? 'UTC'));
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * PUT /api/user/stats/taste { enabled }
+ * Turn the profile on or off. Turning it off deletes stored profiles.
+ */
+export const updateUserTasteProfile = async (req: Request, res: Response, next: NextFunction) => {
+    if (!req.userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const parsed = tasteProfileUpdateSchema.safeParse(req.body);
+    if (!parsed.success) {
+        return res.status(400).json({ message: 'Validation failed', errors: parsed.error.issues });
+    }
+
+    try {
+        await setTasteProfileEnabled(req.userId, parsed.data.enabled);
+        res.status(200).json({ enabled: parsed.data.enabled });
     } catch (error) {
         next(error);
     }

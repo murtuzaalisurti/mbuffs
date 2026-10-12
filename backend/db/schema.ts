@@ -32,6 +32,8 @@ export const user = pgTable("user", {
 	showAdultItems: boolean("show_adult_items").default(false).notNull(),
 	showRedditLabel: boolean("show_reddit_label").default(true).notNull(),
 	showMovieCardInfo: boolean("show_movie_card_info").default(false).notNull(),
+	// AI taste profile on the stats page (sends comments and ratings to Groq); on unless turned off
+	tasteProfileEnabled: boolean("taste_profile_enabled").default(true).notNull(),
 	// Account suspension (admin-managed). A non-null suspended_at blocks sign-in.
 	// FK to user.id (ON DELETE SET NULL) exists in DB; omitted here like the other self-reference.
 	suspendedAt: timestamp("suspended_at", { withTimezone: true, mode: 'string' }),
@@ -569,4 +571,25 @@ export const mediaMetadata = pgTable("media_metadata", {
 }, (table) => [
 	primaryKey({ columns: [table.mediaType, table.tmdbId], name: "media_metadata_pkey" }),
 	check("media_metadata_media_type_check", sql`${table.mediaType} IN ('movie', 'tv')`),
+]);
+
+// ============================================================================
+// USER TASTE PROFILES TABLE
+// AI-written summary of a user's comments, cached per period ('all' or a year).
+// ============================================================================
+export const userTasteProfiles = pgTable("user_taste_profiles", {
+	userId: text("user_id").notNull(),
+	period: text().notNull(),
+	summary: text().notNull(),
+	commentCount: integer("comment_count").notNull(),
+	fingerprint: text().notNull(),
+	model: text().notNull(),
+	generatedAt: timestamp("generated_at", { withTimezone: true, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+	primaryKey({ columns: [table.userId, table.period], name: "user_taste_profiles_pkey" }),
+	foreignKey({
+		columns: [table.userId],
+		foreignColumns: [user.id],
+		name: "user_taste_profiles_user_id_fkey"
+	}).onDelete("cascade"),
 ]);

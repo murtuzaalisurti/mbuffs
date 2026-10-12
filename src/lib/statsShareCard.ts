@@ -65,6 +65,30 @@ const setSpacing = (ctx: CanvasRenderingContext2D, spacing: string) => {
     if ('letterSpacing' in ctx) (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = spacing;
 };
 
+// Greedy word wrap; the last line gets an ellipsis if the text runs past maxLines
+const wrapLines = (ctx: CanvasRenderingContext2D, text: string, maxWidth: number, maxLines: number) => {
+    const lines: string[] = [];
+    let line = '';
+    for (const word of text.split(/\s+/)) {
+        const next = line ? `${line} ${word}` : word;
+        if (ctx.measureText(next).width <= maxWidth || !line) {
+            line = next;
+            continue;
+        }
+        lines.push(line);
+        line = word;
+        if (lines.length === maxLines) break;
+    }
+    if (lines.length < maxLines && line) lines.push(line);
+    const used = lines.join(' ').split(/\s+/).length;
+    if (used < text.split(/\s+/).length) {
+        let last = lines[lines.length - 1];
+        while (last && ctx.measureText(`${last}…`).width > maxWidth) last = last.split(' ').slice(0, -1).join(' ');
+        lines[lines.length - 1] = `${last}…`;
+    }
+    return lines;
+};
+
 // Shrink the font until the text fits the width
 const fitFont = (ctx: CanvasRenderingContext2D, text: string, maxWidth: number, size: number, font: (px: number) => string) => {
     let px = size;
@@ -137,7 +161,11 @@ const buildStats = (stats: UserStatsResponse): CardStat[] => {
     return items.slice(0, 4);
 };
 
-export const renderStatsShareCard = async (stats: UserStatsResponse, format: ShareCardFormat): Promise<Blob> => {
+export const renderStatsShareCard = async (
+    stats: UserStatsResponse,
+    format: ShareCardFormat,
+    { tasteSummary = null }: { tasteSummary?: string | null } = {}
+): Promise<Blob> => {
     const { width, height } = SIZES[format];
     const isStory = format === 'story';
     const canvas = document.createElement('canvas');
@@ -155,7 +183,9 @@ export const renderStatsShareCard = async (stats: UserStatsResponse, format: Sha
     ctx.fillStyle = BACKGROUND;
     ctx.fillRect(0, 0, width, height);
 
-    const wallHeight = isStory ? 1000 : 600;
+    // A story with a taste profile moves everything up to make room for the quote
+    const lift = isStory && tasteSummary ? 200 : 0;
+    const wallHeight = (isStory ? 1000 : 600) - lift;
     drawPosterWall(ctx, posters, width, wallHeight);
 
     const padX = 80;
@@ -163,7 +193,7 @@ export const renderStatsShareCard = async (stats: UserStatsResponse, format: Sha
     ctx.textBaseline = 'alphabetic';
 
     // Eyebrow
-    let y = isStory ? 860 : 340;
+    let y = (isStory ? 860 : 340) - lift;
     ctx.fillStyle = MUTED;
     ctx.font = `500 ${isStory ? 32 : 26}px ${SANS}`;
     setSpacing(ctx, `${isStory ? 9 : 7}px`);
@@ -202,10 +232,17 @@ export const renderStatsShareCard = async (stats: UserStatsResponse, format: Sha
         ctx.fillText(item.value, x, top + (isStory ? 52 : 44) + valueSize * 1.05);
     });
 
-    // Director line, story only (the square has no room)
+    // Story only (the square has no room): the AI taste profile when there is one, else the top director
     const director = stats.topDirectors[0];
-    if (isStory && director) {
-        const lineY = gridTop + Math.ceil(items.length / 2) * rowHeight + 70;
+    const belowGrid = gridTop + Math.ceil(items.length / 2) * rowHeight + 70;
+    if (isStory && tasteSummary) {
+        ctx.fillStyle = FOREGROUND;
+        ctx.font = `italic 400 36px ${DISPLAY}`;
+        wrapLines(ctx, `“${tasteSummary}”`, contentWidth, 6).forEach((line, index) => {
+            ctx.fillText(line, padX, belowGrid + index * 48);
+        });
+    } else if (isStory && director) {
+        const lineY = belowGrid;
         const lead = 'Kept coming back to ';
         ctx.fillStyle = MUTED;
         ctx.font = `500 30px ${SANS}`;
