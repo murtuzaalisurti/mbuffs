@@ -458,6 +458,54 @@
   }
 }
 
+/*
+  Progress line: a segment gliding back and forth along its track while its length
+  breathes. Its centre moves (left + translate -50%) and its width changes as two
+  eased animations, so nothing snaps. They run on different cycle lengths (2.4s vs
+  3.7s), so each sweep has a different length and the pattern takes ~90s to repeat.
+  Both directions live in one cycle (`alternate` would replay the easing backwards).
+*/
+@utility loading-ping-pong {
+  position: absolute;
+  inset-block: 0;
+  left: 7.5%;
+  width: 15%;
+  translate: -50% 0;
+  animation:
+    loading-ping-pong-move 2.4s ease-in-out infinite,
+    loading-ping-pong-stretch 3.7s ease-in-out infinite;
+}
+
+@keyframes loading-ping-pong-move {
+  0%,
+  100% {
+    left: 7.5%;
+  }
+
+  50% {
+    left: 92.5%;
+  }
+}
+
+@keyframes loading-ping-pong-stretch {
+  0%,
+  100% {
+    width: 15%;
+  }
+
+  30% {
+    width: 45%;
+  }
+
+  55% {
+    width: 22%;
+  }
+
+  80% {
+    width: 38%;
+  }
+}
+
 @keyframes loading-bar {
   from {
     translate: -100% 0;
@@ -594,6 +642,11 @@
 :root[data-motion="reduce"] .loading-indicator {
   width: 100%;
   animation: loading-pulse 1.6s ease-in-out infinite !important;
+}
+
+:root[data-motion="reduce"] .loading-ping-pong {
+  /* Reduced motion: the whole track pulses in place */
+  left: 50%;
 }
 
 @keyframes loading-pulse {

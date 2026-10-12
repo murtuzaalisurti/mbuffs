@@ -297,7 +297,7 @@ function Hero({
 
       <div className="relative z-10 container flex min-h-[380px] flex-col justify-end pb-8 md:min-h-[460px] md:pb-10">
         <Link
-          to="/profile?section=marked"
+          to="/profile?section=stats"
           className="mb-auto mt-4 inline-flex w-fit items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
         >
           <ChevronLeft className="h-4 w-4" />
@@ -497,6 +497,8 @@ function TasteTile({ year, taste, isLoading }: { year: number | null; taste: Tas
   const queryClient = useQueryClient();
   const toggle = useMutation({
     mutationFn: updateTasteProfileApi,
+    // Returning the refetch keeps the mutation pending until the new state (or a freshly
+    // written profile) has loaded, so the progress line covers the whole wait
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["user", "stats", "taste"] }),
   });
 
@@ -598,7 +600,22 @@ function TasteTile({ year, taste, isLoading }: { year: number | null; taste: Tas
   }
 
   return (
-    <Tile label="Your taste, in a nutshell" icon={Quote} className="md:col-span-6">
+    <Tile
+      label="Your taste, in a nutshell"
+      icon={Quote}
+      className="md:col-span-6"
+      backdrop={
+        toggle.isPending && (
+          <div
+            role="progressbar"
+            aria-label="Updating your taste profile"
+            className="absolute inset-x-0 top-0 h-0.5 overflow-hidden bg-white/[0.06]"
+          >
+            <div className="loading-indicator loading-ping-pong rounded-full" style={{ backgroundColor: MOVIE_COLOR }} />
+          </div>
+        )
+      }
+    >
       {body}
     </Tile>
   );

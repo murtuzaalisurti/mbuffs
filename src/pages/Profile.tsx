@@ -88,7 +88,7 @@ const NOT_INTERESTED_ITEMS_QUERY_KEY = ['collections', 'not-interested', 'items'
 // ============================================================================
 const PROFILE_SECTION_GROUPS = ['Account', 'Preferences', 'Library', 'Danger zone'] as const;
 
-type ProfileSectionId = 'account' | 'security' | 'recommendations' | 'display' | 'region' | 'marked' | 'delete';
+type ProfileSectionId = 'account' | 'security' | 'recommendations' | 'display' | 'region' | 'stats' | 'marked' | 'delete';
 
 interface ProfileSection {
     id: ProfileSectionId;
@@ -105,7 +105,8 @@ const PROFILE_SECTIONS: ProfileSection[] = [
     { id: 'recommendations', group: 'Preferences', label: 'Recommendations', title: 'Recommendations', description: 'Get personalized movie and TV show recommendations based on your collections.', icon: Sparkles },
     { id: 'display', group: 'Preferences', label: 'Content & Display', title: 'Content & Display', description: 'Control which titles appear across the app and how it looks and moves.', icon: SlidersHorizontal },
     { id: 'region', group: 'Preferences', label: 'Region', title: 'Region', description: "Sets which country's theatrical releases and streaming providers you see on this device.", icon: Globe },
-    { id: 'marked', group: 'Library', label: 'Marked Items', title: 'Marked Items', description: 'Review everything you have marked as watched or not interested, and see your viewing stats.', icon: ListChecks },
+    { id: 'stats', group: 'Library', label: 'Your Stats', title: 'Your Stats', description: 'Your year in film: time spent watching, your era, favourite genres and people, and a recap you can share.', icon: BarChart3 },
+    { id: 'marked', group: 'Library', label: 'Marked Items', title: 'Marked Items', description: 'Review everything you have marked as watched or not interested.', icon: ListChecks },
     { id: 'delete', group: 'Danger zone', label: 'Delete Account', title: 'Delete Account', description: "Permanently delete your account and all of your data. This can't be undone.", icon: TriangleAlert },
 ];
 
@@ -885,6 +886,22 @@ const Profile = () => {
             </Card>
         ),
 
+        stats: (
+            <Card>
+                <CardContent>
+                    <Button asChild variant="outline" className="w-full h-11 justify-between">
+                        <Link to="/stats">
+                            <span className="inline-flex items-center gap-2">
+                                <BarChart3 className="h-4 w-4" />
+                                Open Your Stats
+                            </span>
+                            <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                        </Link>
+                    </Button>
+                </CardContent>
+            </Card>
+        ),
+
         marked: (
             <Card>
                 <CardContent className="space-y-3">
@@ -898,16 +915,6 @@ const Profile = () => {
                                 {isLoadingWatchedItems ? '...' : watchedItemsCount}
                                 <ArrowRight className="h-4 w-4" />
                             </span>
-                        </Link>
-                    </Button>
-
-                    <Button asChild variant="outline" className="w-full h-11 justify-between">
-                        <Link to="/stats">
-                            <span className="inline-flex items-center gap-2">
-                                <BarChart3 className="h-4 w-4" />
-                                Your Stats
-                            </span>
-                            <ArrowRight className="h-4 w-4 text-muted-foreground" />
                         </Link>
                     </Button>
 
