@@ -1,7 +1,7 @@
 const APP_NAME = "mbuffs";
 const DEFAULT_TITLE = "mbuffs";
 const DEFAULT_DESCRIPTION = "mbuffs - collaborative movie lists";
-const DEFAULT_IMAGE = "https://mbuffs.app/apple-touch-icon.png";
+const DEFAULT_IMAGE = "https://www.mbuffs.app/apple-touch-icon.png";
 const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w780";
 
 const getEnvVar = (key: string): string | undefined => {
@@ -128,7 +128,7 @@ const buildGenericPayload = (pathName: string): OgPayload => ({
 });
 
 const getRequestHost = (req: any) => {
-  const host = req.headers?.["x-forwarded-host"] ?? req.headers?.host ?? "mbuffs.vercel.app";
+  const host = req.headers?.["x-forwarded-host"] ?? req.headers?.host ?? "www.mbuffs.app";
   const proto = req.headers?.["x-forwarded-proto"] ?? "https";
   return `${proto}://${host}`;
 };
