@@ -1,7 +1,7 @@
 const APP_NAME = "mbuffs";
 const DEFAULT_TITLE = "mbuffs";
 const DEFAULT_DESCRIPTION = "mbuffs - collaborative movie lists";
-const DEFAULT_IMAGE = "https://mbuffs.murtuzaalisurti.com/apple-touch-icon.png";
+const DEFAULT_IMAGE = "https://mbuffs.app/apple-touch-icon.png";
 const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w780";
 
 const getEnvVar = (key: string): string | undefined => {
