@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { Home, LayoutGrid, Search, List, User, Shield, LogOut, type LucideIcon } from 'lucide-react';
+import { Home, LayoutGrid, Search, List, User, Shield, LogOut, LogIn, type LucideIcon } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { haptics } from '@/lib/haptics';
 import { useAuth } from '@/hooks/useAuth';
@@ -98,6 +98,23 @@ export const BottomNav = () => {
                 >
                   <TabContent icon={<Icon className="h-5 w-5" />} label={tab.label} isActive={false} />
                 </button>
+              </li>
+            );
+          }
+
+          // Signed out there is no profile to open, so the tab goes straight to sign-in
+          if (tab.action === 'profile-menu' && !user) {
+            return (
+              <li key={tab.label} className="relative flex-1">
+                <NavLink
+                  to="/login"
+                  onClick={handleTabClick('/login')}
+                  className={tabClass(false)}
+                  aria-label="Sign in"
+                  viewTransition
+                >
+                  <TabContent icon={<LogIn className="h-5 w-5" />} label="Sign in" isActive={false} />
+                </NavLink>
               </li>
             );
           }

@@ -1,10 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
-import { useNavigate, Navigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, Navigate, useSearchParams, useLocation, type Location } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod/v4';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile';
-import { Loader2, Mail, ArrowLeft } from 'lucide-react';
+import { Loader2, Mail, ArrowLeft, Lock } from 'lucide-react';
 import { signIn, signUp } from '@/lib/auth-client';
 import { useAuth } from '@/hooks/useAuth';
 import { Navbar } from '@/components/Navbar';
@@ -20,6 +20,18 @@ const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || '';
 const LAST_AUTH_METHOD_KEY = 'mbuffs_last_auth_method';
 
 type AuthMethod = 'google' | 'email';
+
+// What the signed-out visitor was trying to reach, keyed by protected route
+const REDIRECT_MESSAGES: Record<string, string> = {
+    '/for-you': 'Sign in to see recommendations picked for you.',
+    '/profile': 'Sign in to view your profile.',
+    '/collections': 'Sign in to see and build your collections.',
+    '/admin': 'Sign in with an admin account to open the admin panel.',
+    '/watched': 'Sign in to see what you\'ve watched.',
+    '/stats': 'Sign in to see your watch stats and taste profile.',
+    '/not-interested': 'Sign in to manage titles you\'ve hidden.',
+};
+const DEFAULT_REDIRECT_MESSAGE = 'Sign in to continue where you left off.';
 
 const ACCOUNT_SUSPENDED_CODE = 'ACCOUNT_SUSPENDED';
 const ACCOUNT_SUSPENDED_MESSAGE = 'This account has been suspended. Contact support if you believe this is a mistake.';
@@ -69,6 +81,11 @@ const GoogleIcon = () => (
 // ============================================================================
 const Auth = () => {
     const navigate = useNavigate();
+    const location = useLocation();
+    // Set when a signed-out visitor is sent here (ProtectedRoute, sign-in prompts); message overrides the per-route copy
+    const redirectState = location.state as { from?: Location; message?: string } | null;
+    const redirectFrom = redirectState?.from;
+    const redirectTo = redirectFrom ? `${redirectFrom.pathname}${redirectFrom.search}${redirectFrom.hash}` : '/';
     const [searchParams, setSearchParams] = useSearchParams();
     const { isLoggedIn, isLoadingUser } = useAuth();
     const [authMethod, setAuthMethod] = useState<AuthMethod | null>(null);
@@ -114,7 +131,7 @@ const Auth = () => {
 
     // Redirect if already logged in
     if (!isLoadingUser && isLoggedIn) {
-        return <Navigate to="/" replace />;
+        return <Navigate to={redirectTo} replace />;
     }
 
     const saveLastAuthMethod = (method: AuthMethod) => {
@@ -145,7 +162,7 @@ const Auth = () => {
             const result = await signIn.email({
                 email: values.email,
                 password: values.password,
-                callbackURL: '/',
+                callbackURL: redirectTo,
                 fetchOptions: {
                     headers: {
                         'x-captcha-response': captchaToken,
@@ -165,7 +182,7 @@ const Auth = () => {
                 resetCaptcha();
             } else {
                 saveLastAuthMethod('email');
-                navigate('/');
+                navigate(redirectTo, { replace: true });
             }
         } catch {
             setFormError('Something went wrong. Please try again.');
@@ -192,7 +209,7 @@ const Auth = () => {
                 name: `${values.firstName} ${values.lastName}`,
                 firstName: values.firstName,
                 lastName: values.lastName,
-                callbackURL: '/',
+                callbackURL: redirectTo,
                 fetchOptions: {
                     headers: {
                         'x-captcha-response': captchaToken,
@@ -206,7 +223,7 @@ const Auth = () => {
             } else {
                 saveLastAuthMethod('email');
                 toast.success(`Account created. We sent a verification link to ${values.email}.`);
-                navigate('/');
+                navigate(redirectTo, { replace: true });
             }
         } catch {
             setFormError('Something went wrong. Please try again.');
@@ -229,7 +246,7 @@ const Auth = () => {
         try {
             const result = await signIn.social({
                 provider: 'google',
-                callbackURL: window.location.origin,
+                callbackURL: `${window.location.origin}${redirectTo}`,
                 // Land failed sign-ins (e.g. a suspended account) back here
                 // instead of Better Auth's bare backend error page.
                 errorCallbackURL: `${window.location.origin}/login`,
@@ -245,6 +262,13 @@ const Auth = () => {
         }
     };
 
+    const redirectNote = redirectFrom && (
+        <p className="flex max-w-md items-center gap-2 rounded-full bg-primary/10 px-3.5 py-1.5 text-xs font-medium text-primary ring-1 ring-primary/20 animate-in fade-in slide-in-from-top-1 duration-300">
+            <Lock className="h-3.5 w-3.5 shrink-0" />
+            {redirectState?.message ?? REDIRECT_MESSAGES[redirectFrom.pathname] ?? DEFAULT_REDIRECT_MESSAGE}
+        </p>
+    );
+
     // ========================================================================
     // Render — Method picker (initial screen)
     // ========================================================================
@@ -252,16 +276,18 @@ const Auth = () => {
         return (
             <div className="min-h-screen bg-background">
                 <Navbar />
-                <div className="flex items-center justify-center px-4 py-12 sm:py-20">
+                <div className="flex flex-col items-center justify-center gap-4 px-4 py-12 sm:py-20">
+                    {redirectNote}
                     <Card className="w-full max-w-md">
                         <CardHeader className="text-center">
                             <CardTitle className="text-2xl font-bold">Sign in to mbuffs</CardTitle>
                             <CardDescription>Track movies, build collections, and get personalized recommendations</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-3">
+                            {/* The last-used method sits a shade brighter so returning users find it first */}
                             <Button
                                 variant="outline"
-                                className="w-full h-12 justify-center text-base relative"
+                                className={`w-full h-12 justify-center text-base relative ${lastUsedMethod === 'google' ? 'bg-accent/60 border-border' : ''}`}
                                 onClick={handleGoogleSignIn}
                                 disabled={isGoogleSigningIn}
                             >
@@ -272,7 +298,7 @@ const Auth = () => {
                                 )}
                                 {isGoogleSigningIn ? 'Continuing with Google...' : 'Continue with Google'}
                                 {lastUsedMethod === 'google' && (
-                                    <Badge variant="secondary" className="absolute right-3 text-[10px] px-1.5 py-0">
+                                    <Badge variant="secondary" className="absolute -top-2 right-3 text-[10px] px-1.5 py-0 ring-1 ring-border pointer-events-none motion-safe:animate-nudge">
                                         Last used
                                     </Badge>
                                 )}
@@ -280,13 +306,13 @@ const Auth = () => {
 
                             <Button
                                 variant="outline"
-                                className="w-full h-12 justify-center text-base relative"
+                                className={`w-full h-12 justify-center text-base relative ${lastUsedMethod === 'email' ? 'bg-accent/60 border-border' : ''}`}
                                 onClick={() => setAuthMethod('email')}
                             >
                                 <Mail className="h-4 w-4" />
                                 Continue with Email
                                 {lastUsedMethod === 'email' && (
-                                    <Badge variant="secondary" className="absolute right-3 text-[10px] px-1.5 py-0">
+                                    <Badge variant="secondary" className="absolute -top-2 right-3 text-[10px] px-1.5 py-0 ring-1 ring-border pointer-events-none motion-safe:animate-nudge">
                                         Last used
                                     </Badge>
                                 )}
@@ -308,7 +334,8 @@ const Auth = () => {
     return (
         <div className="min-h-screen bg-background">
             <Navbar />
-            <div className="flex items-center justify-center px-4 py-12 sm:py-20">
+            <div className="flex flex-col items-center justify-center gap-4 px-4 py-12 sm:py-20">
+                {redirectNote}
                 <Card className="w-full max-w-md">
                     <CardHeader className="text-center relative">
                         <div className="flex items-center justify-start">

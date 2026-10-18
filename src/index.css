@@ -127,6 +127,26 @@
 
   --animate-accordion-down: accordion-down var(--dur-ui) var(--ease-out);
   --animate-accordion-up: accordion-up var(--dur-ui) var(--ease-out);
+  /* Brief wiggle, then a long rest so it nudges without nagging */
+  --animate-nudge: nudge 4s ease-in-out 0.6s infinite;
+
+  @keyframes nudge {
+    0%, 12%, 100% {
+      rotate: 0deg;
+    }
+
+    3% {
+      rotate: -6deg;
+    }
+
+    6% {
+      rotate: 5deg;
+    }
+
+    9% {
+      rotate: -3deg;
+    }
+  }
 
   @keyframes accordion-down {
     from {
