@@ -55,7 +55,7 @@ const Search = () => {
             <div className="poster-grid">
               {Array.from({ length: 12 }).map((_, index) => (
                 <div key={index} className="space-y-2">
-                  <Skeleton className="aspect-2/3 w-full rounded-md" />
+                  <Skeleton className="aspect-2/3 w-full rounded-xl" />
                   <Skeleton className="h-4 w-[80%]" />
                   <Skeleton className="h-4 w-[50%]" />
                 </div>

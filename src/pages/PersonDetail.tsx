@@ -249,7 +249,7 @@ export default function PersonDetail() {
                     {/* Mobile: Horizontal layout with small image */}
                     <div className="flex md:hidden gap-4 items-start">
                         <div className="w-24 shrink-0">
-                            <div className="rounded-lg overflow-hidden shadow-xl shadow-black/50 border border-border/60" style={{ viewTransitionName: photoViewTransitionName }}>
+                            <div className="rounded-2xl overflow-hidden shadow-xl shadow-black/50 border border-border/60" style={{ viewTransitionName: photoViewTransitionName }}>
                                 {personDetails.profile_path ? (
                                     <img
                                         src={getImageUrl(personDetails.profile_path, 'w185')}
@@ -427,7 +427,7 @@ export default function PersonDetail() {
                                                 to={`/media/${credit.media_type}/${credit.id}`} {...posterLinkProps(credit.media_type, credit.id, credit.poster_path)}
                                                 className="shrink-0 w-32 md:w-40 group"
                                             >
-                                                <div data-shared-element className="rounded-lg overflow-hidden border border-border/60 bg-muted/30 mb-2 aspect-2/3 relative">
+                                                <div data-shared-element className="rounded-xl overflow-hidden border border-border/60 bg-muted/30 mb-2 aspect-2/3 relative">
                                                     {credit.poster_path ? (
                                                         <img
                                                             src={getImageUrl(credit.poster_path, 'w342')}
@@ -472,7 +472,7 @@ export default function PersonDetail() {
                                                 to={`/media/${credit.media_type}/${credit.id}`} {...posterLinkProps(credit.media_type, credit.id, credit.poster_path)}
                                                 className="group"
                                             >
-                                                <div data-shared-element className="rounded-lg overflow-hidden border border-border/60 bg-muted/30 mb-2 aspect-2/3 relative">
+                                                <div data-shared-element className="rounded-xl overflow-hidden border border-border/60 bg-muted/30 mb-2 aspect-2/3 relative">
                                                     {credit.poster_path ? (
                                                         <img
                                                             src={getImageUrl(credit.poster_path, 'w342')}
@@ -530,7 +530,7 @@ export default function PersonDetail() {
                                                 to={`/media/${credit.media_type}/${credit.id}`} {...posterLinkProps(credit.media_type, credit.id, credit.poster_path)}
                                                 className="shrink-0 w-32 md:w-40 group"
                                             >
-                                                <div data-shared-element className="rounded-lg overflow-hidden border border-border/60 bg-muted/30 mb-2 aspect-2/3 relative">
+                                                <div data-shared-element className="rounded-xl overflow-hidden border border-border/60 bg-muted/30 mb-2 aspect-2/3 relative">
                                                     {credit.poster_path ? (
                                                         <img
                                                             src={getImageUrl(credit.poster_path, 'w342')}
@@ -573,7 +573,7 @@ export default function PersonDetail() {
                                                 to={`/media/${credit.media_type}/${credit.id}`} {...posterLinkProps(credit.media_type, credit.id, credit.poster_path)}
                                                 className="group"
                                             >
-                                                <div data-shared-element className="rounded-lg overflow-hidden border border-border/60 bg-muted/30 mb-2 aspect-2/3 relative">
+                                                <div data-shared-element className="rounded-xl overflow-hidden border border-border/60 bg-muted/30 mb-2 aspect-2/3 relative">
                                                     {credit.poster_path ? (
                                                         <img
                                                             src={getImageUrl(credit.poster_path, 'w342')}

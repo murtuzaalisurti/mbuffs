@@ -54,7 +54,7 @@ export const CollectionPickerDialog: React.FC<CollectionPickerDialogProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="w-[90%] sm:max-w-[420px] rounded-lg gap-4">
+      <DialogContent className="w-[90%] sm:max-w-[420px] gap-4">
         <DialogHeader>
           <DialogTitle>{action === 'move' ? 'Move' : 'Copy'} {itemLabel}</DialogTitle>
           <DialogDescription>

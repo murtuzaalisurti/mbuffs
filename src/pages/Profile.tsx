@@ -964,7 +964,7 @@ const Profile = () => {
                                 Delete my account
                             </Button>
                         </DialogTrigger>
-                        <DialogContent className="w-[90%] sm:max-w-[460px] rounded-lg">
+                        <DialogContent className="w-[90%] sm:max-w-[460px]">
                             <DialogHeader>
                                 <DialogTitle>Delete your account?</DialogTitle>
                                 <DialogDescription>

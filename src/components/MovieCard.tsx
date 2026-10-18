@@ -398,7 +398,7 @@ export function MovieCard({
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
                   align="end"
-                  className="w-44 rounded-lg border-border bg-popover/95 p-1.5 shadow-2xl shadow-black/40 backdrop-blur-xl"
+                  className="w-44 rounded-xl border-border bg-popover/95 p-1.5 shadow-2xl shadow-black/40 backdrop-blur-xl"
                 >
                   {showWatched && (
                     <DropdownMenuItem

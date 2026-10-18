@@ -166,7 +166,7 @@ const Collections = () => {
                 <span className="hidden sm:inline">New Collection</span>
               </Button>
             </DialogTrigger>
-            <DialogContent className="w-[90%] sm:max-w-[425px] rounded-lg">
+            <DialogContent className="w-[90%] sm:max-w-[425px]">
               <form onSubmit={handleSubmit(onSubmit)}>
                 <DialogHeader>
                   <DialogTitle>Create Collection</DialogTitle>
@@ -312,7 +312,7 @@ const Collections = () => {
 
                   {/* Delete Confirmation Dialog */}
                   <AlertDialog open={deleteAlertOpen === collection.id} onOpenChange={(open) => !open && setDeleteAlertOpen(null)}>
-                    <AlertDialogContent className="w-[90%] sm:max-w-md rounded-lg">
+                    <AlertDialogContent className="w-[90%] sm:max-w-md">
                       <AlertDialogHeader>
                         <AlertDialogTitle>Delete collection?</AlertDialogTitle>
                         <AlertDialogDescription>
@@ -363,7 +363,7 @@ const Collections = () => {
             resetEdit();
           }
         }}>
-          <DialogContent className="w-[90%] sm:max-w-[425px] rounded-lg">
+          <DialogContent className="w-[90%] sm:max-w-[425px]">
             <form onSubmit={handleSubmitEdit(onEditCollection)}>
               <DialogHeader>
                 <DialogTitle>Edit Collection</DialogTitle>

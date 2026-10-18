@@ -13,7 +13,7 @@ function PickPoster({ item, className }: { item: MbuffPickItem; className?: stri
             title={item.title}
             aria-label={item.title}
             className={cn(
-                'group block aspect-2/3 rounded-lg overflow-hidden border border-border/60 bg-muted shadow-sm',
+                'group block aspect-2/3 rounded-xl overflow-hidden border border-border/60 bg-muted shadow-sm',
                 className
             )}
         >

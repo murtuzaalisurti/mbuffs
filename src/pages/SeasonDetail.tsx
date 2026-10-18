@@ -344,7 +344,7 @@ const SeasonDetail = () => {
                                     <div
                                         key={episode.id}
                                         className={cn(
-                                            'flex flex-row bg-card hover:bg-accent/50 transition-colors rounded-lg overflow-hidden border border-border/50 group',
+                                            'flex flex-row bg-card hover:bg-accent/50 transition-colors rounded-xl overflow-hidden border border-border/50 group',
                                             // Show only 2 episodes on mobile, 3 on larger screens while collapsed
                                             !episodesExpanded && index === COLLAPSED_EPISODE_COUNT - 1 && 'hidden sm:flex'
                                         )}

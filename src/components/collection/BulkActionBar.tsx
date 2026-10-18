@@ -129,7 +129,7 @@ export const BulkActionBar: React.FC<BulkActionBarProps> = ({
 
       {/* Remove confirmation */}
       <AlertDialog open={showRemoveConfirm} onOpenChange={setShowRemoveConfirm}>
-        <AlertDialogContent className="w-[90%] sm:max-w-[400px] rounded-lg">
+        <AlertDialogContent className="w-[90%] sm:max-w-[400px]">
           <AlertDialogHeader>
             <AlertDialogTitle>
               Remove {selectedCount} {selectedCount === 1 ? 'item' : 'items'}?
