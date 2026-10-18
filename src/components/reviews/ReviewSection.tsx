@@ -1120,7 +1120,7 @@ export const ReviewSection = ({ mediaType, tmdbId, seasonNumber }: ReviewSection
                                 onChange={(e) => setEditingState((prev) => prev ? { ...prev, draft: e.target.value } : prev)}
                                 maxLength={2000}
                                 rows={3}
-                                className="w-full bg-card/50 text-sm text-foreground resize-none outline-none rounded-lg border border-border/60 px-3 py-2 focus:border-border/80 focus:ring-1 focus:ring-border/30 transition-all"
+                                className="w-full bg-card/50 text-base md:text-sm text-foreground resize-none outline-none rounded-lg border border-border/60 px-3 py-2 focus:border-border/80 focus:ring-1 focus:ring-border/30 transition-all"
                                 autoFocus
                             />
                             <div className="flex items-center justify-end gap-2">
@@ -1236,7 +1236,7 @@ export const ReviewSection = ({ mediaType, tmdbId, seasonNumber }: ReviewSection
                                         placeholder={replyingState?.replyingToName
                                             ? `Reply to ${replyingState.replyingToName}...`
                                             : 'Write a reply...'}
-                                        className="w-full bg-transparent text-sm text-foreground resize-none outline-none"
+                                        className="w-full bg-transparent text-base md:text-sm text-foreground resize-none outline-none"
                                         onKeyDown={handleReplyKeyDown}
                                     />
                                     <div className="flex items-center justify-between gap-2">
@@ -1414,7 +1414,7 @@ export const ReviewSection = ({ mediaType, tmdbId, seasonNumber }: ReviewSection
                                                 maxLength={2000}
                                                 rows={showComposerActions ? 3 : 1}
                                                 className={cn(
-                                                    'w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/60',
+                                                    'w-full bg-transparent text-base md:text-sm text-foreground placeholder:text-muted-foreground/60',
                                                     'resize-none outline-none leading-relaxed',
                                                     'transition-all duration-200',
                                                     showComposerActions ? 'min-h-[4.5rem]' : 'min-h-0'
