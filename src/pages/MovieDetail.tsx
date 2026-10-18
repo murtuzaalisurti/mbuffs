@@ -142,7 +142,7 @@ const CollectionSection = ({ collectionId, currentMediaId }: { collectionId: num
                         to={`/media/movie/${part.id}`} {...posterLinkProps('movie', part.id, part.poster_path)}
                         className="shrink-0 w-36 md:w-44 group/card block"
                     >
-                        <div data-shared-element className="aspect-2/3 rounded-lg overflow-hidden border border-border/60 bg-muted shadow-md mb-2 relative">
+                        <div data-shared-element className="aspect-2/3 rounded-xl overflow-hidden border border-border/60 bg-muted shadow-md mb-2 relative">
                             {part.poster_path ? (
                                 <img
                                     src={getImageUrl(part.poster_path, 'w342')}
@@ -622,7 +622,7 @@ const MovieDetail = () => {
                         {linkedPosterPath ? (
                             // Same image the card showed (already cached), so the poster lands instantly
                             <div
-                                className="rounded-xl overflow-hidden shadow-2xl shadow-black/50 border border-border/60"
+                                className="rounded-2xl overflow-hidden shadow-2xl shadow-black/50 border border-border/60"
                                 style={{ viewTransitionName: posterViewTransitionName }}
                             >
                                 <img
@@ -740,7 +740,7 @@ const MovieDetail = () => {
                     {/* Poster */}
                     <div className="w-48 md:w-56 lg:w-64 shrink-0 mx-auto md:mx-0">
                         <div
-                            className="rounded-xl overflow-hidden shadow-2xl shadow-black/50 border border-border/60 bg-muted bg-cover bg-center bg-clip-padding"
+                            className="rounded-2xl overflow-hidden shadow-2xl shadow-black/50 border border-border/60 bg-muted bg-cover bg-center bg-clip-padding"
                             style={{
                                 viewTransitionName: posterViewTransitionName,
                                 // The card-sized poster (usually cached) holds the spot while the sharp one loads over it
@@ -1146,7 +1146,7 @@ const MovieDetail = () => {
                                         onClick={nameSharedElementOnClick(seasonTransitionName(mediaId ?? '', season.season_number))}
                                         className="shrink-0 w-36 md:w-44 group/card block"
                                     >
-                                        <div data-shared-element className="aspect-2/3 rounded-lg overflow-hidden border border-border/60 bg-muted shadow-md mb-2 relative">
+                                        <div data-shared-element className="aspect-2/3 rounded-xl overflow-hidden border border-border/60 bg-muted shadow-md mb-2 relative">
                                             {season.poster_path ? (
                                                 <img
                                                     src={getImageUrl(season.poster_path, 'w342')}
@@ -1389,7 +1389,7 @@ const MovieDetail = () => {
                                                 to={`/media/${work.media_type}/${work.id}`} {...posterLinkProps(work.media_type, work.id, work.poster_path)}
                                                 className="shrink-0 w-32 md:w-40 group/card block"
                                             >
-                                                <div data-shared-element className="aspect-2/3 rounded-lg overflow-hidden border border-border/60 bg-muted shadow-md mb-2">
+                                                <div data-shared-element className="aspect-2/3 rounded-xl overflow-hidden border border-border/60 bg-muted shadow-md mb-2">
                                                     <img
                                                         src={getImageUrl(work.poster_path, 'w342')}
                                                         alt={work.title || work.name}
@@ -1443,7 +1443,7 @@ const MovieDetail = () => {
                                             to={`/media/movie/${work.id}`} {...posterLinkProps('movie', work.id, work.poster_path)}
                                             className="shrink-0 w-32 md:w-40 group/card block"
                                         >
-                                            <div data-shared-element className="aspect-2/3 rounded-lg overflow-hidden border border-border/60 bg-muted shadow-md mb-2">
+                                            <div data-shared-element className="aspect-2/3 rounded-xl overflow-hidden border border-border/60 bg-muted shadow-md mb-2">
                                                 <img
                                                     src={getImageUrl(work.poster_path, 'w342')}
                                                     alt={work.title || work.name}

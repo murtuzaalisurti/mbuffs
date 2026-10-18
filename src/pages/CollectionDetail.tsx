@@ -473,7 +473,7 @@ const CollectionDetail = () => {
                     <Skeleton className="h-5 w-1/2 mb-8" />
                     <div className="poster-grid">
                         {Array.from({ length: 12 }).map((_, i) => (
-                            <Skeleton key={i} className="aspect-[2/3] rounded-lg" />
+                            <Skeleton key={i} className="aspect-[2/3] rounded-xl" />
                         ))}
                     </div>
                 </main>
@@ -601,7 +601,7 @@ const CollectionDetail = () => {
                                             <span>{totalCollaborators} {totalCollaborators === 1 ? 'member' : 'members'}</span>
                                         </button>
                                     </DialogTrigger>
-                                    <DialogContent className="w-[90%] sm:max-w-[400px] rounded-lg">
+                                    <DialogContent className="w-[90%] sm:max-w-[400px]">
                                 <DialogHeader>
                                     <DialogTitle>Members</DialogTitle>
                                     <DialogDescription>People who can access this collection.</DialogDescription>
@@ -673,7 +673,7 @@ const CollectionDetail = () => {
                                                                         Leave
                                                                     </Button>
                                                                 </AlertDialogTrigger>
-                                                                <AlertDialogContent className="w-[90%] sm:max-w-[400px] rounded-lg">
+                                                                <AlertDialogContent className="w-[90%] sm:max-w-[400px]">
                                                                     <AlertDialogHeader>
                                                                         <AlertDialogTitle>Leave collection?</AlertDialogTitle>
                                                                         <AlertDialogDescription>Are you sure you want to leave this collection? You will no longer have access to it.</AlertDialogDescription>
@@ -698,7 +698,7 @@ const CollectionDetail = () => {
                                                                             : <UserMinus className="h-4 w-4" />}
                                                                     </Button>
                                                                 </AlertDialogTrigger>
-                                                                <AlertDialogContent className="w-[90%] sm:max-w-[400px] rounded-lg">
+                                                                <AlertDialogContent className="w-[90%] sm:max-w-[400px]">
                                                                     <AlertDialogHeader>
                                                                         <AlertDialogTitle>Remove member?</AlertDialogTitle>
                                                                         <AlertDialogDescription>Remove {c.username ?? c.email} from this collection?</AlertDialogDescription>
@@ -730,7 +730,7 @@ const CollectionDetail = () => {
                                                     Add
                                                 </Button>
                                             </DialogTrigger>
-                                            <DialogContent className="w-[90%] sm:max-w-[400px] rounded-lg">
+                                            <DialogContent className="w-[90%] sm:max-w-[400px]">
                                                 <form onSubmit={handleSubmitCollab(onAddCollaborator)}>
                                                     <DialogHeader>
                                                         <DialogTitle>Add Member</DialogTitle>
@@ -840,7 +840,7 @@ const CollectionDetail = () => {
                 {isLoadingMovies && !moviesDetailsMap ? (
                     <div className="poster-grid">
                         {Array.from({ length: collectionDetails.movies.length || 12 }).map((_, i) => (
-                            <Skeleton key={i} className="aspect-[2/3] rounded-lg" />
+                            <Skeleton key={i} className="aspect-[2/3] rounded-xl" />
                         ))}
                     </div>
                 ) : currentVisibleMedia.length > 0 ? (
@@ -850,7 +850,7 @@ const CollectionDetail = () => {
                                 const movie = moviesDetailsMap?.[movieEntry.movie_id];
                                 if (!movie) return (
                                     <div key={movieEntry.movie_id} className="relative group">
-                                        <Skeleton className="aspect-[2/3] rounded-lg" />
+                                        <Skeleton className="aspect-[2/3] rounded-xl" />
                                     </div>
                                  );
                                  const isAddedByMember = movieEntry.added_by_user_id === collection.owner_id || 
@@ -1026,7 +1026,7 @@ const AddMovieDialog: React.FC<AddMovieDialogProps> = ({ existingMovieIds, onAdd
     const movies = searchResultsData?.pages.flatMap(page => page.results) ?? [];
 
     return (
-        <DialogContent className="w-[90%] sm:max-w-[550px] rounded-lg">
+        <DialogContent className="w-[90%] sm:max-w-[550px]">
             <DialogHeader>
                 <DialogTitle>Add to Collection</DialogTitle>
                 <DialogDescription>Search for movies and TV shows.</DialogDescription>
@@ -1087,7 +1087,7 @@ const AddMovieDialog: React.FC<AddMovieDialogProps> = ({ existingMovieIds, onAdd
                                 <img 
                                     src={getImageUrl(movie.poster_path, 'w92')} 
                                     alt={movie.name || movie.title} 
-                                    className="h-14 w-auto rounded aspect-[2/3] object-cover bg-muted shrink-0" 
+                                    className="h-14 w-auto rounded-md aspect-[2/3] object-cover bg-muted shrink-0" 
                                     onError={(e) => { (e.target as HTMLImageElement).src = '/placeholder.svg'; }} 
                                 />
                                 <div className="flex-1 min-w-0 overflow-hidden">

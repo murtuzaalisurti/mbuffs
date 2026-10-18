@@ -149,6 +149,8 @@ const Collections = () => {
   const isCreatePublic = watch('is_public');
   const isEditPublic = watchEdit('is_public');
 
+  const hasCollections = !isLoading && !!collectionsData?.collections?.length;
+
   return (
     <>
       <Navbar />
@@ -160,13 +162,16 @@ const Collections = () => {
             <p className="text-muted-foreground">Organize your favorite movies and shows</p>
           </div>
           <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm" className="gap-1.5">
-                <Plus className="h-4 w-4" />
-                <span className="hidden sm:inline">New Collection</span>
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="w-[90%] sm:max-w-[425px] rounded-lg">
+            {/* The empty state carries its own CTA, so the header one only shows once there are collections */}
+            {hasCollections && (
+              <DialogTrigger asChild>
+                <Button size="sm" className="gap-1.5">
+                  <Plus className="h-4 w-4" />
+                  <span className="hidden sm:inline">New Collection</span>
+                </Button>
+              </DialogTrigger>
+            )}
+            <DialogContent className="w-[90%] sm:max-w-[425px]">
               <form onSubmit={handleSubmit(onSubmit)}>
                 <DialogHeader>
                   <DialogTitle>Create Collection</DialogTitle>
@@ -242,7 +247,7 @@ const Collections = () => {
           <div className="text-center py-20">
             <p className="text-destructive">Error loading collections: {error.message}</p>
           </div>
-        ) : collectionsData?.collections && collectionsData.collections.length > 0 ? (
+        ) : hasCollections ? (
           <div className="space-y-3 animate-stagger">
             {collectionsData.collections.map((collection) => {
               const isOwner = collection.owner_id === currentUser?.id;
@@ -312,7 +317,7 @@ const Collections = () => {
 
                   {/* Delete Confirmation Dialog */}
                   <AlertDialog open={deleteAlertOpen === collection.id} onOpenChange={(open) => !open && setDeleteAlertOpen(null)}>
-                    <AlertDialogContent className="w-[90%] sm:max-w-md rounded-lg">
+                    <AlertDialogContent className="w-[90%] sm:max-w-md">
                       <AlertDialogHeader>
                         <AlertDialogTitle>Delete collection?</AlertDialogTitle>
                         <AlertDialogDescription>
@@ -345,13 +350,9 @@ const Collections = () => {
             <p className="text-muted-foreground mb-6">
               Create your first collection to start organizing.
             </p>
-            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="mr-2 h-4 w-4" /> New Collection
-                </Button>
-              </DialogTrigger>
-            </Dialog>
+            <Button onClick={() => setIsCreateDialogOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" /> New Collection
+            </Button>
           </div>
         )}
 
@@ -363,7 +364,7 @@ const Collections = () => {
             resetEdit();
           }
         }}>
-          <DialogContent className="w-[90%] sm:max-w-[425px] rounded-lg">
+          <DialogContent className="w-[90%] sm:max-w-[425px]">
             <form onSubmit={handleSubmitEdit(onEditCollection)}>
               <DialogHeader>
                 <DialogTitle>Edit Collection</DialogTitle>

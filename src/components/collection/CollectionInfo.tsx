@@ -8,7 +8,7 @@ interface CollectionInfoProps {
 
 const CollectionInfo: React.FC<CollectionInfoProps> = ({ collection }) => {
   return (
-    <div className="bg-card border border-border p-4 rounded-lg">
+    <div className="bg-card border border-border p-4 rounded-2xl">
       <h1 className="text-2xl font-bold text-card-foreground">{collection.name}</h1>
       {collection.description && (
         <p className="text-muted-foreground mt-2">{collection.description}</p>

@@ -150,7 +150,7 @@ const UserModerationActions = ({ user, isSelf }: { user: AdminUser; isSelf: bool
               Suspend
             </Button>
           </DialogTrigger>
-          <DialogContent className="w-[90%] sm:max-w-[440px] rounded-lg">
+          <DialogContent className="w-[90%] sm:max-w-[440px]">
             <DialogHeader>
               <DialogTitle>Suspend {displayName}?</DialogTitle>
               <DialogDescription>
@@ -196,7 +196,7 @@ const UserModerationActions = ({ user, isSelf }: { user: AdminUser; isSelf: bool
             {deleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
           </Button>
         </AlertDialogTrigger>
-        <AlertDialogContent className="w-[90%] sm:max-w-[440px] rounded-lg">
+        <AlertDialogContent className="w-[90%] sm:max-w-[440px]">
           <AlertDialogHeader>
             <AlertDialogTitle>Delete {displayName}'s account?</AlertDialogTitle>
             <AlertDialogDescription>
@@ -532,7 +532,7 @@ const AddItemDialog: React.FC<AddItemDialogProps> = ({ existingTmdbIds, onAdd, t
   const movies = searchResultsData?.pages.flatMap(page => page.results) ?? [];
 
   return (
-    <DialogContent className="w-[90%] sm:max-w-[550px] rounded-lg">
+    <DialogContent className="w-[90%] sm:max-w-[550px]">
       <DialogHeader>
         <DialogTitle>{title}</DialogTitle>
         <DialogDescription>{description}</DialogDescription>
@@ -837,7 +837,7 @@ const CuratedItemsTab = () => {
         <div className="grid grid-cols-3 gap-2 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 md:gap-5 lg:grid-cols-5">
           {Array.from({ length: 10 }).map((_, i) => (
             <div key={i} className="space-y-2">
-              <Skeleton className="aspect-[2/3] w-full rounded-md" />
+              <Skeleton className="aspect-[2/3] w-full rounded-xl" />
               <Skeleton className="h-4 w-[80%]" />
             </div>
           ))}
@@ -1091,7 +1091,7 @@ const CollageItemsTab = () => {
         <div className="grid grid-cols-3 gap-2 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 md:gap-5 lg:grid-cols-5">
           {Array.from({ length: 10 }).map((_, i) => (
             <div key={i} className="space-y-2">
-              <Skeleton className="aspect-[2/3] w-full rounded-md" />
+              <Skeleton className="aspect-[2/3] w-full rounded-xl" />
               <Skeleton className="h-4 w-[80%]" />
             </div>
           ))}

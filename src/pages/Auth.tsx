@@ -287,7 +287,7 @@ const Auth = () => {
                             {/* The last-used method sits a shade brighter so returning users find it first */}
                             <Button
                                 variant="outline"
-                                className={`w-full h-12 justify-center text-base relative ${lastUsedMethod === 'google' ? 'bg-accent/60 border-border' : ''}`}
+                                className={`w-full h-12 rounded-lg justify-center text-base relative ${lastUsedMethod === 'google' ? 'bg-accent/60 border-border' : ''}`}
                                 onClick={handleGoogleSignIn}
                                 disabled={isGoogleSigningIn}
                             >
@@ -306,7 +306,7 @@ const Auth = () => {
 
                             <Button
                                 variant="outline"
-                                className={`w-full h-12 justify-center text-base relative ${lastUsedMethod === 'email' ? 'bg-accent/60 border-border' : ''}`}
+                                className={`w-full h-12 rounded-lg justify-center text-base relative ${lastUsedMethod === 'email' ? 'bg-accent/60 border-border' : ''}`}
                                 onClick={() => setAuthMethod('email')}
                             >
                                 <Mail className="h-4 w-4" />
