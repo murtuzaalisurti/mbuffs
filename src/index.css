@@ -416,6 +416,9 @@
       "calt" 1;
     /* Room for the floating tab bar */
     padding-bottom: calc(5.5rem + env(safe-area-inset-bottom));
+    /* iOS standalone sizes the layout viewport short when the page can't scroll,
+       which lifts fixed bottom elements; keep the document at least full height */
+    min-height: 100lvh;
   }
 
   h1,

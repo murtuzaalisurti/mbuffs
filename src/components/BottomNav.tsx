@@ -68,7 +68,7 @@ export const BottomNav = () => {
       // element a backdrop root, so a blurred child would have nothing to blur.
       className="glass fixed inset-x-4 z-40 mx-auto max-w-md rounded-full ring-1 ring-border shadow-[0_12px_40px_-12px_rgb(0_0_0/0.7)] md:hidden"
       // Its own transition group keeps the bar still while pages cross-fade beneath it
-      style={{ bottom: 'calc(0.75rem + env(safe-area-inset-bottom))', viewTransitionName: 'bottom-nav' }}
+      style={{ bottom: 'max(0.75rem, calc(env(safe-area-inset-bottom) - 0.75rem))', viewTransitionName: 'bottom-nav' }}
       aria-label="Primary"
     >
       <ul className="relative flex h-14 items-stretch p-1">

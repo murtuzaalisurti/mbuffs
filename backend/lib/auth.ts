@@ -46,6 +46,9 @@ export const ipAddressOptions = {
     ipAddressHeaders: ["x-vercel-forwarded-for", "x-forwarded-for"],
 };
 
+const backendUrl = process.env.BETTER_AUTH_URL || "http://localhost:5001";
+const isHttpsBackend = backendUrl.startsWith("https://");
+
 export const auth = betterAuth({
     database: drizzleAdapter(db, {
         provider: "pg",
@@ -58,7 +61,7 @@ export const auth = betterAuth({
         },
     }),
     rateLimit: rateLimitOptions,
-    baseURL: process.env.BETTER_AUTH_URL || "http://localhost:5001",
+    baseURL: backendUrl,
     secret: process.env.BETTER_AUTH_SECRET,
     trustedOrigins: [process.env.FRONTEND_URL || "http://localhost:8080"],
     emailAndPassword: {
@@ -124,11 +127,11 @@ export const auth = betterAuth({
         // redirect), so the session appears valid right after login but is gone
         // when the PWA is closed and reopened.
         // In development (HTTP) we fall back to "lax" because "none" requires HTTPS.
+        // WebKit drops Secure cookies set over plain HTTP (even on localhost),
+        // so key off the backend's protocol rather than forcing them on.
         defaultCookieAttributes: {
-            // Force sameSite: "none" and secure: true for local network/ngrok testing
-            // because the frontend (nip.io) and backend (ngrok) are cross-origin.
-            sameSite: "none" as const,
-            secure: true,
+            sameSite: isHttpsBackend ? ("none" as const) : ("lax" as const),
+            secure: isHttpsBackend,
             // Explicit maxAge prevents iOS from treating these as session-only cookies
             // that get wiped when it kills the PWA's WKWebView process.
             maxAge: 60 * 60 * 24 * 7, // 7 days — matches session.expiresIn
