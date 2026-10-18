@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useEffect, useLayoutEffect, useRef, createContext, useContext } from 'react';
+import React, { Suspense, lazy, useLayoutEffect, useRef, createContext, useContext } from 'react';
 import { Toaster } from "@/components/ui/toaster"; // Keep this Toaster
 import { Toaster as Sonner } from "@/components/ui/sonner"; // Keep Sonner
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -10,7 +10,6 @@ import { claimReturnMorph } from "@/lib/posterTransition";
 import { prefersReducedMotion } from "@/lib/motionPreference";
 import { useAuth } from './hooks/useAuth';
 import { useRecommendationPrefetch } from './hooks/useRecommendationPrefetch';
-import { useToast } from "@/components/ui/use-toast"; // Import the correct useToast
 
 const Index = lazy(() => import("./pages/Index"));
 const Search = lazy(() => import("./pages/Search"));
@@ -69,24 +68,6 @@ const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { isLoggedIn, isLoadingUser } = useAuth();
   const location = useLocation();
-  const { toast } = useToast(); // Use the imported hook
-  const hasShownToastRef = useRef(false);
-
-  useEffect(() => {
-    if (!isLoadingUser && !isLoggedIn && !hasShownToastRef.current) {
-      hasShownToastRef.current = true;
-      toast({
-        title: "Access Denied.",
-        description: "Please log in to view this page.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (isLoggedIn) {
-      hasShownToastRef.current = false;
-    }
-  }, [isLoadingUser, isLoggedIn, toast]);
 
   if (isLoadingUser) {
     return <RouteLoadingFallback />;

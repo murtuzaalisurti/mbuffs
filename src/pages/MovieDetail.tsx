@@ -901,9 +901,9 @@ const MovieDetail = () => {
                                                     Sign in to save this to your collections
                                                 </p>
                                                 <Button asChild size="sm" className="w-full">
-                                                    <a href={`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'}/api/auth/google`}>
-                                                        Sign in with Google
-                                                    </a>
+                                                    <Link to="/login" state={{ from: location, message: 'Sign in to save this title to your collections.' }}>
+                                                        Sign in
+                                                    </Link>
                                                 </Button>
                                             </div>
                                         ) : isLoadingCollections || isLoadingMovieStatus ? (
@@ -1534,9 +1534,9 @@ const MovieDetail = () => {
                                                     Sign in to save this to your collections
                                                 </p>
                                                 <Button asChild size="sm" className="w-full">
-                                                    <a href={`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'}/api/auth/google`}>
-                                                        Sign in with Google
-                                                    </a>
+                                                    <Link to="/login" state={{ from: location, message: 'Sign in to save this title to your collections.' }}>
+                                                        Sign in
+                                                    </Link>
                                                 </Button>
                                             </div>
                                         ) : isLoadingCollections || isLoadingMovieStatus ? (
