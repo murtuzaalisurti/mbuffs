@@ -98,7 +98,10 @@ const Auth = () => {
     });
     const [captchaToken, setCaptchaToken] = useState<string | null>(null);
     const turnstileRef = useRef<TurnstileInstance | null>(null);
-    const [lastUsedMethod, setLastUsedMethod] = useState<AuthMethod | null>(null);
+    const [lastUsedMethod] = useState<AuthMethod | null>(() => {
+        const stored = localStorage.getItem(LAST_AUTH_METHOD_KEY);
+        return stored === 'google' || stored === 'email' ? stored : null;
+    });
 
     // All hooks must be called before any early returns
     const signInForm = useForm<SignInValues>({
@@ -121,13 +124,6 @@ const Auth = () => {
             }, { replace: true });
         }
     }, [searchParams, setSearchParams]);
-
-    useEffect(() => {
-        const stored = localStorage.getItem(LAST_AUTH_METHOD_KEY) as AuthMethod | null;
-        if (stored === 'google' || stored === 'email') {
-            setLastUsedMethod(stored);
-        }
-    }, []);
 
     // Redirect if already logged in
     if (!isLoadingUser && isLoggedIn) {
@@ -363,7 +359,7 @@ const Auth = () => {
                             {/* ============================================ */}
                             <TabsContent value="sign-in" className="mt-4">
                                 <Form {...signInForm}>
-                                    <form onSubmit={signInForm.handleSubmit(onSignIn)} className="space-y-4">
+                                    <form onSubmit={(event) => signInForm.handleSubmit(onSignIn)(event)} className="space-y-4">
                                         <FormField
                                             control={signInForm.control}
                                             name="email"
@@ -451,7 +447,7 @@ const Auth = () => {
                             {/* ============================================ */}
                             <TabsContent value="sign-up" className="mt-4">
                                 <Form {...signUpForm}>
-                                    <form onSubmit={signUpForm.handleSubmit(onSignUp)} className="space-y-4">
+                                    <form onSubmit={(event) => signUpForm.handleSubmit(onSignUp)(event)} className="space-y-4">
                                         <div className="grid grid-cols-2 gap-4">
                                             <FormField
                                                 control={signUpForm.control}

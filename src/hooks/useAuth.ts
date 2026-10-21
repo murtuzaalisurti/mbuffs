@@ -118,18 +118,22 @@ export const useAuth = () => {
     const [cachedUser, setCachedUser] = useState<AuthUser | null>(() => readAuthSnapshot());
     const sessionUser = useMemo(() => mapSessionUser(session?.user), [session]);
 
+    const isSignedOut = !sessionUser && !isLoading && (error === null || isUnauthorizedSessionError(error));
+
+    // Sync the cached user with the session during render instead of in an effect.
+    if (sessionUser && sessionUser !== cachedUser) {
+        setCachedUser(sessionUser);
+    } else if (isSignedOut && cachedUser !== null) {
+        setCachedUser(null);
+    }
+
     useEffect(() => {
         if (sessionUser) {
-            setCachedUser(sessionUser);
             persistAuthSnapshot(sessionUser);
-            return;
-        }
-
-        if (!isLoading && (error === null || isUnauthorizedSessionError(error))) {
-            setCachedUser(null);
+        } else if (isSignedOut) {
             clearAuthSnapshot();
         }
-    }, [sessionUser, isLoading, error]);
+    }, [sessionUser, isSignedOut]);
 
     const user = sessionUser ?? cachedUser;
     const isLoggedIn = Boolean(user);
