@@ -415,7 +415,7 @@ function updateCommentInTree(
  */
 export function MbuffScoreHeading({
     seasonsRated,
-    overallRatingsCount,
+    overallRatingsCount = 0,
     hasScore,
     labelClassName,
 }: {

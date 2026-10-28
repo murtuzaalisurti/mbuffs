@@ -1560,7 +1560,7 @@ const CacheDebugTab = () => {
           {/* Expanded detail panel */}
           {(() => {
             const expandedEntry = filteredEntries.find((entry) => `${entry.cache_key}-${entry.slot}` === expandedRowKey);
-            if (!expandedEntry) return null;
+            if (!expandedEntry || !expandedRowKey) return null;
             const status = statusByEntry.get(expandedRowKey)!;
             return (
               <Card className="border-primary/20">

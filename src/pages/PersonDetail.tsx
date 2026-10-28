@@ -202,7 +202,7 @@ export default function PersonDetail() {
             } else {
                 projectsMap.set(key, {
                     id: c.id, title: c.title, name: c.name,
-                    poster_path: c.poster_path, media_type: c.media_type,
+                    poster_path: c.poster_path ?? undefined, media_type: c.media_type,
                     roles: [role], year: new Date(date).getFullYear(), date
                 });
             }
@@ -219,7 +219,7 @@ export default function PersonDetail() {
             } else {
                 projectsMap.set(key, {
                     id: c.id, title: c.title, name: c.name,
-                    poster_path: c.poster_path, media_type: c.media_type,
+                    poster_path: c.poster_path ?? undefined, media_type: c.media_type,
                     roles: [role], year: new Date(date).getFullYear(), date
                 });
             }

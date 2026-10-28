@@ -31,7 +31,7 @@ const authed = (req: request.Test) => {
 const seedMetadata = async (
     mediaType: 'movie' | 'tv',
     tmdbId: number,
-    values: { title: string; releaseYear: number; runtime: number | null; genres: Array<{ id: number; name: string }>; director: string; language: string; voteCount: number }
+    values: { title: string; releaseYear: number; runtime: number | null; genres: Array<{ id: number; name: string }>; director: { id: number; name: string }; language: string; voteCount: number }
 ) => {
     await sql`
         INSERT INTO media_metadata (
@@ -41,7 +41,7 @@ const seedMetadata = async (
         VALUES (
             ${mediaType}, ${tmdbId}, ${values.title}, null, ${values.releaseYear}, ${values.runtime},
             ${JSON.stringify(values.genres)}::jsonb,
-            ${JSON.stringify([{ id: 1, name: values.director, profilePath: null }])}::jsonb,
+            ${JSON.stringify([{ ...values.director, profilePath: null }])}::jsonb,
             ${JSON.stringify([{ id: 2, name: 'Shared Actor', profilePath: null }])}::jsonb,
             ${values.language}, '[]'::jsonb, ${values.voteCount}
         )
@@ -55,9 +55,9 @@ beforeAll(async () => {
         VALUES (${statsUser.id}, ${statsUser.name}, ${statsUser.email}, true, ${statsUser.role})
     `;
 
-    await seedMetadata('movie', movieA, { title: 'Movie A', releaseYear: 1994, runtime: 120, genres: [{ id: 18, name: 'Drama' }], director: 'Director One', language: 'en', voteCount: 25000 });
-    await seedMetadata('movie', movieB, { title: 'Movie B', releaseYear: 2021, runtime: 95, genres: [{ id: 18, name: 'Drama' }, { id: 35, name: 'Comedy' }], director: 'Director One', language: 'ko', voteCount: 400 });
-    await seedMetadata('tv', showA, { title: 'Show A', releaseYear: 2019, runtime: 45, genres: [{ id: 18, name: 'Drama' }], director: 'Creator', language: 'en', voteCount: 150 });
+    await seedMetadata('movie', movieA, { title: 'Movie A', releaseYear: 1994, runtime: 120, genres: [{ id: 18, name: 'Drama' }], director: { id: 1, name: 'Director One' }, language: 'en', voteCount: 25000 });
+    await seedMetadata('movie', movieB, { title: 'Movie B', releaseYear: 2021, runtime: 95, genres: [{ id: 18, name: 'Drama' }, { id: 35, name: 'Comedy' }], director: { id: 1, name: 'Director One' }, language: 'ko', voteCount: 400 });
+    await seedMetadata('tv', showA, { title: 'Show A', releaseYear: 2019, runtime: 45, genres: [{ id: 18, name: 'Drama' }], director: { id: 3, name: 'Creator' }, language: 'en', voteCount: 150 });
 
     await sql`
         INSERT INTO collections (id, name, description, owner_id, is_system)
