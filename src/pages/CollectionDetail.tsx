@@ -457,7 +457,7 @@ const CollectionDetail = () => {
 
     const collection = collectionDetails?.collection;
     const isOwner = collection?.owner_id === currentUser?.id;
-    const canEdit = isOwner || collectionDetails?.collaborators.some(c => c.user_id === currentUser?.id && c.permission === 'edit');
+    const canEdit = isOwner || !!collectionDetails?.collaborators.some(c => c.user_id === currentUser?.id && c.permission === 'edit');
     const canViewMembers = collection?.user_permission === 'owner' || collection?.user_permission === 'edit' || collection?.user_permission === 'view';
 
     const isLoading = isLoadingCollection;
@@ -567,7 +567,7 @@ const CollectionDetail = () => {
                         )}
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
                             <Avatar className="h-6 w-6">
-                                <AvatarImage src={collection.owner_avatar} />
+                                <AvatarImage src={collection.owner_avatar ?? undefined} />
                                 <AvatarFallback className="text-xs">{getInitials(collection.owner_username)}</AvatarFallback>
                             </Avatar>
                             <span>{collection.owner_username}</span>
@@ -583,12 +583,12 @@ const CollectionDetail = () => {
                                         <button className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
                                             <div className="flex -space-x-2">
                                                 <Avatar className="h-6 w-6 border-2 border-background">
-                                                    <AvatarImage src={collection.owner_avatar} />
+                                                    <AvatarImage src={collection.owner_avatar ?? undefined} />
                                                     <AvatarFallback className="text-xs">{getInitials(collection.owner_username)}</AvatarFallback>
                                                 </Avatar>
                                                 {collectionDetails.collaborators.slice(0, 2).map((c) => (
                                                     <Avatar key={c.user_id} className="h-6 w-6 border-2 border-background">
-                                                        <AvatarImage src={c.avatar_url} />
+                                                        <AvatarImage src={c.avatar_url ?? undefined} />
                                                         <AvatarFallback className="text-xs">{getInitials(c.username)}</AvatarFallback>
                                                     </Avatar>
                                                 ))}
@@ -612,7 +612,7 @@ const CollectionDetail = () => {
                                         <div className="flex items-center justify-between gap-3 p-2 rounded-lg">
                                             <div className="flex items-center gap-3">
                                                 <Avatar className="h-9 w-9">
-                                                    <AvatarImage src={collection.owner_avatar} />
+                                                    <AvatarImage src={collection.owner_avatar ?? undefined} />
                                                     <AvatarFallback>{getInitials(collection.owner_username)}</AvatarFallback>
                                                 </Avatar>
                                                 <div>
@@ -629,7 +629,7 @@ const CollectionDetail = () => {
                                                 <div key={c.user_id} className="flex items-center justify-between gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors">
                                                     <div className="flex items-center gap-3">
                                                         <Avatar className="h-9 w-9">
-                                                            <AvatarImage src={c.avatar_url} />
+                                                            <AvatarImage src={c.avatar_url ?? undefined} />
                                                             <AvatarFallback>{getInitials(c.username)}</AvatarFallback>
                                                         </Avatar>
                                                         <div className="flex flex-col">

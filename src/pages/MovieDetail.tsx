@@ -210,7 +210,7 @@ const MovieDetail = () => {
     // uses its own key because plain [mediaType, 'details', id] entries (e.g. from
     // SeasonDetail) lack videos and credits; the result also seeds that plain key
     // since it's a superset (ShareDialog reads it for the title/poster).
-    const { data: mediaDetails, isLoading, isError, error } = useQuery<MediaPageDetails, Error>({
+    const { data: mediaDetails, isLoading, isError, error } = useQuery<MediaPageDetails | null, Error>({
         queryKey: [mediaType, 'details', mediaId, 'page'],
         queryFn: async () => {
             if (!mediaId) throw new Error("Media ID is required");
