@@ -6,7 +6,6 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { StreamingFilterState, useWatchProviderRegions } from "@/hooks/useStreamingFilter";
 import { getBrandName, OFFER_LABELS, OFFER_TYPES, OfferType, StreamingSelection } from "@/lib/streamingProviders";
@@ -113,12 +112,17 @@ export function StreamingFilter({ filter, counts, disabledReason, onChange, clas
           </span>
         </button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-[min(22rem,calc(100vw-2rem))] p-0">
+      <PopoverContent
+        align="start"
+        collisionPadding={16}
+        // Header and footer stay put; only the list scrolls, within the space below/above the trigger.
+        className="flex w-[min(22rem,calc(100vw-2rem))] max-h-[min(32rem,var(--radix-popover-content-available-height))] flex-col overflow-hidden p-0"
+      >
         {disabledReason ? (
           <p className="p-4 text-sm text-muted-foreground">{disabledReason}</p>
         ) : (
           <>
-            <div className="flex items-center justify-between gap-3 border-b p-3">
+            <div className="flex shrink-0 items-center justify-between gap-3 border-b p-3">
               <span className="text-sm font-medium">Where to watch</span>
               <Select value={regionOverride ?? DEFAULT_REGION_VALUE} onValueChange={handleRegionChange}>
                 <SelectTrigger size="sm" className="h-8 max-w-[11rem] text-xs" aria-label="Streaming region">
@@ -137,7 +141,7 @@ export function StreamingFilter({ filter, counts, disabledReason, onChange, clas
               </Select>
             </div>
 
-            <ScrollArea className="max-h-[min(60vh,24rem)]">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
               <div className="p-2">
                 {filter.isLoadingProviders ? (
                   Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="m-1 h-9 rounded-md" />)
@@ -191,7 +195,7 @@ export function StreamingFilter({ filter, counts, disabledReason, onChange, clas
                               type="multiple"
                               value={selectedOffers}
                               onValueChange={(value) => setOffers(brand.id, value as OfferType[])}
-                              className="grid w-full grid-cols-3 gap-0.5 rounded-lg bg-muted/70 p-0.5"
+                              className="grid w-full grid-cols-3 gap-0.5 rounded-lg border border-border/70 bg-background/70 p-0.5"
                               aria-label={`${brand.name} offer types`}
                             >
                               {OFFER_TYPES.filter((offer) => offers.includes(offer)).map((offer) => {
@@ -201,14 +205,14 @@ export function StreamingFilter({ filter, counts, disabledReason, onChange, clas
                                     key={offer}
                                     value={offer}
                                     className={cn(
-                                      "h-7 gap-1 rounded-md px-2 text-xs font-medium text-muted-foreground hover:bg-background/60 hover:text-foreground",
-                                      "data-[state=on]:bg-background data-[state=on]:text-foreground data-[state=on]:shadow-sm",
+                                      "h-7 gap-1 rounded-md px-2 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground",
+                                      "data-[state=on]:bg-primary data-[state=on]:text-primary-foreground data-[state=on]:shadow-sm data-[state=on]:hover:bg-primary/90",
                                     )}
                                   >
                                     <Check
                                       className={cn(
                                         "size-3 transition-all duration-150",
-                                        isOn ? "w-3 opacity-100 text-primary" : "w-0 opacity-0",
+                                        isOn ? "w-3 opacity-100" : "w-0 opacity-0",
                                       )}
                                     />
                                     {OFFER_LABELS[offer]}
@@ -223,9 +227,9 @@ export function StreamingFilter({ filter, counts, disabledReason, onChange, clas
                   })
                 )}
               </div>
-            </ScrollArea>
+            </div>
 
-            <div className="flex items-center justify-between gap-3 border-t p-3">
+            <div className="flex shrink-0 items-center justify-between gap-3 border-t p-3">
               <span className="text-[11px] text-muted-foreground">
                 Data by{" "}
                 <a href="https://www.justwatch.com" target="_blank" rel="noreferrer" className="underline hover:text-foreground">
