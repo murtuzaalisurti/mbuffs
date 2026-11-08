@@ -16,7 +16,6 @@ import { Clapperboard, Tv } from "lucide-react";
 import { StreamingFilter } from "@/components/StreamingFilter";
 import { useCategoryItems, NOW_PLAYING_GENRE_ID } from "@/hooks/useCategoryItems";
 import { useStreamingFilter } from "@/hooks/useStreamingFilter";
-import { getCategoryStreamingDisabledReason } from "@/lib/streamingProviders";
 
 type MediaType = "movie" | "tv";
 
@@ -88,8 +87,11 @@ const Categories = () => {
     [mediaType, setSelectionParams],
   );
 
-  const streamingDisabledReason = getCategoryStreamingDisabledReason(showPersonalized, isTheatrical);
-  const isStreamingFilterApplied = streamingFilter.isActive && !streamingDisabledReason;
+  // Only the default discover grid can be filtered: personalized recommendations
+  // carry no provider data, and theatrical releases aren't streaming yet. Waits
+  // for preferences so the filter doesn't flash before personalization kicks in.
+  const canFilterByStreaming = preferencesReady && !showPersonalized && !isTheatrical;
+  const isStreamingFilterApplied = streamingFilter.isActive && canFilterByStreaming;
 
   const sortedGenres = useMemo(
     () => [...genres].sort((a, b) => a.name.localeCompare(b.name)),
@@ -174,11 +176,12 @@ const Categories = () => {
             </SelectContent>
           </Select>
 
-          <StreamingFilter
-            filter={streamingFilter}
-            disabledReason={streamingDisabledReason}
-            className="w-full sm:w-[220px] !h-12 rounded-lg px-4 text-base font-medium"
-          />
+          {canFilterByStreaming && (
+            <StreamingFilter
+              filter={streamingFilter}
+              className="w-full sm:w-[220px] !h-12 rounded-lg px-4 text-base font-medium"
+            />
+          )}
         </section>
 
         {/* Results */}
