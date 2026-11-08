@@ -819,54 +819,52 @@ const CollectionDetail = () => {
                 </div>
 
                 {/* Toolbar */}
-                <div className="flex items-center justify-between gap-4 mb-6">
-                    <div className="flex items-center gap-3 flex-wrap">
+                {/* Tabs left; filter + actions as one cluster of same-height buttons on the right, so the row never wraps. Count underneath. */}
+                <div className="mb-6">
+                    <div className="flex items-center gap-2 sm:gap-3">
                         <Tabs value={mediaTypeFilter} onValueChange={(value) => {
                             setMediaTypeFilter(value);
                             resetVisibleItems();
                         }}>
                             <TabsList className="h-9">
-                                <TabsTrigger value="all" className="text-xs px-3">All</TabsTrigger>
-                                <TabsTrigger value="movie" className="text-xs px-3">Movies</TabsTrigger>
-                                <TabsTrigger value="tv" className="text-xs px-3">TV</TabsTrigger>
+                                <TabsTrigger value="all" className="text-xs px-2.5 sm:px-3">All</TabsTrigger>
+                                <TabsTrigger value="movie" className="text-xs px-2.5 sm:px-3">Movies</TabsTrigger>
+                                <TabsTrigger value="tv" className="text-xs px-2.5 sm:px-3">TV</TabsTrigger>
                             </TabsList>
                         </Tabs>
-                        <StreamingFilter
-                            filter={streamingFilter}
-                            counts={streamingCounts}
-                            onChange={resetVisibleItems}
-                            className="text-xs min-w-[130px]"
-                        />
-                        <span className="text-sm text-muted-foreground">{filteredMedia.length} items</span>
+                        <div className="ml-auto flex shrink-0 items-center gap-2">
+                            <StreamingFilter filter={streamingFilter} counts={streamingCounts} onChange={resetVisibleItems} />
+                            {isLoggedIn && !isSelectMode && filteredMedia.length > 0 && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-9 w-9 gap-1.5 px-0 has-[>svg]:px-0 sm:w-auto sm:px-3.5 sm:has-[>svg]:px-3.5"
+                                    aria-label="Select items"
+                                    onClick={() => setIsSelectMode(true)}
+                                >
+                                    <CheckSquare className="h-4 w-4" />
+                                    <span className="hidden sm:inline">Select</span>
+                                </Button>
+                            )}
+                            {canEdit && !isSelectMode && (
+                                <Dialog open={isAddMovieOpen} onOpenChange={setIsAddMovieOpen}>
+                                    <DialogTrigger asChild>
+                                        <Button size="sm" className="h-9 w-9 gap-1.5 px-0 has-[>svg]:px-0 sm:w-auto sm:px-3.5 sm:has-[>svg]:px-3.5" aria-label="Add to collection">
+                                            <Plus className="h-4 w-4" />
+                                            <span className="hidden sm:inline">Add</span>
+                                        </Button>
+                                    </DialogTrigger>
+                                    <AddMovieDialog
+                                        existingMovieIds={movieIds.map((id) => String(id))}
+                                        onAddMovie={(movieId, title, posterPath, mediaType) => addMovieMutation.mutateAsync({ collectionId: collectionId!, data: { movieId: movieId as unknown as number, title, posterPath, mediaType } })}
+                                    />
+                                </Dialog>
+                            )}
+                        </div>
                     </div>
-                    
-                    <div className="flex items-center gap-2">
-                        {isLoggedIn && !isSelectMode && filteredMedia.length > 0 && (
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                className="gap-1.5 px-3.5 has-[>svg]:px-3.5"
-                                onClick={() => setIsSelectMode(true)}
-                            >
-                                <CheckSquare className="h-4 w-4" />
-                                <span className="hidden sm:inline">Select</span>
-                            </Button>
-                        )}
-                        {canEdit && !isSelectMode && (
-                            <Dialog open={isAddMovieOpen} onOpenChange={setIsAddMovieOpen}>
-                                <DialogTrigger asChild>
-                                    <Button size="sm" className="gap-1.5 px-3.5 has-[>svg]:px-3.5">
-                                        <Plus className="h-4 w-4" />
-                                        <span className="hidden sm:inline">Add</span>
-                                    </Button>
-                                </DialogTrigger>
-                                <AddMovieDialog
-                                    existingMovieIds={movieIds.map((id) => String(id))}
-                                    onAddMovie={(movieId, title, posterPath, mediaType) => addMovieMutation.mutateAsync({ collectionId: collectionId!, data: { movieId: movieId as unknown as number, title, posterPath, mediaType } })}
-                                />
-                            </Dialog>
-                        )}
-                    </div>
+                    <p className="mt-3 text-sm text-muted-foreground">
+                        {filteredMedia.length} {filteredMedia.length === 1 ? 'item' : 'items'}
+                    </p>
                 </div>
 
                 {/* Grid */}

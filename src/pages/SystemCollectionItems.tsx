@@ -221,26 +221,28 @@ export function SystemCollectionItemsPage({ kind }: SystemCollectionItemsPagePro
             <h1 className="page-title">{title}</h1>
           </div>
           <p className="text-muted-foreground">{description}</p>
-          <p className="text-sm text-muted-foreground mt-1">
-            {filteredEntries.length} item{filteredEntries.length !== 1 ? "s" : ""}
-          </p>
         </section>
 
-        <section className="mb-6 flex flex-wrap items-center gap-3">
-          <Tabs
-            value={mediaTypeFilter}
-            onValueChange={(value) => {
-              setMediaTypeFilter(value);
-              resetVisibleItems();
-            }}
-          >
-            <TabsList>
-              <TabsTrigger value="all">All</TabsTrigger>
-              <TabsTrigger value="movie">Movies</TabsTrigger>
-              <TabsTrigger value="tv">TV Shows</TabsTrigger>
-            </TabsList>
-          </Tabs>
-          <StreamingFilter filter={streamingFilter} counts={streamingCounts} onChange={resetVisibleItems} />
+        <section className="mb-6">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            <Tabs
+              value={mediaTypeFilter}
+              onValueChange={(value) => {
+                setMediaTypeFilter(value);
+                resetVisibleItems();
+              }}
+            >
+              <TabsList>
+                <TabsTrigger value="all">All</TabsTrigger>
+                <TabsTrigger value="movie">Movies</TabsTrigger>
+                <TabsTrigger value="tv">TV Shows</TabsTrigger>
+              </TabsList>
+            </Tabs>
+            <StreamingFilter filter={streamingFilter} counts={streamingCounts} onChange={resetVisibleItems} />
+          </div>
+          <p className="mt-3 text-sm text-muted-foreground">
+            {filteredEntries.length} item{filteredEntries.length !== 1 ? "s" : ""}
+          </p>
         </section>
 
         {isLoading ? (
