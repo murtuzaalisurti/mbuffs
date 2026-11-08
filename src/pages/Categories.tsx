@@ -152,36 +152,36 @@ const Categories = () => {
             </SelectContent>
           </Select>
 
-          <Select value={genreId ?? ""} onValueChange={handleGenreChange} disabled={isLoadingGenres}>
-            <SelectTrigger
-              className="w-full sm:w-[260px] !h-12 rounded-lg px-4 text-base font-medium"
-              aria-label="Category"
-            >
-              <SelectValue placeholder={categoryPlaceholder} />
-            </SelectTrigger>
-            <SelectContent className="min-w-[var(--radix-select-trigger-width)]">
-              {mediaType === "movie" && (
-                <>
-                  <SelectItem value={NOW_PLAYING_GENRE_ID} className={SELECT_ITEM_CLASS}>
-                    Theatrical Releases
+          {/* Category and filter share a row, so the filter icon never sits alone on mobile. */}
+          <div className="flex gap-2">
+            <Select value={genreId ?? ""} onValueChange={handleGenreChange} disabled={isLoadingGenres}>
+              <SelectTrigger
+                className="min-w-0 flex-1 sm:w-[260px] sm:flex-none !h-12 rounded-lg px-4 text-base font-medium"
+                aria-label="Category"
+              >
+                <SelectValue placeholder={categoryPlaceholder} />
+              </SelectTrigger>
+              <SelectContent className="min-w-[var(--radix-select-trigger-width)]">
+                {mediaType === "movie" && (
+                  <>
+                    <SelectItem value={NOW_PLAYING_GENRE_ID} className={SELECT_ITEM_CLASS}>
+                      Theatrical Releases
+                    </SelectItem>
+                    <SelectSeparator />
+                  </>
+                )}
+                {sortedGenres.map((genre) => (
+                  <SelectItem key={genre.id} value={String(genre.id)} className={SELECT_ITEM_CLASS}>
+                    {genre.name}
                   </SelectItem>
-                  <SelectSeparator />
-                </>
-              )}
-              {sortedGenres.map((genre) => (
-                <SelectItem key={genre.id} value={String(genre.id)} className={SELECT_ITEM_CLASS}>
-                  {genre.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+                ))}
+              </SelectContent>
+            </Select>
 
-          {canFilterByStreaming && (
-            <StreamingFilter
-              filter={streamingFilter}
-              className="w-full sm:w-[220px] !h-12 rounded-lg px-4 text-base font-medium"
-            />
-          )}
+            {canFilterByStreaming && (
+              <StreamingFilter filter={streamingFilter} className="size-12 rounded-lg [&_svg]:size-5" />
+            )}
+          </div>
         </section>
 
         {/* Results */}

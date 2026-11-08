@@ -68,7 +68,7 @@ const CategoryDetail = () => {
               {sourceCollections.length !== 1 ? "s" : ""}
             </p>
           )}
-          {canFilterByStreaming && <StreamingFilter filter={streamingFilter} className="mt-4 min-w-[160px]" />}
+          {canFilterByStreaming && <StreamingFilter filter={streamingFilter} className="mt-4" />}
         </section>
 
         {/* Grid */}
