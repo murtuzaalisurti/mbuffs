@@ -24,6 +24,8 @@ import {
     ShareMediaInput,
     UserStatsResponse,
     TasteProfileResponse,
+    WatchProvider,
+    WatchProvidersResult,
 } from './types';
 
 const _dayjs = dayjs();
@@ -1060,7 +1062,69 @@ export const fetchGenreListApi = async (mediaType: 'movie' | 'tv'): Promise<Genr
     }
 };
 
-export const fetchMoviesByGenreApi = async (genreId: number, page = 1): Promise<SearchResults> => {
+export interface WatchProviderRegion {
+    iso_3166_1: string;
+    english_name: string;
+}
+
+export const fetchWatchProviderRegionsApi = async (): Promise<WatchProviderRegion[]> => {
+    try {
+        const data: { results?: WatchProviderRegion[] } = await fetchBackend(`/content`, {
+            method: 'POST',
+            body: JSON.stringify({ endpoint: `/watch/providers/regions` }),
+        });
+        return [...(data?.results ?? [])].sort((a, b) => a.english_name.localeCompare(b.english_name));
+    } catch (error) {
+        console.error('Failed to fetch watch provider regions:', error);
+        return [];
+    }
+};
+
+// Movie and TV provider lists for a region, merged, with each provider's
+// display priority for that region (TMDB returns priorities for every country).
+export const fetchWatchProvidersForRegionApi = async (region: string): Promise<WatchProvider[]> => {
+    type RegionProvider = WatchProvider & { display_priorities?: Record<string, number> };
+    const fetchList = (mediaType: 'movie' | 'tv'): Promise<{ results?: RegionProvider[] }> =>
+        fetchBackend(`/content`, {
+            method: 'POST',
+            body: JSON.stringify({
+                endpoint: `/watch/providers/${mediaType}`,
+                params: { watch_region: region },
+            }),
+        });
+
+    try {
+        const [movieData, tvData] = await Promise.all([fetchList('movie'), fetchList('tv')]);
+        const providers = new Map<number, WatchProvider>();
+        for (const provider of [...(movieData?.results ?? []), ...(tvData?.results ?? [])]) {
+            if (providers.has(provider.provider_id)) continue;
+            providers.set(provider.provider_id, {
+                provider_id: provider.provider_id,
+                provider_name: provider.provider_name,
+                logo_path: provider.logo_path,
+                display_priority: provider.display_priorities?.[region] ?? provider.display_priority,
+            });
+        }
+        return [...providers.values()].sort((a, b) => a.display_priority - b.display_priority);
+    } catch (error) {
+        console.error(`Failed to fetch watch providers for ${region}:`, error);
+        return [];
+    }
+};
+
+// Per-title providers for one region, keyed by id. Null marks a failed lookup.
+export const fetchWatchProvidersBatchApi = async (
+    mediaType: 'movie' | 'tv',
+    ids: number[],
+    region: string,
+): Promise<Record<number, WatchProvidersResult | null>> => {
+    if (ids.length === 0) return {};
+    const query = new URLSearchParams({ region, items: ids.map((id) => `${mediaType}:${id}`).join(',') });
+    const data: { results: Record<string, WatchProvidersResult | null> } = await fetchBackend(`/content/watch-providers?${query}`);
+    return Object.fromEntries(ids.map((id) => [id, data.results[`${mediaType}:${id}`] ?? null]));
+};
+
+export const fetchMoviesByGenreApi = async (genreId: number, page = 1, extraParams: Record<string, string> = {}): Promise<SearchResults> => {
     const defaultResult: SearchResults = { page: 0, results: [], total_pages: 0, total_results: 0 };
     try {
         const today = dayjs().format('YYYY-MM-DD');
@@ -1075,6 +1139,7 @@ export const fetchMoviesByGenreApi = async (genreId: number, page = 1): Promise<
                     'vote_count.gte': '100',
                     'vote_average.gte': '5.5',
                     page: String(page),
+                    ...extraParams,
                 },
             }),
         });
@@ -1084,7 +1149,7 @@ export const fetchMoviesByGenreApi = async (genreId: number, page = 1): Promise<
     }
 };
 
-export const fetchTvByGenreApi = async (genreId: number, page = 1): Promise<SearchResults> => {
+export const fetchTvByGenreApi = async (genreId: number, page = 1, extraParams: Record<string, string> = {}): Promise<SearchResults> => {
     const defaultResult: SearchResults = { page: 0, results: [], total_pages: 0, total_results: 0 };
     try {
         const today = dayjs().format('YYYY-MM-DD');
@@ -1099,6 +1164,7 @@ export const fetchTvByGenreApi = async (genreId: number, page = 1): Promise<Sear
                     'vote_count.gte': '100',
                     'vote_average.gte': '5.5',
                     page: String(page),
+                    ...extraParams,
                 },
             }),
         });

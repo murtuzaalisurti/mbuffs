@@ -17,6 +17,9 @@ import { useNotInterestedStatus } from "@/hooks/useNotInterestedStatus";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ChevronLeft, Eye, ThumbsDown, Clock3 } from "lucide-react";
+import { StreamingFilter } from "@/components/StreamingFilter";
+import { useStreamingFilter } from "@/hooks/useStreamingFilter";
+import { countTitlesByBrand, matchesStreamingSelection } from "@/lib/streamingProviders";
 
 type SystemCollectionKind = "watched" | "not-interested";
 
@@ -119,7 +122,10 @@ export function SystemCollectionItemsPage({ kind }: SystemCollectionItemsPagePro
     staleTime: 1000 * 60 * 60,
   });
 
-  const filteredEntries = useMemo(() => {
+  const streamingFilter = useStreamingFilter();
+  const { region: streamingRegion, selection: streamingSelection } = streamingFilter;
+
+  const mediaTypeFilteredEntries = useMemo(() => {
     return activeEntries.filter((entry) => {
       const media = moviesDetailsMap?.[String(entry.movie_id)];
       if (!media) return false;
@@ -134,6 +140,29 @@ export function SystemCollectionItemsPage({ kind }: SystemCollectionItemsPagePro
       }
     });
   }, [activeEntries, moviesDetailsMap, mediaTypeFilter]);
+
+  const getRegionProviders = useCallback(
+    (entry: (typeof activeEntries)[number]) =>
+      streamingRegion
+        ? moviesDetailsMap?.[String(entry.movie_id)]?.["watch/providers"]?.results?.[streamingRegion]
+        : undefined,
+    [moviesDetailsMap, streamingRegion],
+  );
+
+  const streamingCounts = useMemo(
+    () => countTitlesByBrand(mediaTypeFilteredEntries.map(getRegionProviders)),
+    [mediaTypeFilteredEntries, getRegionProviders],
+  );
+
+  const filteredEntries = useMemo(
+    () => mediaTypeFilteredEntries.filter((entry) => matchesStreamingSelection(getRegionProviders(entry), streamingSelection)),
+    [mediaTypeFilteredEntries, getRegionProviders, streamingSelection],
+  );
+
+  const resetVisibleItems = useCallback(() => {
+    setVisibleItemsCount(ITEMS_PER_PAGE);
+    setIsLoadingMore(false);
+  }, []);
 
   const visibleEntries = useMemo(() => {
     return filteredEntries.slice(0, visibleItemsCount);
@@ -197,14 +226,21 @@ export function SystemCollectionItemsPage({ kind }: SystemCollectionItemsPagePro
           </p>
         </section>
 
-        <section className="mb-6">
-          <Tabs value={mediaTypeFilter} onValueChange={setMediaTypeFilter}>
+        <section className="mb-6 flex flex-wrap items-center gap-3">
+          <Tabs
+            value={mediaTypeFilter}
+            onValueChange={(value) => {
+              setMediaTypeFilter(value);
+              resetVisibleItems();
+            }}
+          >
             <TabsList>
               <TabsTrigger value="all">All</TabsTrigger>
               <TabsTrigger value="movie">Movies</TabsTrigger>
               <TabsTrigger value="tv">TV Shows</TabsTrigger>
             </TabsList>
           </Tabs>
+          <StreamingFilter filter={streamingFilter} counts={streamingCounts} onChange={resetVisibleItems} />
         </section>
 
         {isLoading ? (
@@ -262,9 +298,13 @@ export function SystemCollectionItemsPage({ kind }: SystemCollectionItemsPagePro
           </>
         ) : (
           <div className="text-center py-16 rounded-2xl bg-muted/20 border border-border">
-            <h2 className="text-xl font-semibold mb-2">No items yet</h2>
+            <h2 className="text-xl font-semibold mb-2">
+              {streamingFilter.isActive && mediaTypeFilteredEntries.length > 0 ? "Nothing on the selected services" : "No items yet"}
+            </h2>
             <p className="text-muted-foreground text-sm">
-              {kind === "watched"
+              {streamingFilter.isActive && mediaTypeFilteredEntries.length > 0
+                ? "Try a different filter."
+                : kind === "watched"
                 ? "Items you mark as watched will appear here."
                 : "Items you mark as not interested will appear here."}
             </p>

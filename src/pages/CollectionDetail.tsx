@@ -43,6 +43,9 @@ import { BulkActionBar } from '@/components/collection/BulkActionBar';
 import { CollectionPickerDialog } from '@/components/collection/CollectionPickerDialog';
 import { useWarmRecommendations } from '@/App';
 import { getPreferencesQueryKey } from '@/lib/recommendationQueries';
+import { StreamingFilter } from '@/components/StreamingFilter';
+import { useStreamingFilter } from '@/hooks/useStreamingFilter';
+import { countTitlesByBrand, matchesStreamingSelection } from '@/lib/streamingProviders';
 
 const RECOMMENDATION_COLLECTIONS_QUERY_KEY = ['recommendations', 'collections'];
 
@@ -152,7 +155,10 @@ const CollectionDetail = () => {
         placeholderData: (previousData) => previousData,
     });
 
-    const filteredMedia = useMemo(() => {
+    const streamingFilter = useStreamingFilter();
+    const { region: streamingRegion, selection: streamingSelection } = streamingFilter;
+
+    const mediaTypeFilteredMedia = useMemo(() => {
         if (!collectionDetails || !moviesDetailsMap) return [];
         return collectionDetails.movies.filter(entry => {
             const media = moviesDetailsMap[entry.movie_id];
@@ -168,6 +174,28 @@ const CollectionDetail = () => {
             }
         });
     }, [collectionDetails, moviesDetailsMap, mediaTypeFilter]);
+
+    const getRegionProviders = useCallback(
+        (entry: CollectionMovieEntry) => streamingRegion
+            ? moviesDetailsMap?.[entry.movie_id]?.['watch/providers']?.results?.[streamingRegion]
+            : undefined,
+        [moviesDetailsMap, streamingRegion],
+    );
+
+    const streamingCounts = useMemo(
+        () => countTitlesByBrand(mediaTypeFilteredMedia.map(getRegionProviders)),
+        [mediaTypeFilteredMedia, getRegionProviders],
+    );
+
+    const filteredMedia = useMemo(
+        () => mediaTypeFilteredMedia.filter(entry => matchesStreamingSelection(getRegionProviders(entry), streamingSelection)),
+        [mediaTypeFilteredMedia, getRegionProviders, streamingSelection],
+    );
+
+    const resetVisibleItems = useCallback(() => {
+        setVisibleItemsCount(ITEMS_PER_PAGE);
+        setIsLoadingMore(false);
+    }, []);
 
     const currentVisibleMedia = useMemo(() => {
         return filteredMedia.slice(0, visibleItemsCount);
@@ -792,11 +820,10 @@ const CollectionDetail = () => {
 
                 {/* Toolbar */}
                 <div className="flex items-center justify-between gap-4 mb-6">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 flex-wrap">
                         <Tabs value={mediaTypeFilter} onValueChange={(value) => {
                             setMediaTypeFilter(value);
-                            setVisibleItemsCount(ITEMS_PER_PAGE);
-                            setIsLoadingMore(false);
+                            resetVisibleItems();
                         }}>
                             <TabsList className="h-9">
                                 <TabsTrigger value="all" className="text-xs px-3">All</TabsTrigger>
@@ -804,6 +831,12 @@ const CollectionDetail = () => {
                                 <TabsTrigger value="tv" className="text-xs px-3">TV</TabsTrigger>
                             </TabsList>
                         </Tabs>
+                        <StreamingFilter
+                            filter={streamingFilter}
+                            counts={streamingCounts}
+                            onChange={resetVisibleItems}
+                            className="text-xs min-w-[130px]"
+                        />
                         <span className="text-sm text-muted-foreground">{filteredMedia.length} items</span>
                     </div>
                     
@@ -941,10 +974,12 @@ const CollectionDetail = () => {
                             <Film className="h-8 w-8 text-muted-foreground" />
                         </div>
                         <h3 className="text-lg font-medium mb-1">
-                            {mediaTypeFilter === 'all' ? 'No items yet' : `No ${mediaTypeFilter === 'movie' ? 'movies' : 'TV shows'}`}
+                            {streamingFilter.isActive && mediaTypeFilteredMedia.length > 0
+                                ? 'Nothing on the selected services'
+                                : mediaTypeFilter === 'all' ? 'No items yet' : `No ${mediaTypeFilter === 'movie' ? 'movies' : 'TV shows'}`}
                         </h3>
                         <p className="text-muted-foreground">
-                            {mediaTypeFilter === 'all' 
+                            {mediaTypeFilter === 'all' && !streamingFilter.isActive
                                 ? 'Add movies and shows to this collection.' 
                                 : 'Try a different filter.'}
                         </p>

@@ -13,7 +13,10 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Clapperboard, Tv } from "lucide-react";
+import { StreamingFilter } from "@/components/StreamingFilter";
 import { useCategoryItems, NOW_PLAYING_GENRE_ID } from "@/hooks/useCategoryItems";
+import { useStreamingFilter } from "@/hooks/useStreamingFilter";
+import { getCategoryStreamingDisabledReason } from "@/lib/streamingProviders";
 
 type MediaType = "movie" | "tv";
 
@@ -29,6 +32,8 @@ const Categories = () => {
   const genreId = searchParams.get("genre") ?? undefined;
   const hasSelection = !!genreId;
 
+  const streamingFilter = useStreamingFilter();
+
   const {
     genres,
     genreName,
@@ -39,6 +44,7 @@ const Categories = () => {
     watchedMap,
     notInterestedMap,
     totalResults,
+    isTotalApproximate,
     isLoading,
     isFetchingNextPage,
     isInitialPagedLoad,
@@ -46,23 +52,44 @@ const Categories = () => {
     preferencesReady,
     preferredGenreId,
     isLoadingPreferredGenre,
-  } = useCategoryItems({ mediaType, genreId, enabled: hasSelection });
+    isTheatrical,
+  } = useCategoryItems({ mediaType, genreId, enabled: hasSelection, streamingSelection: streamingFilter.selection, streamingRegion: streamingFilter.region });
+
+  // Update type/genre while keeping the streaming filter params.
+  const setSelectionParams = useCallback(
+    (type: MediaType, genre: string | null, replace: boolean) => {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          next.set("type", type);
+          if (genre) next.set("genre", genre);
+          else next.delete("genre");
+          return next;
+        },
+        { replace },
+      );
+    },
+    [setSearchParams],
+  );
 
   const handleMediaTypeChange = useCallback(
     (value: string) => {
       if (!isMediaType(value) || value === mediaType) return;
       // Genres differ between movies and TV, so clear the selection on switch.
-      setSearchParams({ type: value }, { replace: false });
+      setSelectionParams(value, null, false);
     },
-    [mediaType, setSearchParams],
+    [mediaType, setSelectionParams],
   );
 
   const handleGenreChange = useCallback(
     (value: string) => {
-      setSearchParams({ type: mediaType, genre: value }, { replace: false });
+      setSelectionParams(mediaType, value, false);
     },
-    [mediaType, setSearchParams],
+    [mediaType, setSelectionParams],
   );
+
+  const streamingDisabledReason = getCategoryStreamingDisabledReason(showPersonalized, isTheatrical);
+  const isStreamingFilterApplied = streamingFilter.isActive && !streamingDisabledReason;
 
   const sortedGenres = useMemo(
     () => [...genres].sort((a, b) => a.name.localeCompare(b.name)),
@@ -88,8 +115,8 @@ const Categories = () => {
 
     const preferredValid = preferredGenreId != null && sortedGenres.some((g) => g.id === preferredGenreId);
     const target = preferredValid ? String(preferredGenreId) : String(sortedGenres[0].id);
-    setSearchParams({ type: mediaType, genre: target }, { replace: true });
-  }, [genreId, sortedGenres, mediaType, defaultSelectionReady, preferredGenreId, setSearchParams]);
+    setSelectionParams(mediaType, target, true);
+  }, [genreId, sortedGenres, mediaType, defaultSelectionReady, preferredGenreId, setSelectionParams]);
 
   const categoryPlaceholder = isLoadingGenres ? "Loading categories…" : "Choose a category";
 
@@ -146,6 +173,12 @@ const Categories = () => {
               ))}
             </SelectContent>
           </Select>
+
+          <StreamingFilter
+            filter={streamingFilter}
+            disabledReason={streamingDisabledReason}
+            className="w-full sm:w-[220px] !h-12 rounded-lg px-4 text-base font-medium"
+          />
         </section>
 
         {/* Results */}
@@ -157,7 +190,9 @@ const Categories = () => {
               <>
                 <h2 className="section-title">{genreName}</h2>
                 {totalResults > 0 && (
-                  <span className="text-sm text-muted-foreground">{totalResults.toLocaleString()}</span>
+                  <span className="text-sm text-muted-foreground">
+                    {isTotalApproximate ? `up to ${totalResults.toLocaleString()}` : totalResults.toLocaleString()}
+                  </span>
                 )}
                 {showPersonalized && (
                   <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20 gap-1">
@@ -180,7 +215,11 @@ const Categories = () => {
             loadMoreRef={loadMoreRef}
             emptyState={
               <div className="text-center py-16">
-                <p className="text-muted-foreground">No results found for this category.</p>
+                <p className="text-muted-foreground">
+                  {isStreamingFilterApplied
+                    ? "Nothing in this category on the selected services."
+                    : "No results found for this category."}
+                </p>
               </div>
             }
           />
