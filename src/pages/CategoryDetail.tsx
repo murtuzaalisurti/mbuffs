@@ -1,4 +1,7 @@
 import { useParams, Link } from "react-router-dom";
+import { StreamingFilter } from "@/components/StreamingFilter";
+import { useStreamingFilter } from "@/hooks/useStreamingFilter";
+import { getCategoryStreamingDisabledReason } from "@/lib/streamingProviders";
 import { Navbar } from "@/components/Navbar";
 import { CategoryGrid } from "@/components/CategoryGrid";
 import { Button } from "@/components/ui/button";
@@ -9,7 +12,10 @@ import { useCategoryItems } from "@/hooks/useCategoryItems";
 const CategoryDetail = () => {
   const { mediaType, genreId } = useParams<{ mediaType: "movie" | "tv"; genreId: string }>();
 
+  const streamingFilter = useStreamingFilter();
+
   const {
+    isTheatrical,
     genreName,
     showPersonalized,
     showNotInterested,
@@ -17,13 +23,17 @@ const CategoryDetail = () => {
     watchedMap,
     notInterestedMap,
     totalResults,
+    isTotalApproximate,
     sourceCollections,
     totalSourceItems,
     isLoading,
     isFetchingNextPage,
     isInitialPagedLoad,
     loadMoreRef,
-  } = useCategoryItems({ mediaType: (mediaType as "movie" | "tv") ?? "movie", genreId });
+  } = useCategoryItems({ mediaType: (mediaType as "movie" | "tv") ?? "movie", genreId, streamingSelection: streamingFilter.selection, streamingRegion: streamingFilter.region });
+
+  const streamingDisabledReason = getCategoryStreamingDisabledReason(showPersonalized, isTheatrical);
+  const isStreamingFilterApplied = streamingFilter.isActive && !streamingDisabledReason;
 
   return (
     <>
@@ -49,7 +59,7 @@ const CategoryDetail = () => {
           </div>
           <p className="text-muted-foreground">
             {mediaType === "movie" ? "Movies" : "TV Shows"}
-            {totalResults > 0 && ` (${totalResults.toLocaleString()} results)`}
+            {totalResults > 0 && ` (${isTotalApproximate ? "up to " : ""}${totalResults.toLocaleString()} results)`}
           </p>
           {showPersonalized && sourceCollections.length > 0 && (
             <p className="text-sm text-muted-foreground mt-1">
@@ -57,6 +67,7 @@ const CategoryDetail = () => {
               {sourceCollections.length !== 1 ? "s" : ""}
             </p>
           )}
+          <StreamingFilter filter={streamingFilter} disabledReason={streamingDisabledReason} className="mt-4 min-w-[160px]" />
         </section>
 
         {/* Grid */}
@@ -72,7 +83,11 @@ const CategoryDetail = () => {
           loadMoreRef={loadMoreRef}
           emptyState={
             <div className="text-center py-16">
-              <p className="text-muted-foreground">No results found for this category.</p>
+              <p className="text-muted-foreground">
+                {isStreamingFilterApplied
+                  ? "Nothing in this category on the selected services."
+                  : "No results found for this category."}
+              </p>
               <Button asChild variant="outline" className="mt-4">
                 <Link to="/categories">Browse other categories</Link>
               </Button>

@@ -7,6 +7,7 @@ import {
   fetchTvByGenreApi,
   fetchNowPlayingMoviesApi,
   fetchUserPreferencesApi,
+  fetchWatchProvidersBatchApi,
 } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { useWatchedStatus } from "@/hooks/useWatchedStatus";
@@ -24,8 +25,16 @@ import {
   getSharedPersonalizedTheatricalInfiniteQueryOptions,
   mergePreviewWithPagedRecommendations,
 } from "@/lib/recommendationQueries";
+import {
+  buildDiscoverProviderParams,
+  fetchExactDiscoverPage,
+  needsPerTitleProviderCheck,
+  StreamingSelection,
+} from "@/lib/streamingProviders";
 
 export const NOW_PLAYING_GENRE_ID = "now-playing";
+
+const NO_STREAMING_SELECTION: StreamingSelection = {};
 
 // Sort so items whose primary genre (genre_ids[0]) is `genreId` come first.
 function orderByPrimaryGenre<T extends { genre_ids?: number[] }>(items: T[], genreId: number): T[] {
@@ -47,10 +56,19 @@ export interface UseCategoryItemsParams {
   mediaType: "movie" | "tv";
   genreId: string | undefined;
   enabled?: boolean;
+  /** Streaming filter selection; applies to the default genre grid only. */
+  streamingSelection?: StreamingSelection;
+  streamingRegion?: string;
 }
 
 // Shared data layer for a single category's item grid.
-export function useCategoryItems({ mediaType, genreId, enabled = true }: UseCategoryItemsParams) {
+export function useCategoryItems({
+  mediaType,
+  genreId,
+  enabled = true,
+  streamingSelection = NO_STREAMING_SELECTION,
+  streamingRegion,
+}: UseCategoryItemsParams) {
   const isTheatrical = genreId === NOW_PLAYING_GENRE_ID;
   const genreIdNum = isTheatrical ? 0 : parseInt(genreId || "0", 10);
   const hasSelection = enabled && !!mediaType && (isTheatrical || !!genreIdNum);
@@ -73,6 +91,13 @@ export function useCategoryItems({ mediaType, genreId, enabled = true }: UseCate
   const preferencesReady = !user || preferencesData !== undefined;
 
   const { data: userRegion } = useUserRegion();
+
+  const streamingParams = useMemo(
+    () => (streamingRegion ? buildDiscoverProviderParams(streamingSelection, streamingRegion) : null),
+    [streamingSelection, streamingRegion],
+  );
+  // Rent-only or buy-only selections need each title's providers checked.
+  const checkTitleProviders = !!streamingParams && needsPerTitleProviderCheck(streamingSelection);
 
   // Genre list (names + ids) for the current media type.
   const { data: genreData, isLoading: isLoadingGenres } = useQuery({
@@ -121,14 +146,24 @@ export function useCategoryItems({ mediaType, genreId, enabled = true }: UseCate
   } = useInfiniteQuery({
     queryKey: isTheatrical
       ? ["movies", "now_playing", userRegion ?? null, "all"]
-      : ["genre", mediaType, genreIdNum, "all"],
+      : ["genre", mediaType, genreIdNum, "all", streamingParams, checkTitleProviders ? streamingSelection : null],
     queryFn: ({ pageParam = 1 }) => {
       if (isTheatrical) {
         return fetchNowPlayingMoviesApi(pageParam, userRegion);
       }
-      return mediaType === "movie"
-        ? fetchMoviesByGenreApi(genreIdNum, pageParam)
-        : fetchTvByGenreApi(genreIdNum, pageParam);
+      const fetchPage = (page: number) =>
+        mediaType === "movie"
+          ? fetchMoviesByGenreApi(genreIdNum, page, streamingParams ?? {})
+          : fetchTvByGenreApi(genreIdNum, page, streamingParams ?? {});
+      if (!checkTitleProviders || !streamingRegion) {
+        return fetchPage(pageParam);
+      }
+      return fetchExactDiscoverPage({
+        startPage: pageParam,
+        selection: streamingSelection,
+        fetchPage,
+        fetchProviders: (ids) => fetchWatchProvidersBatchApi(mediaType, ids, streamingRegion),
+      });
     },
     initialPageParam: 1,
     getNextPageParam: (lastPage) => {
@@ -186,6 +221,9 @@ export function useCategoryItems({ mediaType, genreId, enabled = true }: UseCate
 
     return dedupeRecommendations(pagedResults);
   }, [data, showPersonalized, isTheatrical, personalizedSeedResults, genreIdNum]);
+
+  // With per-title checks, discover's total also counts titles we drop.
+  const isTotalApproximate = !showPersonalized && checkTitleProviders;
 
   const totalResults = showPersonalized
     ? personalizedData?.pages[0]?.total_results || personalizedSeedResults.length
@@ -271,6 +309,7 @@ export function useCategoryItems({ mediaType, genreId, enabled = true }: UseCate
     watchedMap,
     notInterestedMap,
     totalResults,
+    isTotalApproximate,
     sourceCollections,
     totalSourceItems,
     // loading states
