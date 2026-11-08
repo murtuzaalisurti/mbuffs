@@ -304,12 +304,3 @@ export const serializeStreamingSelection = (selection: StreamingSelection): stri
         .join(',');
 
 export const getBrandName = (brandId: string): string => BRAND_BY_ID.get(brandId)?.name ?? brandId;
-
-// Category grids only filter the default discover results: personalized
-// recommendations carry no provider data, and theatrical releases aren't streaming.
-export const getCategoryStreamingDisabledReason = (showPersonalized: boolean, isTheatrical: boolean): string | null =>
-    showPersonalized
-        ? "Streaming filters aren't available for personalized recommendations. Turn off category recommendations in your profile to filter by service."
-        : isTheatrical
-            ? "Theatrical releases are in cinemas, so there's nothing to filter by streaming service."
-            : null;

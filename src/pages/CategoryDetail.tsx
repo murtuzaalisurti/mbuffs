@@ -1,7 +1,6 @@
 import { useParams, Link } from "react-router-dom";
 import { StreamingFilter } from "@/components/StreamingFilter";
 import { useStreamingFilter } from "@/hooks/useStreamingFilter";
-import { getCategoryStreamingDisabledReason } from "@/lib/streamingProviders";
 import { Navbar } from "@/components/Navbar";
 import { CategoryGrid } from "@/components/CategoryGrid";
 import { Button } from "@/components/ui/button";
@@ -16,6 +15,7 @@ const CategoryDetail = () => {
 
   const {
     isTheatrical,
+    preferencesReady,
     genreName,
     showPersonalized,
     showNotInterested,
@@ -32,8 +32,9 @@ const CategoryDetail = () => {
     loadMoreRef,
   } = useCategoryItems({ mediaType: (mediaType as "movie" | "tv") ?? "movie", genreId, streamingSelection: streamingFilter.selection, streamingRegion: streamingFilter.region });
 
-  const streamingDisabledReason = getCategoryStreamingDisabledReason(showPersonalized, isTheatrical);
-  const isStreamingFilterApplied = streamingFilter.isActive && !streamingDisabledReason;
+  // Same rule as the Categories page: only the default discover grid is filterable.
+  const canFilterByStreaming = preferencesReady && !showPersonalized && !isTheatrical;
+  const isStreamingFilterApplied = streamingFilter.isActive && canFilterByStreaming;
 
   return (
     <>
@@ -67,7 +68,7 @@ const CategoryDetail = () => {
               {sourceCollections.length !== 1 ? "s" : ""}
             </p>
           )}
-          <StreamingFilter filter={streamingFilter} disabledReason={streamingDisabledReason} className="mt-4 min-w-[160px]" />
+          {canFilterByStreaming && <StreamingFilter filter={streamingFilter} className="mt-4 min-w-[160px]" />}
         </section>
 
         {/* Grid */}
