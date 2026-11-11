@@ -7,6 +7,7 @@ Disallow: /
 
 # AI training crawlers — same cost profile, no referral value.
 User-agent: GPTBot
+User-agent: OAI-SearchBot
 User-agent: ClaudeBot
 User-agent: CCBot
 User-agent: Google-Extended
@@ -14,6 +15,10 @@ User-agent: Bytespider
 User-agent: PerplexityBot
 User-agent: Amazonbot
 User-agent: meta-externalagent
+Disallow: /
+
+# SEO-tool crawler — ~15k req/period, zero user/referral value.
+User-agent: AhrefsBot
 Disallow: /
 
 User-agent: Googlebot
